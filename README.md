@@ -54,13 +54,13 @@ examples/         Generated sample exports — open the .pptx in PowerPoint/Goog
 ## Getting started (dev)
 
 ```bash
-# infra
-docker compose up -d           # Postgres, Redis, MinIO
+# infra (Postgres exposed on host port 5433 — 5432 often has a native install)
+docker compose up -d postgres redis
 
 # install & database
 npm install
 cp apps/api/.env.example apps/api/.env   # fill in ANTHROPIC_API_KEY etc.
-npm run prisma:migrate --workspace apps/api
+npx --workspace apps/api prisma migrate dev
 
 # run
 npm run dev:api                # Fastify on :3001
@@ -69,6 +69,12 @@ npm run dev:web                # Vite on :5173 (proxies /api)
 # tests (includes the brand-family variety acceptance test)
 npm test
 ```
+
+**Try it with zero setup:** `npm install && npm run dev:web`, then open
+<http://localhost:5173/playground> — the **Recipe Playground** runs the whole
+design engine (recipes, brand tokens, validation, layered SVG preview and
+download) entirely in the browser, with no database, AI key, or design-SDK
+licence.
 
 ## Status
 
