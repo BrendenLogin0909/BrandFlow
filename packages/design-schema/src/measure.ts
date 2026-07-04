@@ -16,6 +16,37 @@ export interface TextMetrics {
 
 const AVG_CHAR_WIDTH_RATIO = 0.54; // avg glyph width / fontSize for sans-serif
 
+/** Break text into wrapped lines exactly as the layout/validation engines see it. */
+export function wrapText(
+  text: string,
+  fontSize: number,
+  frameWidth: number,
+  letterSpacing = 0,
+): string[] {
+  const charWidth = fontSize * AVG_CHAR_WIDTH_RATIO + letterSpacing;
+  const charsPerLine = Math.max(1, Math.floor(frameWidth / charWidth));
+
+  const lines: string[] = [];
+  for (const paragraph of text.split('\n')) {
+    const words = paragraph.split(/\s+/).filter(Boolean);
+    if (words.length === 0) {
+      lines.push('');
+      continue;
+    }
+    let current = words[0]!;
+    for (const word of words.slice(1)) {
+      if (current.length + 1 + word.length > charsPerLine) {
+        lines.push(current);
+        current = word;
+      } else {
+        current += ` ${word}`;
+      }
+    }
+    lines.push(current);
+  }
+  return lines;
+}
+
 export function measureText(
   text: string,
   fontSize: number,
@@ -24,32 +55,9 @@ export function measureText(
   letterSpacing = 0,
 ): TextMetrics {
   const charWidth = fontSize * AVG_CHAR_WIDTH_RATIO + letterSpacing;
-  const charsPerLine = Math.max(1, Math.floor(frameWidth / charWidth));
-
-  let lines = 0;
-  let widestLine = 0;
-  for (const paragraph of text.split('\n')) {
-    const words = paragraph.split(/\s+/).filter(Boolean);
-    if (words.length === 0) {
-      lines += 1;
-      continue;
-    }
-    let current = 0;
-    lines += 1;
-    for (const word of words) {
-      const w = word.length + (current > 0 ? 1 : 0);
-      if (current + w > charsPerLine && current > 0) {
-        widestLine = Math.max(widestLine, current * charWidth);
-        lines += 1;
-        current = word.length;
-      } else {
-        current += w;
-      }
-    }
-    widestLine = Math.max(widestLine, current * charWidth);
-  }
-
-  return { lines, height: lines * fontSize * lineHeight, widestLine };
+  const lines = wrapText(text, fontSize, frameWidth, letterSpacing);
+  const widestLine = Math.max(...lines.map((l) => l.length * charWidth));
+  return { lines: lines.length, height: lines.length * fontSize * lineHeight, widestLine };
 }
 
 /**

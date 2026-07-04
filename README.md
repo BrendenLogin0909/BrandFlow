@@ -35,13 +35,17 @@ apps/
 packages/
   design-schema/  InternalDesignDocument (Zod) + validation engine + text measurement
   layout-recipes/ Recipe framework, 6 recipes (3 single + 3 carousel), variety guard
+  exporters/      Licence-free editable exports: layered SVG + native PPTX
   shared/         Roles/capabilities, workflow state machine, LinkedIn presets
 docs/             Full documentation set (see table above)
+examples/         Generated sample exports — open the .pptx in PowerPoint/Google
+                  Slides or the .svg in Figma/Inkscape to see editable AI output
 ```
 
 ## Key design decisions
 
 - **Editable-by-design:** the internal design schema is the authoritative stored format; Polotno scene JSON is a derived cache behind `DesignEnginePort`, so the editor vendor is swappable.
+- **No licence required for editable output:** `packages/exporters` converts any design to layered SVG (editable in Figma/Inkscape/Penpot) and native PPTX (editable in PowerPoint/Google Slides/LibreOffice). The embedded Polotno editor runs on its free 60-day dev trial (watermarked, staging-only); the commercial editor decision is deferred — see the licensing update in [docs/03](docs/03-design-engine-comparison.md).
 - **Recipes over freeform generation:** the AI fills recipe *slots* (text, icons, treatments); deterministic code owns geometry. Invalid or off-brand designs are structurally hard to produce, and the **brand family variety guard** mechanically guarantees that batches share a brand look without repeating layouts.
 - **Three human approval gates:** brand profile → content plan → each post/design package.
 - **Tenant isolation everywhere:** membership-verified routing (404, never 403, across tenants), tenant-scoped repositories, and a single audited `buildBrandContext` choke point so one client's data can never enter another client's AI prompts.

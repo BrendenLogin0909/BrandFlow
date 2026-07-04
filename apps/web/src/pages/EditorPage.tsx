@@ -8,6 +8,11 @@ import { clientApi } from '../lib/api';
  * Production wiring (Phase 1/4 of the implementation plan):
  *   import { PolotnoContainer, SidePanelWrap, WorkspaceWrap } from 'polotno';
  *   import { createStore } from 'polotno/model/store';
+ *   const store = createStore({ key: import.meta.env.VITE_POLOTNO_KEY });
+ *     — a free 60-day dev-trial key from https://polotno.com/sdk/pricing works
+ *       here (watermarked, dev/staging domains only; commercial tier deferred).
+ *       Editable output does NOT depend on this: /export.svg and /export.pptx
+ *       produce layered editable files with no licence at all.
  *   store.loadJSON(engineDoc)  — engineDoc comes from /design-documents/:id/engine
  *   On save: convert store.toJSON() back through the adapter contract by
  *   PUTting the internal document; the server re-validates and enforces locks.

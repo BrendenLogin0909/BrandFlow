@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="1080" height="1350" viewBox="0 0 1080 1350">
+  <title>Cover</title>
+
+  <rect id="page-background" width="1080" height="1350" fill="#ffffff"/>
+  <rect id="00000000-0000-4000-8000-000000000072" data-name="rect" data-role="decoration" opacity="1" x="0" y="0" width="24" height="1350" rx="0" fill="#1a3c8f"/>
+  <text id="00000000-0000-4000-8000-000000000073" data-name="headline" data-role="headline" opacity="1" text-anchor="start" font-family="Arial" font-size="88" font-weight="800" font-style="normal" fill="#101418">
+    <tspan x="110" y="495.67999999999995">The pre-launch</tspan>
+    <tspan x="110" dy="98.56">LinkedIn checklist</tspan>
+  </text>
+  <text id="00000000-0000-4000-8000-000000000074" data-name="cta" data-role="cta" opacity="1" text-anchor="start" font-family="Arial" font-size="28" font-weight="600" font-style="normal" fill="#1a3c8f">
+    <tspan x="110" y="1205.9">Swipe →</tspan>
+  </text>
+</svg>

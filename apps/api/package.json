@@ -14,6 +14,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.0",
     "@brandflow/design-schema": "*",
+    "@brandflow/exporters": "*",
     "@brandflow/layout-recipes": "*",
     "@brandflow/shared": "*",
     "@fastify/cors": "^10.0.0",

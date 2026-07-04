@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { parseDesignDocument, validateDesignDocument } from '@brandflow/design-schema';
+import { exportPageSvg, exportPptx } from '@brandflow/exporters';
 import { PolotnoAdapter } from '../adapters/polotno-adapter.js';
 
 const engine = new PolotnoAdapter();
@@ -85,6 +86,32 @@ export async function designDocumentRoutes(app: FastifyInstance) {
     const doc = await loadDoc(req, id);
     if (!doc) return reply.code(404).send({ error: { code: 'NOT_FOUND' } });
     return validateDesignDocument(parseDesignDocument(doc.internalDoc));
+  });
+
+  /**
+   * Licence-free editable exports: SVG opens as layered objects in
+   * Figma/Inkscape/Penpot; PPTX opens as native editable objects in
+   * PowerPoint/Google Slides/LibreOffice. These guarantee "editable
+   * somewhere" independent of any design-SDK licence.
+   */
+  app.get('/:id/export.svg', read, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const pageIndex = Number((req.query as { page?: string }).page ?? 0);
+    const doc = await loadDoc(req, id);
+    if (!doc) return reply.code(404).send({ error: { code: 'NOT_FOUND' } });
+    const svg = exportPageSvg(parseDesignDocument(doc.internalDoc), pageIndex);
+    return reply.type('image/svg+xml').send(svg);
+  });
+
+  app.get('/:id/export.pptx', read, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const doc = await loadDoc(req, id);
+    if (!doc) return reply.code(404).send({ error: { code: 'NOT_FOUND' } });
+    const buf = await exportPptx(parseDesignDocument(doc.internalDoc));
+    return reply
+      .type('application/vnd.openxmlformats-officedocument.presentationml.presentation')
+      .header('Content-Disposition', `attachment; filename="design-${id}.pptx"`)
+      .send(buf);
   });
 
   app.post('/:id/lock-elements', edit, async (req, reply) => {

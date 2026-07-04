@@ -57,3 +57,25 @@ The engine must support: programmatic design creation, editable layered objects,
 **Polotno SDK** for the embedded editor and rendering, wrapped behind `DesignEnginePort`, with the **InternalDesignDocument** schema as the authoritative stored format ([09-design-generation-schema.md](09-design-generation-schema.md)). This gives Canva-grade editing now, flat predictable licensing, clean JSON, server-side export via `polotno-node`, and a credible exit path (IMG.LY adapter or custom Konva editor) without touching the AI pipeline, validation engine, or stored designs.
 
 **Action items:** confirm current Polotno commercial licence tier and terms before launch; pin SDK version; build the adapter conversion tests early (round-trip Internal ⇄ Polotno JSON).
+
+---
+
+## Licensing update (verified 2026-07-04) & no-licence strategy
+
+Verified against Polotno's published pages:
+
+- **Free trial:** 60 days from first API key, no credit card, sign-up via [polotno.com/sdk/pricing](https://polotno.com/sdk/pricing). Full SDK feature set including rendering and automation, with credits for premium APIs. All output carries a "Powered by Polotno" watermark. **Dev/staging domains only** — production use on trial is prohibited and may disable the account. Account auto-disables after 60 days without upgrade ([trial terms](https://polotno.com/sdk/product/features/free-trial)).
+- **Paid:** self-serve commercial licence is **$899/month**; enterprise is custom-quoted ([pricing](https://polotno.com/sdk/pricing)). This is materially higher than the "low thousands per year" assumption in the original scoring above — the cost row for Polotno should now read 3/5, bringing its weighted score to ~4.4 (still first, but the margin narrows).
+
+### Revised strategy: editable output must not depend on any licence
+
+The requirement is that AI output remains **editable somewhere** — not necessarily inside the app. So the architecture now guarantees editability at zero licence cost, with the embedded editor as a replaceable enhancement:
+
+1. **Licence-free editable exports (implemented, `packages/exporters`):**
+   - **SVG per page** — every element is a discrete SVG node (text stays `<text>`, never outlined). Opens as layered editable objects in **Figma (free tier), Inkscape (FOSS), Penpot (FOSS), Illustrator**. Element ids, names and role hints are preserved as attributes.
+   - **PPTX** — every element becomes a native PowerPoint object (text box, shape, image; charts as native charts) via pptxgenjs (MIT). Editable in **PowerPoint, Google Slides (free), LibreOffice (FOSS)** at exact LinkedIn canvas dimensions.
+   - Both are generated straight from the InternalDesignDocument; no design SDK is involved.
+2. **Embedded editing during development:** Polotno **60-day trial key** on dev/staging (watermark acceptable pre-launch). The adapter is already built; only the API key is needed.
+3. **Commercial decision deferred until pre-production**, with three costed paths: Polotno self-serve ($899/mo — justify against revenue), IMG.LY (enterprise quote), or a custom Konva editor (no licence, ~6–12 engineer-months, feasible because the internal schema already maps to Konva primitives). Because the internal schema is authoritative and exports are licence-free, this decision blocks nothing.
+
+Sources: [Polotno pricing](https://polotno.com/sdk/pricing) · [Polotno free trial terms](https://polotno.com/sdk/product/features/free-trial) · [Polotno licence agreement](https://polotno.com/legal/license)

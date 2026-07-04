@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="1080" height="1080" viewBox="0 0 1080 1080">
+  <title>Stat</title>
+
+  <rect id="page-background" width="1080" height="1080" fill="#ffffff"/>
+  <rect id="00000000-0000-4000-8000-00000000000a" data-name="rect" data-role="decoration" opacity="1" x="0" y="1040" width="1080" height="40" rx="0" fill="#1a3c8f"/>
+  <text id="00000000-0000-4000-8000-000000000007" data-name="data" data-role="data" opacity="1" text-anchor="middle" font-family="Arial" font-size="240" font-weight="800" font-style="normal" fill="#1a3c8f">
+    <tspan x="540" y="472">73%</tspan>
+  </text>
+  <text id="00000000-0000-4000-8000-000000000008" data-name="headline" data-role="headline" opacity="1" text-anchor="middle" font-family="Arial" font-size="44" font-weight="600" font-style="normal" fill="#101418">
+    <tspan x="540" y="660.7">of B2B buyers check LinkedIn</tspan>
+    <tspan x="540" dy="55">before a first meeting</tspan>
+  </text>
+  <text id="00000000-0000-4000-8000-000000000009" data-name="caption" data-role="caption" opacity="1" text-anchor="middle" font-family="Arial" font-size="24" font-weight="400" font-style="normal" fill="#101418">
+    <tspan x="540" y="912.2">Source: 2026 B2B Buyer Behaviour Survey</tspan>
+  </text>
+</svg>

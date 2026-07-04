@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="1080" height="1350" viewBox="0 0 1080 1350">
+  <title>Main</title>
+
+  <rect id="page-background" width="1080" height="1350" fill="#ffffff"/>
+  <rect id="00000000-0000-4000-8000-00000000000f" data-name="rect" data-role="decoration" opacity="1" x="100" y="900" width="120" height="120" rx="28" fill="#1a3c8f"/>
+  <rect id="00000000-0000-4000-8000-000000000012" data-name="rect" data-role="decoration" opacity="1" x="393.3333333333333" y="900" width="120" height="120" rx="28" fill="#1a3c8f"/>
+  <rect id="00000000-0000-4000-8000-000000000015" data-name="rect" data-role="decoration" opacity="1" x="686.6666666666666" y="900" width="120" height="120" rx="28" fill="#1a3c8f"/>
+  <text id="00000000-0000-4000-8000-00000000000d" data-name="headline" data-role="headline" opacity="1" text-anchor="start" font-family="Arial" font-size="84" font-weight="800" font-style="normal" fill="#101418">
+    <tspan x="100" y="212.24">Stop posting. Start</tspan>
+    <tspan x="100" dy="94.08000000000001">compounding.</tspan>
+  </text>
+  <text id="00000000-0000-4000-8000-00000000000e" data-name="body" data-role="body" opacity="1" text-anchor="start" font-family="Arial" font-size="32" font-weight="400" font-style="normal" fill="#101418">
+    <tspan x="100" y="532">Three habits that turn LinkedIn activity into</tspan>
+    <tspan x="100" dy="44.8">pipeline.</tspan>
+  </text>
+  <g id="00000000-0000-4000-8000-000000000010" data-name="icon:calendar" data-role="icon" opacity="1" data-icon="lucide/calendar">
+    <rect x="130" y="930" width="60" height="60" rx="12" fill="none" stroke="#ffffff" stroke-width="2" stroke-dasharray="6 4"/>
+    <text x="160" y="960" text-anchor="middle" dominant-baseline="middle" font-size="10" fill="#ffffff">calendar</text>
+  </g>
+  <text id="00000000-0000-4000-8000-000000000011" data-name="caption" data-role="caption" opacity="1" text-anchor="middle" font-family="Arial" font-size="24" font-weight="600" font-style="normal" fill="#101418">
+    <tspan x="228.66666666666666" y="1058.2">Consistency</tspan>
+  </text>
+  <g id="00000000-0000-4000-8000-000000000013" data-name="icon:mic" data-role="icon" opacity="1" data-icon="lucide/mic">
+    <rect x="423.3333333333333" y="930" width="60" height="60" rx="12" fill="none" stroke="#ffffff" stroke-width="2" stroke-dasharray="6 4"/>
+    <text x="453.3333333333333" y="960" text-anchor="middle" dominant-baseline="middle" font-size="10" fill="#ffffff">mic</text>
+  </g>
+  <text id="00000000-0000-4000-8000-000000000014" data-name="caption" data-role="caption" opacity="1" text-anchor="middle" font-family="Arial" font-size="24" font-weight="600" font-style="normal" fill="#101418">
+    <tspan x="510" y="1058.2">Voice</tspan>
+  </text>
+  <g id="00000000-0000-4000-8000-000000000016" data-name="icon:bar-chart" data-role="icon" opacity="1" data-icon="lucide/bar-chart">
+    <rect x="716.6666666666666" y="930" width="60" height="60" rx="12" fill="none" stroke="#ffffff" stroke-width="2" stroke-dasharray="6 4"/>
+    <text x="746.6666666666666" y="960" text-anchor="middle" dominant-baseline="middle" font-size="10" fill="#ffffff">bar-chart</text>
+  </g>
+  <text id="00000000-0000-4000-8000-000000000017" data-name="caption" data-role="caption" opacity="1" text-anchor="middle" font-family="Arial" font-size="24" font-weight="600" font-style="normal" fill="#101418">
+    <tspan x="803.3333333333333" y="1058.2">Proof</tspan>
+  </text>
+</svg>

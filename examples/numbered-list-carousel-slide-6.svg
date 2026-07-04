@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="1080" height="1350" viewBox="0 0 1080 1350">
+  <title>Item 5</title>
+
+  <rect id="page-background" width="1080" height="1350" fill="#ffffff"/>
+  <rect id="00000000-0000-4000-8000-000000000032" data-name="rect" data-role="decoration" opacity="1" x="0" y="0" width="240" height="1350" rx="0" fill="#1a3c8f"/>
+  <text id="00000000-0000-4000-8000-000000000033" data-name="decoration" data-role="decoration" opacity="1" text-anchor="middle" font-family="Arial" font-size="140" font-weight="800" font-style="normal" fill="#ffffff">
+    <tspan x="120" y="672">5</tspan>
+  </text>
+  <text id="00000000-0000-4000-8000-000000000034" data-name="headline" data-role="headline" opacity="1" text-anchor="start" font-family="Arial" font-size="56" font-weight="700" font-style="normal" fill="#101418">
+    <tspan x="320" y="470.40000000000003">Scaling walls</tspan>
+  </text>
+  <text id="00000000-0000-4000-8000-000000000035" data-name="body" data-role="body" opacity="1" text-anchor="start" font-family="Arial" font-size="32" font-weight="400" font-style="normal" fill="#101418">
+    <tspan x="320" y="752.8000000000001">Manual coverage cannot grow with your</tspan>
+    <tspan x="320" dy="46.4">product.</tspan>
+  </text>
+  <text id="00000000-0000-4000-8000-000000000036" data-name="caption" data-role="caption" opacity="1" text-anchor="end" font-family="Arial" font-size="24" font-weight="400" font-style="normal" fill="#1a3c8f">
+    <tspan x="980" y="122.2">6 / 7</tspan>
+  </text>
+</svg>
