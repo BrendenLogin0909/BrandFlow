@@ -9,8 +9,14 @@
 import { useMemo, useState } from 'react';
 import type { BrandTokensSnapshot, InternalDesignDocument } from '@brandflow/design-schema';
 import { validateDesignDocument } from '@brandflow/design-schema';
-import { RECIPES } from '@brandflow/layout-recipes';
-import type { LayoutRecipe, RecipeFill, SlotValue } from '@brandflow/layout-recipes';
+import { RECIPES, applyStyleDirectives, HEADLINE_TREATMENTS, MOTIFS } from '@brandflow/layout-recipes';
+import type {
+  HeadlineTreatment,
+  LayoutRecipe,
+  Motif,
+  RecipeFill,
+  SlotValue,
+} from '@brandflow/layout-recipes';
 import { exportPageSvg } from '@brandflow/exporters/svg';
 
 const DEFAULT_BRAND = {
@@ -69,6 +75,8 @@ export function PlaygroundPage() {
   const [variant, setVariant] = useState(recipe.variants[0]!.id);
   const [brand, setBrand] = useState(DEFAULT_BRAND);
   const [fill, setFill] = useState<RecipeFill>(() => defaultFill(RECIPES[0]!));
+  const [treatment, setTreatment] = useState<HeadlineTreatment>('plain');
+  const [motif, setMotif] = useState<Motif>('none');
 
   const activeVariant = recipe.variants.some((v) => v.id === variant)
     ? variant
@@ -81,7 +89,7 @@ export function PlaygroundPage() {
       logoAssetIds: [],
     };
     try {
-      const doc: InternalDesignDocument = recipe.layout(fill, {
+      const base: InternalDesignDocument = recipe.layout(fill, {
         documentId: crypto.randomUUID(),
         brandProfileId: 'playground',
         clientCompanyId: 'playground',
@@ -90,13 +98,27 @@ export function PlaygroundPage() {
         seed: 7,
         newId: () => crypto.randomUUID(),
       });
+      const doc = applyStyleDirectives(
+        base,
+        { headlineTreatment: treatment, motif, motifIconName: 'route' },
+        () => crypto.randomUUID(),
+      );
       const report = validateDesignDocument(doc);
       const svgs = doc.pages.map((_, i) => exportPageSvg(doc, i));
       return { doc, report, svgs, error: null as string | null };
     } catch (e) {
       return { doc: null, report: null, svgs: [], error: String(e) };
     }
-  }, [recipe, activeVariant, brand, fill]);
+  }, [recipe, activeVariant, brand, fill, treatment, motif]);
+
+  function surprise() {
+    const r = RECIPES[Math.floor(Math.random() * RECIPES.length)]!;
+    setRecipeId(r.id);
+    setVariant(r.variants[Math.floor(Math.random() * r.variants.length)]!.id);
+    setFill(defaultFill(r));
+    setTreatment(HEADLINE_TREATMENTS[Math.floor(Math.random() * HEADLINE_TREATMENTS.length)]!);
+    setMotif(MOTIFS[Math.floor(Math.random() * MOTIFS.length)]!);
+  }
 
   function selectRecipe(id: string) {
     const r = RECIPES.find((x) => x.id === id)!;
@@ -158,6 +180,32 @@ export function PlaygroundPage() {
             ))}
           </select>
         </label>
+
+        <div className="grid grid-cols-2 gap-2">
+          <label className="block text-sm">
+            <span className="font-semibold">Headline style</span>
+            <select className="mt-1 w-full rounded border border-slate-300 p-1.5" value={treatment}
+              onChange={(e) => setTreatment(e.target.value as HeadlineTreatment)}>
+              {HEADLINE_TREATMENTS.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          </label>
+          <label className="block text-sm">
+            <span className="font-semibold">Brand motif</span>
+            <select className="mt-1 w-full rounded border border-slate-300 p-1.5" value={motif}
+              onChange={(e) => setMotif(e.target.value as Motif)}>
+              {MOTIFS.map((m) => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <button className="w-full rounded-md bg-indigo-600 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
+          onClick={surprise}>
+          🎲 Surprise me
+        </button>
 
         <fieldset className="rounded border border-slate-200 p-3">
           <legend className="px-1 text-xs font-semibold uppercase text-slate-400">Brand colours</legend>

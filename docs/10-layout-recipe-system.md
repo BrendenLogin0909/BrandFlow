@@ -85,6 +85,27 @@ Roadmap recipes: timeline, before/after split, framework diagram, three-column c
 4. **`layout()` execution:** deterministic positioning — computes text boxes from measured text (server-side text measurement with the actual brand font), places icons/logos per rules, assigns zIndex, applies safe areas, generates stable element ids and `recipeSlotId` links.
 5. **Validation** ([11-validation-rules.md](11-validation-rules.md)); overflow triggers font-step-down within recipe bounds, then re-fill repair, then fallback copy truncation with `needsAttention` flag.
 
+## 4b. Creative variance layers (style directives)
+
+Deterministic recipes alone read as templated. Variance is layered on top, each layer AI-choosable and human-overridable, and **every layer's output still passes the full validation engine**:
+
+| Layer | Owner | Examples |
+|---|---|---|
+| Recipe | variety guard (code) | 8 recipes across text/data/icon/image densities |
+| Variant | weighted seeded pick | 2+ per recipe |
+| Colour treatment | AI (slot) | light / dark / accent |
+| **Headline treatment** | AI (directive) | plain / **two-tone** (black phrase + display-colour phrase, split across wrapped lines; display colour auto-selected as the highest-priority brand token that passes the same WCAG threshold the validator applies) |
+| **Brand motif** | AI (directive) | dot-grid, corner-ring, diagonal-band, underline-accent, oversized line icon anchored to the headline |
+| Slot content | AI (step 7) | text, icon choices, image choices |
+
+Implemented in `packages/layout-recipes/src/directives.ts` as a post-layout decorator (`applyStyleDirectives`), so every current and future recipe gets all treatments and motifs for free. Locked elements are never restyled. Directive combinations are covered by an exhaustive recipe × treatment × motif validation test.
+
+**Roadmap — increasing creative freedom, same validation boundary:**
+
+1. **Brand illustration packs** (AssetProviderPort): licensed flat-illustration libraries (e.g. unDraw-style, brand-colour-tintable SVGs) and customer-uploaded character/mascot sets, so designs can feature scene illustrations, not just icons — reused consistently across posts.
+2. **Freeform compose mode** (step 7b): the AI emits InternalDesignDocument elements directly — constrained to brand tokens, licensed icon/illustration refs, and the schema's element types — validated and repaired by the same engine. Recipes become the safe default; freeform becomes the creative mode per post or per brand ("creative range" setting: conservative → experimental).
+3. **Recipe induction from existing posts**: brand onboarding analyses the customer's real published visuals (layout, headline treatments, motif habits) and drafts brand-specific recipes/motifs for human approval — the brand's own past output becomes its layout vocabulary.
+
 ## 5. Brand family variety test (mechanical guarantee)
 
 Requirement: in any batch of ≥5 visuals for one brand, all look like one family, **no two use the exact same layout**.
