@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="1080" height="1350" viewBox="0 0 1080 1350">
+  <title>Hero</title>
+
+  <rect id="page-background" width="1080" height="1350" fill="#101418"/>
+  <rect id="00000000-0000-4000-8000-00000000001a" data-name="background image" data-role="background" opacity="1" x="0" y="0" width="1080" height="1350" rx="0" fill="#e5e7eb" data-asset-id="demo-photo-1" data-placeholder="true"/>
+  <rect id="00000000-0000-4000-8000-00000000001b" data-name="rect" data-role="decoration" opacity="0.82" x="0" y="640" width="1080" height="710" rx="0" fill="#101418"/>
+  <text id="00000000-0000-4000-8000-00000000001c" data-name="headline" data-role="headline" opacity="1" text-anchor="start" font-family="Arial" font-size="76" font-weight="800" font-style="normal" fill="#ffffff">
+    <tspan x="100" y="945.3599999999999">We just shipped the</tspan>
+    <tspan x="100" dy="85.12">biggest release in</tspan>
+    <tspan x="100" dy="85.12">our history</tspan>
+  </text>
+  <text id="00000000-0000-4000-8000-00000000001d" data-name="caption" data-role="caption" opacity="1" text-anchor="start" font-family="Arial" font-size="26" font-weight="700" font-style="normal" fill="#e8b23a">
+    <tspan x="100" y="824.05">PRODUCT UPDATE</tspan>
+  </text>
+  <rect id="00000000-0000-4000-8000-00000000001e" data-name="rect" data-role="badge" opacity="1" x="100" y="120" width="260" height="76" rx="38" fill="#e8b23a"/>
+  <text id="00000000-0000-4000-8000-00000000001f" data-name="badge" data-role="badge" opacity="1" text-anchor="middle" font-family="Arial" font-size="26" font-weight="800" font-style="normal" fill="#101418">
+    <tspan x="230" y="162.05">NEW</tspan>
+  </text>
+</svg>

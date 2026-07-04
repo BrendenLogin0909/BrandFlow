@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="1080" height="1080" viewBox="0 0 1080 1080">
+  <title>Icon grid</title>
+
+  <rect id="page-background" width="1080" height="1080" fill="#ffffff"/>
+  <rect id="00000000-0000-4000-8000-000000000023" data-name="rect" data-role="decoration" opacity="1" x="100" y="300" width="277.3333333333333" height="227.4133333333333" rx="28" fill="#1a3c8f"/>
+  <rect id="00000000-0000-4000-8000-000000000026" data-name="rect" data-role="decoration" opacity="1" x="401.3333333333333" y="300" width="277.3333333333333" height="227.4133333333333" rx="28" fill="#1a3c8f"/>
+  <rect id="00000000-0000-4000-8000-000000000029" data-name="rect" data-role="decoration" opacity="1" x="702.6666666666666" y="300" width="277.3333333333333" height="227.4133333333333" rx="28" fill="#1a3c8f"/>
+  <rect id="00000000-0000-4000-8000-00000000002c" data-name="rect" data-role="decoration" opacity="1" x="100" y="551.4133333333333" width="277.3333333333333" height="227.4133333333333" rx="28" fill="#1a3c8f"/>
+  <rect id="00000000-0000-4000-8000-00000000002f" data-name="rect" data-role="decoration" opacity="1" x="401.3333333333333" y="551.4133333333333" width="277.3333333333333" height="227.4133333333333" rx="28" fill="#1a3c8f"/>
+  <rect id="00000000-0000-4000-8000-000000000032" data-name="rect" data-role="decoration" opacity="1" x="702.6666666666666" y="551.4133333333333" width="277.3333333333333" height="227.4133333333333" rx="28" fill="#1a3c8f"/>
+  <text id="00000000-0000-4000-8000-000000000022" data-name="headline" data-role="headline" opacity="1" text-anchor="start" font-family="Arial" font-size="56" font-weight="800" font-style="normal" fill="#101418">
+    <tspan x="100" y="159">Everything a product launch</tspan>
+    <tspan x="100" dy="64.39999999999999">touches</tspan>
+  </text>
+  <g id="00000000-0000-4000-8000-000000000024" data-name="icon:compass" data-role="icon" opacity="1" data-icon="lucide/compass">
+    <rect x="202.66666666666666" y="334" width="72" height="72" rx="14.4" fill="none" stroke="#ffffff" stroke-width="2" stroke-dasharray="6 4"/>
+    <text x="238.66666666666666" y="370" text-anchor="middle" dominant-baseline="middle" font-size="10.080000000000002" fill="#ffffff">compass</text>
+  </g>
+  <text id="00000000-0000-4000-8000-000000000025" data-name="caption" data-role="caption" opacity="1" text-anchor="middle" font-family="Arial" font-size="24" font-weight="700" font-style="normal" fill="#ffffff">
+    <tspan x="238.66666666666666" y="473.6133333333333">Positioning</tspan>
+  </text>
+  <g id="00000000-0000-4000-8000-000000000027" data-name="icon:tag" data-role="icon" opacity="1" data-icon="lucide/tag">
+    <rect x="504" y="334" width="72" height="72" rx="14.4" fill="none" stroke="#ffffff" stroke-width="2" stroke-dasharray="6 4"/>
+    <text x="540" y="370" text-anchor="middle" dominant-baseline="middle" font-size="10.080000000000002" fill="#ffffff">tag</text>
+  </g>
+  <text id="00000000-0000-4000-8000-000000000028" data-name="caption" data-role="caption" opacity="1" text-anchor="middle" font-family="Arial" font-size="24" font-weight="700" font-style="normal" fill="#ffffff">
+    <tspan x="540" y="473.6133333333333">Pricing</tspan>
+  </text>
+  <g id="00000000-0000-4000-8000-00000000002a" data-name="icon:graduation-cap" data-role="icon" opacity="1" data-icon="lucide/graduation-cap">
+    <rect x="805.3333333333333" y="334" width="72" height="72" rx="14.4" fill="none" stroke="#ffffff" stroke-width="2" stroke-dasharray="6 4"/>
+    <text x="841.3333333333333" y="370" text-anchor="middle" dominant-baseline="middle" font-size="10.080000000000002" fill="#ffffff">graduation-cap</text>
+  </g>
+  <text id="00000000-0000-4000-8000-00000000002b" data-name="caption" data-role="caption" opacity="1" text-anchor="middle" font-family="Arial" font-size="24" font-weight="700" font-style="normal" fill="#ffffff">
+    <tspan x="841.3333333333333" y="473.6133333333333">Enablement</tspan>
+  </text>
+  <g id="00000000-0000-4000-8000-00000000002d" data-name="icon:book-open" data-role="icon" opacity="1" data-icon="lucide/book-open">
+    <rect x="202.66666666666666" y="585.4133333333333" width="72" height="72" rx="14.4" fill="none" stroke="#ffffff" stroke-width="2" stroke-dasharray="6 4"/>
+    <text x="238.66666666666666" y="621.4133333333333" text-anchor="middle" dominant-baseline="middle" font-size="10.080000000000002" fill="#ffffff">book-open</text>
+  </g>
+  <text id="00000000-0000-4000-8000-00000000002e" data-name="caption" data-role="caption" opacity="1" text-anchor="middle" font-family="Arial" font-size="24" font-weight="700" font-style="normal" fill="#ffffff">
+    <tspan x="238.66666666666666" y="725.0266666666666">Docs</tspan>
+  </text>
+  <g id="00000000-0000-4000-8000-000000000030" data-name="icon:life-buoy" data-role="icon" opacity="1" data-icon="lucide/life-buoy">
+    <rect x="504" y="585.4133333333333" width="72" height="72" rx="14.4" fill="none" stroke="#ffffff" stroke-width="2" stroke-dasharray="6 4"/>
+    <text x="540" y="621.4133333333333" text-anchor="middle" dominant-baseline="middle" font-size="10.080000000000002" fill="#ffffff">life-buoy</text>
+  </g>
+  <text id="00000000-0000-4000-8000-000000000031" data-name="caption" data-role="caption" opacity="1" text-anchor="middle" font-family="Arial" font-size="24" font-weight="700" font-style="normal" fill="#ffffff">
+    <tspan x="540" y="725.0266666666666">Support</tspan>
+  </text>
+  <g id="00000000-0000-4000-8000-000000000033" data-name="icon:bar-chart-3" data-role="icon" opacity="1" data-icon="lucide/bar-chart-3">
+    <rect x="805.3333333333333" y="585.4133333333333" width="72" height="72" rx="14.4" fill="none" stroke="#ffffff" stroke-width="2" stroke-dasharray="6 4"/>
+    <text x="841.3333333333333" y="621.4133333333333" text-anchor="middle" dominant-baseline="middle" font-size="10.080000000000002" fill="#ffffff">bar-chart-3</text>
+  </g>
+  <text id="00000000-0000-4000-8000-000000000034" data-name="caption" data-role="caption" opacity="1" text-anchor="middle" font-family="Arial" font-size="24" font-weight="700" font-style="normal" fill="#ffffff">
+    <tspan x="841.3333333333333" y="725.0266666666666">Analytics</tspan>
+  </text>
+</svg>

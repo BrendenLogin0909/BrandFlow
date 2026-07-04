@@ -4,13 +4,13 @@
   <title>CTA</title>
 
   <rect id="page-background" width="1080" height="1350" fill="#ffffff"/>
-  <rect id="00000000-0000-4000-8000-00000000005b" data-name="rect" data-role="decoration" opacity="1" x="0" y="1100" width="1080" height="250" rx="0" fill="#1a3c8f"/>
-  <text id="00000000-0000-4000-8000-00000000005c" data-name="headline" data-role="headline" opacity="1" text-anchor="start" font-family="Arial" font-size="64" font-weight="700" font-style="normal" fill="#101418">
+  <rect id="00000000-0000-4000-8000-000000000078" data-name="rect" data-role="decoration" opacity="1" x="0" y="1100" width="1080" height="250" rx="0" fill="#1a3c8f"/>
+  <text id="00000000-0000-4000-8000-000000000079" data-name="headline" data-role="headline" opacity="1" text-anchor="start" font-family="Arial" font-size="64" font-weight="700" font-style="normal" fill="#101418">
     <tspan x="110" y="537.6">Save this framework for</tspan>
     <tspan x="110" dy="76.8">your next planning</tspan>
     <tspan x="110" dy="76.8">session.</tspan>
   </text>
-  <text id="00000000-0000-4000-8000-00000000005d" data-name="cta" data-role="cta" opacity="1" text-anchor="start" font-family="Arial" font-size="30" font-weight="600" font-style="normal" fill="#ffffff">
+  <text id="00000000-0000-4000-8000-00000000007a" data-name="cta" data-role="cta" opacity="1" text-anchor="start" font-family="Arial" font-size="30" font-weight="600" font-style="normal" fill="#ffffff">
     <tspan x="110" y="1187.75">Follow for more</tspan>
   </text>
 </svg>

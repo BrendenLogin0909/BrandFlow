@@ -12,6 +12,7 @@ import tenantPlugin from './plugins/tenant.js';
 import { authRoutes } from './routes/auth.js';
 import { brandProfileRoutes } from './routes/brand-profiles.js';
 import { designDocumentRoutes } from './routes/design-documents.js';
+import { postPackageRoutes } from './routes/post-packages.js';
 
 export async function buildServer() {
   const app = Fastify({ logger: true });
@@ -42,6 +43,7 @@ export async function buildServer() {
   await app.register(authRoutes, { prefix: '/api/auth' });
   await app.register(brandProfileRoutes, { prefix: '/api/clients/:clientId/brand-profiles' });
   await app.register(designDocumentRoutes, { prefix: '/api/clients/:clientId/design-documents' });
+  await app.register(postPackageRoutes, { prefix: '/api/clients/:clientId/post-packages' });
 
   app.get('/api/health', async () => ({ ok: true }));
   return app;

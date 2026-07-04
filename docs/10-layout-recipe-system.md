@@ -52,14 +52,17 @@ Each recipe therefore defines, per the requirements: canvas size, safe areas, el
 
 ## 3. MVP recipe library
 
-**Single-image (≥3 required, 4 shipped):**
+**Single-image (≥3 required, 5 shipped):**
 
-| Recipe | Slots | Variants |
-|---|---|---|
-| `big-headline-icons` — big headline + supporting text + icon cluster | headline (≤80), support (≤140), icons[3–5] | icons-bottom-row, icons-right-column |
-| `quote-card` — quote + author attribution | quote (≤220), authorName, authorTitle, accentTreatment | serif-centered, left-bar-accent |
-| `stat-card` — data point/statistic | statValue (≤12), statLabel (≤60), context (≤120), chartHint | number-hero, donut-side |
-| `announcement-card` | kicker (≤30), headline (≤90), detail (≤140), ctaBadge, logoPlacement | banner-top, corner-badge |
+| Recipe | Density | Slots | Variants |
+|---|---|---|---|
+| `big-headline-icons` — big headline + supporting text + icon cluster | text+icon | headline (≤80), support (≤140), icons[3–5] | icons-bottom-row, icons-right-column |
+| `quote-card` — quote + author attribution | text | quote (≤220), authorName, authorTitle, treatment | serif-centered, left-bar-accent |
+| `stat-card` — data point/statistic | data | statValue (≤12), statLabel (≤60), context (≤120) | number-hero, donut-side |
+| `photo-hero-card` — layered photo composition (image-led) | **image-heavy** | photo (asset), headline (≤90), kicker (≤30), badge (≤20) | full-bleed-scrim, split-top-image |
+| `icon-grid-card` — dense icon tile/chip grid (icon-led) | **icon-heavy** | headline (≤70), items[4–8] | tiles, chips |
+
+Roadmap single-image: `announcement-card` (kicker/headline/detail/ctaBadge/logoPlacement — banner-top, corner-badge).
 
 **Carousel (≥3 required, 4 shipped):**
 
@@ -70,7 +73,9 @@ Each recipe therefore defines, per the requirements: canvas size, safe areas, el
 | `myth-vs-reality` | cover + N myth/reality pair slides + CTA | split-horizontal, card-flip |
 | `checklist-carousel` | cover + checklist slides (✓ items) + CTA | one-per-slide, grouped-3 |
 
-Roadmap recipes: timeline, before/after split, framework diagram, three-column comparison, event speaker card, case-study result card.
+Roadmap recipes: timeline, before/after split, framework diagram, three-column comparison, event speaker card, case-study result card, photo-collage carousel (image-heavy), mascot/illustration-led story card (reusing approved brand illustrations from the asset library).
+
+**Density coverage note:** the schema imposes no per-recipe composition — pages allow up to 60 mixed elements, images layered over images, repeated icons/illustrations, and nested groups. Recipes are deliberately typed across densities (text-, data-, icon- and image-heavy) so the AI's concept step can match density to content; brands can down-weight or ban densities via `layoutPreferences`.
 
 ## 4. Assembly pipeline
 

@@ -50,6 +50,26 @@ const DEMO_FILLS: Record<string, RecipeFill['slots']> = {
       ],
     },
   },
+  'photo-hero-card': {
+    photo: { kind: 'image', assetId: 'demo-photo-1' }, // placeholder rect until a library photo is attached
+    headline: { kind: 'text', text: 'We just shipped the biggest release in our history' },
+    kicker: { kind: 'text', text: 'Product update' },
+    badge: { kind: 'text', text: 'NEW' },
+  },
+  'icon-grid-card': {
+    headline: { kind: 'text', text: 'Everything a product launch touches' },
+    items: {
+      kind: 'list',
+      items: [
+        { text: 'Positioning', iconName: 'compass' },
+        { text: 'Pricing', iconName: 'tag' },
+        { text: 'Enablement', iconName: 'graduation-cap' },
+        { text: 'Docs', iconName: 'book-open' },
+        { text: 'Support', iconName: 'life-buoy' },
+        { text: 'Analytics', iconName: 'bar-chart-3' },
+      ],
+    },
+  },
   'numbered-list-carousel': {
     hook: { kind: 'text', text: '5 hidden costs of manual QA' },
     kicker: { kind: 'text', text: 'Engineering ROI' },

@@ -49,6 +49,9 @@ function fill(recipe: LayoutRecipe): RecipeFill {
       };
     else if (slot.kind === 'colourTreatment')
       slots[slot.id] = { kind: 'colourTreatment', treatment: 'light' };
+    else if (slot.kind === 'image') slots[slot.id] = { kind: 'image', assetId: 'asset-demo-1' };
+    else if (slot.kind === 'icon')
+      slots[slot.id] = { kind: 'icon', provider: 'lucide', name: 'sparkles' };
   }
   return { slots };
 }

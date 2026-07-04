@@ -4,6 +4,7 @@ import type {
   Element,
   Fill,
   IconElement,
+  ImageElement,
   InternalDesignDocument,
   Page,
   RoleHint,
@@ -89,6 +90,40 @@ export function icon(
     iconRef: { provider: o.provider ?? 'lucide', name },
     colour: o.colour ?? token('accent'),
     strokeWidth: 2,
+  };
+}
+
+export function image(
+  ctx: LayoutContext,
+  frame: { x: number; y: number; width: number; height: number },
+  o: {
+    z: number;
+    assetId?: string;
+    role?: RoleHint;
+    slotId?: string;
+    fit?: 'cover' | 'contain' | 'fill';
+    cornerRadius?: number;
+    opacity?: number;
+  },
+): ImageElement {
+  return {
+    type: 'image',
+    id: ctx.newId(),
+    name: o.role === 'background' ? 'background image' : 'image',
+    frame: { ...frame, rotation: 0 },
+    opacity: o.opacity ?? 1,
+    locked: false,
+    visible: true,
+    zIndex: o.z,
+    roleHint: o.role ?? 'image',
+    tokenRefs: [],
+    recipeSlotId: o.slotId ?? null,
+    meta: {},
+    assetId: o.assetId,
+    fit: o.fit ?? 'cover',
+    cornerRadius: o.cornerRadius ?? 0,
+    borderWidth: 0,
+    isPlaceholder: !o.assetId,
   };
 }
 

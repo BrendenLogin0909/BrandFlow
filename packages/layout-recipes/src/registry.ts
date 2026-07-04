@@ -6,11 +6,15 @@ import { bigHeadlineIcons } from './recipes/big-headline-icons.js';
 import { numberedListCarousel } from './recipes/numbered-list-carousel.js';
 import { problemInsightRecommendation } from './recipes/problem-insight-recommendation.js';
 import { checklistCarousel } from './recipes/checklist-carousel.js';
+import { photoHeroCard } from './recipes/photo-hero-card.js';
+import { iconGridCard } from './recipes/icon-grid-card.js';
 
 export const RECIPES: LayoutRecipe[] = [
   quoteCard,
   statCard,
   bigHeadlineIcons,
+  photoHeroCard,
+  iconGridCard,
   numberedListCarousel,
   problemInsightRecommendation,
   checklistCarousel,
