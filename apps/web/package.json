@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "@brandflow/design-schema": "*",
+    "@brandflow/exporters": "*",
+    "@brandflow/layout-recipes": "*",
     "@brandflow/shared": "*",
     "@tanstack/react-query": "^5.51.0",
     "polotno": "^2.14.0",

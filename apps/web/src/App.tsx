@@ -7,9 +7,11 @@ import { PostPackagesPage } from './pages/PostPackagesPage';
 import { EditorPage } from './pages/EditorPage';
 import { AssetLibraryPage } from './pages/AssetLibraryPage';
 import { ReviewQueuePage } from './pages/ReviewQueuePage';
+import { PlaygroundPage } from './pages/PlaygroundPage';
 
 const NAV = [
   { to: '/', label: 'Dashboard' },
+  { to: '/playground', label: 'Recipe playground' },
   { to: '/brand', label: 'Brand profiles' },
   { to: '/calendar', label: 'Calendar' },
   { to: '/packages', label: 'Post packages' },
@@ -45,6 +47,7 @@ export default function App() {
       <main className="flex-1 overflow-auto">
         <Routes>
           <Route path="/" element={<DashboardPage />} />
+          <Route path="/playground" element={<PlaygroundPage />} />
           <Route path="/brand" element={<BrandProfilesPage />} />
           <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/packages" element={<PostPackagesPage />} />
