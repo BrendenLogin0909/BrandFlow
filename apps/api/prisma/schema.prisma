@@ -1,0 +1,495 @@
+// BrandFlow data model — see docs/04-data-model.md
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- Identity & tenancy ----------
+
+enum OrgType {
+  AGENCY
+  COMPANY
+}
+
+model Organisation {
+  id        String   @id @default(uuid())
+  name      String
+  type      OrgType  @default(COMPANY)
+  plan      String   @default("free")
+  createdAt DateTime @default(now())
+
+  users       Membership[]
+  clients     ClientCompany[]
+  auditEvents AuditEvent[]
+}
+
+model User {
+  id              String   @id @default(uuid())
+  email           String   @unique
+  passwordHash    String
+  name            String
+  avatarUrl       String?
+  isPlatformOwner Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  memberships Membership[]
+}
+
+enum Role {
+  PLATFORM_OWNER
+  AGENCY_ADMIN
+  CLIENT_ADMIN
+  BRAND_MANAGER
+  CONTENT_STRATEGIST
+  DESIGNER
+  REVIEWER
+  APPROVER
+  READ_ONLY
+}
+
+model Membership {
+  id              String  @id @default(uuid())
+  userId          String
+  organisationId  String
+  clientCompanyId String? // null = org-wide (AGENCY_ADMIN only)
+  role            Role
+
+  user          User           @relation(fields: [userId], references: [id])
+  organisation  Organisation   @relation(fields: [organisationId], references: [id])
+  clientCompany ClientCompany? @relation(fields: [clientCompanyId], references: [id])
+
+  @@unique([userId, organisationId, clientCompanyId, role])
+  @@index([userId])
+  @@index([clientCompanyId])
+}
+
+enum ClientStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+model ClientCompany {
+  id             String       @id @default(uuid())
+  organisationId String
+  name           String
+  slug           String
+  industry       String?
+  websiteUrl     String?
+  status         ClientStatus @default(ACTIVE)
+  createdAt      DateTime     @default(now())
+
+  organisation  Organisation      @relation(fields: [organisationId], references: [id])
+  memberships   Membership[]
+  brandProfiles BrandProfile[]
+  assets        AssetLibraryItem[]
+  calendars     ContentCalendar[]
+  ideas         PostIdea[]
+  postPackages  PostPackage[]
+
+  @@unique([organisationId, slug])
+  @@index([organisationId])
+}
+
+// ---------- Brand ----------
+
+enum ApprovableStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  CHANGES_REQUESTED
+  ARCHIVED
+}
+
+model BrandProfile {
+  id              String           @id @default(uuid())
+  organisationId  String
+  clientCompanyId String
+  name            String
+  status          ApprovableStatus @default(DRAFT)
+  approvedById    String?
+  approvedAt      DateTime?
+  sourceInputs    Json? // questionnaire answers, URLs, uploaded file refs
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  clientCompany ClientCompany     @relation(fields: [clientCompanyId], references: [id])
+  brandKit      BrandKit?
+  styleGuide    StyleGuide?
+  voiceProfile  VoiceToneProfile?
+  pillars       ContentPillar[]
+  audiences     TargetAudience[]
+
+  @@index([clientCompanyId])
+}
+
+model BrandKit {
+  id             String @id @default(uuid())
+  brandProfileId String @unique
+  colours        Json // { primary, secondary, accent, neutral, background, text, extras[] }
+  fonts          Json // { heading, body, accent?, fallbacks[] }
+  logos          Json // [{ assetId, kind, clearspace, minSizePx }]
+  iconStyle      String @default("outline")
+  photographyStyle   String?
+  illustrationStyle  String?
+  designDensity  String @default("balanced") // minimal | balanced | rich
+
+  brandProfile BrandProfile @relation(fields: [brandProfileId], references: [id])
+}
+
+model StyleGuide {
+  id                 String   @id @default(uuid())
+  brandProfileId     String   @unique
+  doRules            String[]
+  dontRules          String[]
+  approvedPhrases    String[]
+  bannedPhrases      String[]
+  complianceRules    String[]
+  ctaStyles          String[]
+  hashtagPreferences Json?
+  layoutPreferences  Json? // recipe weights / bans
+
+  brandProfile BrandProfile @relation(fields: [brandProfileId], references: [id])
+}
+
+model VoiceToneProfile {
+  id                   String   @id @default(uuid())
+  brandProfileId       String   @unique
+  toneDescriptors      String[]
+  writingExamples      Json?
+  exampleLinkedInPosts Json?
+  competitors          Json?
+  inspirationRefs      Json?
+
+  brandProfile BrandProfile @relation(fields: [brandProfileId], references: [id])
+}
+
+model ContentPillar {
+  id             String  @id @default(uuid())
+  brandProfileId String
+  name           String
+  description    String?
+  weight         Int     @default(1)
+
+  brandProfile BrandProfile @relation(fields: [brandProfileId], references: [id])
+
+  @@index([brandProfileId])
+}
+
+model TargetAudience {
+  id             String   @id @default(uuid())
+  brandProfileId String
+  name           String
+  description    String?
+  painPoints     String[]
+  goals          String[]
+
+  brandProfile BrandProfile @relation(fields: [brandProfileId], references: [id])
+
+  @@index([brandProfileId])
+}
+
+// ---------- Content ----------
+
+model ContentCalendar {
+  id              String           @id @default(uuid())
+  organisationId  String
+  clientCompanyId String
+  brandProfileId  String
+  name            String
+  status          ApprovableStatus @default(DRAFT)
+  approvedById    String?
+  approvedAt      DateTime?
+  createdAt       DateTime         @default(now())
+
+  clientCompany ClientCompany  @relation(fields: [clientCompanyId], references: [id])
+  slots         CalendarSlot[]
+
+  @@index([clientCompanyId])
+}
+
+model CalendarSlot {
+  id            String   @id @default(uuid())
+  calendarId    String
+  date          DateTime
+  objective     String
+  pillarId      String?
+  format        String
+  postPackageId String?
+  notes         String?
+
+  calendar ContentCalendar @relation(fields: [calendarId], references: [id])
+
+  @@index([calendarId])
+}
+
+enum IdeaStatus {
+  SUGGESTED
+  APPROVED
+  REJECTED
+  EDITED
+}
+
+model PostIdea {
+  id              String     @id @default(uuid())
+  organisationId  String
+  clientCompanyId String
+  brandProfileId  String
+  title           String
+  angle           String?
+  objective       String
+  sourceMaterial  Json?
+  status          IdeaStatus @default(SUGGESTED)
+  score           Float?
+  createdAt       DateTime   @default(now())
+
+  clientCompany ClientCompany @relation(fields: [clientCompanyId], references: [id])
+
+  @@index([clientCompanyId])
+}
+
+enum WorkflowStatus {
+  IDEA
+  DRAFTING
+  GENERATED
+  IN_REVIEW
+  NEEDS_CHANGES
+  APPROVED
+  EXPORTED
+  ARCHIVED
+}
+
+model PostPackage {
+  id                    String         @id @default(uuid())
+  organisationId        String
+  clientCompanyId       String
+  brandProfileId        String
+  ideaId                String?
+  internalTitle         String
+  objective             String
+  targetAudienceId      String?
+  status                WorkflowStatus @default(IDEA)
+  hookOptions           Json? // string[]
+  mainText              String?
+  shortVersion          String?
+  longVersion           String?
+  cta                   String?
+  hashtags              String[]
+  firstComment          String?
+  suggestedVisualFormat String?
+  carouselOutline       Json?
+  onImageText           Json?
+  slideTexts            Json?
+  altText               String?
+  complianceNotes       String?
+  qualityScore          Float?
+  lockedFields          String[]
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+
+  clientCompany  ClientCompany   @relation(fields: [clientCompanyId], references: [id])
+  visualPackages VisualPackage[]
+  revisions      Revision[]
+
+  @@index([clientCompanyId, status])
+}
+
+model VisualPackage {
+  id             String         @id @default(uuid())
+  postPackageId  String
+  format         String
+  layoutRecipeId String?
+  conceptNotes   String?
+  status         WorkflowStatus @default(DRAFTING)
+
+  postPackage    PostPackage     @relation(fields: [postPackageId], references: [id])
+  designDocument DesignDocument?
+
+  @@index([postPackageId])
+}
+
+model DesignDocument {
+  id               String   @id @default(uuid())
+  visualPackageId  String   @unique
+  organisationId   String
+  clientCompanyId  String
+  brandProfileId   String
+  internalDoc      Json // InternalDesignDocument (authoritative)
+  engineDocCache   Json? // derived Polotno scene JSON
+  previewUrls      Json?
+  validationReport Json?
+  version          Int      @default(1)
+  updatedAt        DateTime @updatedAt
+
+  visualPackage VisualPackage    @relation(fields: [visualPackageId], references: [id])
+  revisions     DesignRevision[]
+
+  @@index([clientCompanyId])
+}
+
+enum RevisionReason {
+  AI_GENERATED
+  AI_REGENERATED
+  HUMAN_EDIT
+  REVERT
+}
+
+model DesignRevision {
+  id               String         @id @default(uuid())
+  designDocumentId String
+  version          Int
+  internalDoc      Json
+  createdById      String?
+  reason           RevisionReason
+  createdAt        DateTime       @default(now())
+
+  designDocument DesignDocument @relation(fields: [designDocumentId], references: [id])
+
+  @@unique([designDocumentId, version])
+}
+
+model Revision {
+  id            String   @id @default(uuid())
+  postPackageId String
+  snapshot      Json
+  createdById   String?
+  reason        String
+  createdAt     DateTime @default(now())
+
+  postPackage PostPackage @relation(fields: [postPackageId], references: [id])
+
+  @@index([postPackageId])
+}
+
+// ---------- Assets ----------
+
+enum AssetType {
+  LOGO
+  PHOTO
+  ICON
+  ILLUSTRATION
+  DOCUMENT
+  PREVIOUS_POST
+}
+
+model AssetLibraryItem {
+  id              String    @id @default(uuid())
+  organisationId  String
+  clientCompanyId String
+  brandProfileId  String?
+  type            AssetType
+  storageKey      String
+  filename        String
+  mimeType        String
+  sizeBytes       Int
+  tags            String[]
+  campaign        String?
+  approved        Boolean   @default(false)
+  allowInPrompts  Boolean   @default(false)
+  usageCount      Int       @default(0)
+  uploadedById    String
+  createdAt       DateTime  @default(now())
+
+  clientCompany ClientCompany @relation(fields: [clientCompanyId], references: [id])
+
+  @@index([clientCompanyId, type, approved])
+}
+
+// ---------- Governance ----------
+
+enum ApprovalEntity {
+  BRAND_PROFILE
+  CONTENT_CALENDAR
+  POST_PACKAGE
+  VISUAL_PACKAGE
+}
+
+enum ApprovalDecision {
+  APPROVED
+  CHANGES_REQUESTED
+}
+
+model ApprovalRecord {
+  id              String           @id @default(uuid())
+  organisationId  String
+  clientCompanyId String
+  entityType      ApprovalEntity
+  entityId        String
+  gate            Int // 1 | 2 | 3
+  decision        ApprovalDecision
+  decidedById     String
+  note            String?
+  decidedAt       DateTime         @default(now())
+
+  @@index([entityType, entityId])
+}
+
+model Comment {
+  id              String   @id @default(uuid())
+  organisationId  String
+  clientCompanyId String
+  entityType      String
+  entityId        String
+  elementId       String? // design-element anchor
+  authorId        String
+  body            String
+  resolved        Boolean  @default(false)
+  parentId        String?
+  createdAt       DateTime @default(now())
+
+  @@index([entityType, entityId])
+}
+
+model ExportRecord {
+  id              String   @id @default(uuid())
+  organisationId  String
+  clientCompanyId String
+  entityType      String
+  entityId        String
+  kind            String // CLIPBOARD_TEXT | PNG | JPEG | PDF | SLIDE_PNGS | DESIGN_JSON | CALENDAR_CSV | ZIP
+  storageKey      String?
+  exportedById    String
+  exportedAt      DateTime @default(now())
+
+  @@index([entityType, entityId])
+}
+
+model AuditEvent {
+  id              String   @id @default(uuid())
+  organisationId  String
+  clientCompanyId String?
+  userId          String?
+  entityType      String
+  entityId        String
+  action          String
+  before          Json?
+  after           Json?
+  at              DateTime @default(now())
+
+  organisation Organisation @relation(fields: [organisationId], references: [id])
+
+  @@index([organisationId, at])
+  @@index([entityType, entityId])
+}
+
+model GenerationJob {
+  id              String    @id @default(uuid())
+  organisationId  String
+  clientCompanyId String
+  kind            String // pipeline step name
+  status          String    @default("queued") // queued | running | succeeded | failed
+  input           Json?
+  output          Json?
+  error           String?
+  promptVersion   String?
+  model           String?
+  tokensUsed      Int?
+  startedAt       DateTime?
+  finishedAt      DateTime?
+  createdAt       DateTime  @default(now())
+
+  @@index([clientCompanyId, createdAt])
+}

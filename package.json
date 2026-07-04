@@ -1,0 +1,20 @@
+{
+  "name": "brandflow",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI-powered LinkedIn content creation and branding platform with fully editable generated visuals",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "dev:api": "npm run dev --workspace apps/api",
+    "dev:web": "npm run dev --workspace apps/web"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
