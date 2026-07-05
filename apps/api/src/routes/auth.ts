@@ -70,6 +70,21 @@ export async function authRoutes(app: FastifyInstance) {
         clientCompany: { select: { id: true, name: true, slug: true } },
       },
     });
-    return { user, memberships };
+
+    // All clients this user can act on: direct memberships plus, for
+    // org-wide (agency admin) memberships, every client in that organisation.
+    const clients = new Map<string, { id: string; name: string; slug: string }>();
+    for (const m of memberships) {
+      if (m.clientCompany) clients.set(m.clientCompany.id, m.clientCompany);
+      else {
+        const orgClients = await app.prisma.clientCompany.findMany({
+          where: { organisationId: m.organisationId, status: 'ACTIVE' },
+          select: { id: true, name: true, slug: true },
+        });
+        for (const c of orgClients) clients.set(c.id, c);
+      }
+    }
+
+    return { user, memberships, clients: [...clients.values()] };
   });
 }

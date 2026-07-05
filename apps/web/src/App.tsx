@@ -10,11 +10,13 @@ import { AssetLibraryPage } from './pages/AssetLibraryPage';
 import { ReviewQueuePage } from './pages/ReviewQueuePage';
 import { PlaygroundPage } from './pages/PlaygroundPage';
 import { DesignLibraryPage } from './pages/DesignLibraryPage';
+import { ContentManagerPage } from './pages/ContentManagerPage';
 import { LoginPage } from './pages/LoginPage';
 import { getAccessToken, setAccessToken } from './lib/api';
 
 const NAV = [
   { to: '/', label: 'Dashboard' },
+  { to: '/content', label: 'Content manager' },
   { to: '/playground', label: 'Recipe playground' },
   { to: '/designs', label: 'Design library' },
   { to: '/brand', label: 'Brand profiles' },
@@ -72,6 +74,7 @@ export default function App() {
           <Route path="/" element={<DashboardPage />} />
           <Route path="/playground" element={<PlaygroundPage />} />
           <Route path="/designs" element={<DesignLibraryPage />} />
+          <Route path="/content" element={<ContentManagerPage />} />
           <Route path="/brand" element={<BrandProfilesPage />} />
           <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/packages" element={<PostPackagesPage />} />

@@ -14,6 +14,7 @@ import { brandProfileRoutes } from './routes/brand-profiles.js';
 import { designDocumentRoutes } from './routes/design-documents.js';
 import { postPackageRoutes } from './routes/post-packages.js';
 import { designDraftRoutes } from './routes/design-drafts.js';
+import { ideaRoutes } from './routes/ideas.js';
 
 export async function buildServer() {
   const app = Fastify({ logger: true });
@@ -46,6 +47,7 @@ export async function buildServer() {
   await app.register(designDocumentRoutes, { prefix: '/api/clients/:clientId/design-documents' });
   await app.register(postPackageRoutes, { prefix: '/api/clients/:clientId/post-packages' });
   await app.register(designDraftRoutes, { prefix: '/api/clients/:clientId/design-drafts' });
+  await app.register(ideaRoutes, { prefix: '/api/clients/:clientId/ideas' });
 
   app.get('/api/health', async () => ({ ok: true }));
   return app;

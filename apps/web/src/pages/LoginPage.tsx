@@ -6,7 +6,7 @@ interface LoginResult {
   refreshToken: string;
 }
 interface Me {
-  memberships: { clientCompany: { id: string; name: string } | null }[];
+  clients: { id: string; name: string }[];
 }
 
 export function LoginPage({ onLoggedIn }: { onLoggedIn: () => void }) {
@@ -26,8 +26,7 @@ export function LoginPage({ onLoggedIn }: { onLoggedIn: () => void }) {
       });
       setAccessToken(res.accessToken);
       const me = await api<Me>('/auth/me');
-      const firstClient = me.memberships.find((m) => m.clientCompany)?.clientCompany;
-      if (firstClient) setActiveClientId(firstClient.id);
+      if (me.clients[0]) setActiveClientId(me.clients[0].id);
       onLoggedIn();
     } catch {
       setError('Invalid email or password');

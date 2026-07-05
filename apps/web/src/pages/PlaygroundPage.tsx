@@ -11,6 +11,7 @@ import { useSearchParams } from 'react-router-dom';
 import type { BrandTokensSnapshot, InternalDesignDocument } from '@brandflow/design-schema';
 import { validateDesignDocument } from '@brandflow/design-schema';
 import { exportPptxBlob } from '@brandflow/exporters/pptx';
+import JSZip from 'jszip';
 import { clientApi, getAccessToken, getActiveClientId } from '../lib/api';
 import { RECIPES, applyStyleDirectives, HEADLINE_TREATMENTS, MOTIFS } from '@brandflow/layout-recipes';
 import type {
@@ -95,6 +96,24 @@ export function PlaygroundPage() {
   const [saveState, setSaveState] = useState<string | null>(null);
   const [searchParams] = useSearchParams();
 
+  // Arriving from the content manager (?ideaTitle=...): prefill the
+  // design's primary text slot with the approved idea.
+  useEffect(() => {
+    const ideaTitle = searchParams.get('ideaTitle');
+    if (!ideaTitle) return;
+    setFill((f) => {
+      const primary = recipe.slots.find((s) => s.kind === 'text' && s.required);
+      if (!primary) return f;
+      return {
+        slots: {
+          ...f.slots,
+          [primary.id]: { kind: 'text', text: ideaTitle.slice(0, primary.maxChars) },
+        },
+      };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
   // Reopen a saved draft from the design library (?draft=id)
   useEffect(() => {
     const draftId = searchParams.get('draft');
@@ -173,15 +192,29 @@ export function PlaygroundPage() {
     }
   }
 
-  async function downloadPptx() {
-    if (!result.doc) return;
-    const blob = await exportPptxBlob(result.doc);
+  function downloadBlob(blob: Blob, filename: string) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${recipe.id}.pptx`;
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  async function downloadPptx() {
+    if (!result.doc) return;
+    downloadBlob(await exportPptxBlob(result.doc), `${recipe.id}.pptx`);
+  }
+
+  async function downloadSvgs() {
+    if (!result.svgs.length) return;
+    if (result.svgs.length === 1) {
+      downloadBlob(new Blob([result.svgs[0]!], { type: 'image/svg+xml' }), `${recipe.id}.svg`);
+      return;
+    }
+    const zip = new JSZip();
+    result.svgs.forEach((svg, i) => zip.file(`${recipe.id}-slide-${i + 1}.svg`, svg));
+    downloadBlob(await zip.generateAsync({ type: 'blob' }), `${recipe.id}-svgs.zip`);
   }
 
   function surprise() {
@@ -213,15 +246,6 @@ export function PlaygroundPage() {
         return { title: title || undefined, text: text || title || 'item', iconName: iconName || undefined };
       });
     if (items.length) setFill((f) => ({ slots: { ...f.slots, [id]: { kind: 'list', items } } }));
-  }
-
-  function download(svg: string, name: string) {
-    const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${name}.svg`;
-    a.click();
-    URL.revokeObjectURL(url);
   }
 
   return (
@@ -356,6 +380,11 @@ export function PlaygroundPage() {
             title="Editable PowerPoint — imports into Canva, Google Slides, PowerPoint">
             Export PPTX
           </button>
+          <button className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50"
+            onClick={downloadSvgs}
+            title="Layered SVG per slide — opens editable in Figma, Inkscape, Penpot">
+            Export SVGs
+          </button>
           {saveState && <span className="text-sm text-slate-500">{saveState}</span>}
         </div>
         {result.error && (
@@ -380,10 +409,9 @@ export function PlaygroundPage() {
             <div key={i} className="w-64">
               <div className="overflow-hidden rounded-lg border border-slate-300 bg-white shadow-sm [&_svg]:h-auto [&_svg]:w-full"
                 dangerouslySetInnerHTML={{ __html: svg }} />
-              <button className="mt-1 w-full rounded border border-slate-300 bg-white py-1 text-xs hover:bg-slate-50"
-                onClick={() => download(svg, `${recipe.id}-${i + 1}`)}>
-                Download slide {i + 1} SVG
-              </button>
+              {result.svgs.length > 1 && (
+                <div className="mt-1 text-center text-xs text-slate-400">Slide {i + 1}</div>
+              )}
             </div>
           ))}
         </div>

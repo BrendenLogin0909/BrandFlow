@@ -237,7 +237,7 @@ model PostIdea {
   id              String     @id @default(uuid())
   organisationId  String
   clientCompanyId String
-  brandProfileId  String
+  brandProfileId  String?
   title           String
   angle           String?
   objective       String
