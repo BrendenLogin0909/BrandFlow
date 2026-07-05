@@ -45,10 +45,41 @@ export const PROMPT_TEMPLATES: Record<PipelineStep, PromptTemplate> = {
       `Create a content calendar for the brand and goals below. Each slot needs date, objective, pillar, visual format and a one-line rationale. Vary formats and objectives across the period.\n\n${JSON.stringify(input)}`,
   }),
   post_ideas: template({
-    version: 'post_ideas@1',
-    jsonSchema: { type: 'object' },
-    render: (input) =>
-      `Suggest 5 distinct LinkedIn post ideas for the brand, objective and source material below. Each: title, angle, target audience, suggested visual format, quality score 0-1.\n\n${JSON.stringify(input)}`,
+    version: 'post_ideas@2',
+    jsonSchema: {
+      type: 'object',
+      properties: {
+        ideas: {
+          type: 'array',
+          minItems: 1,
+          maxItems: 24,
+          items: {
+            type: 'object',
+            properties: {
+              title: { type: 'string', maxLength: 200 },
+              angle: { type: 'string', maxLength: 500 },
+              objective: {
+                type: 'string',
+                enum: [
+                  'thought_leadership', 'announcement', 'event_promotion', 'case_study',
+                  'educational', 'hiring', 'founder_insight', 'project_update', 'industry_commentary',
+                ],
+              },
+              score: { type: 'number', minimum: 0, maximum: 1 },
+            },
+            required: ['title', 'objective'],
+          },
+        },
+      },
+      required: ['ideas'],
+    },
+    render: (input) => {
+      const req = input as { count?: number; expandFrom?: unknown[]; topicInstruction?: string };
+      const task = req.expandFrom?.length
+        ? `For EACH idea in expandFrom, generate exactly 2 distinct creative directions (e.g. a contrarian take vs a story-driven version). Titles must make the direction obvious.`
+        : `Suggest ${req.count ?? 5} distinct LinkedIn post ideas. Each needs: punchy title, one-line angle, objective, quality score 0-1. Vary formats and hooks — no two ideas alike.`;
+      return `${task}\n${req.topicInstruction ?? ''}\n\n${JSON.stringify(input)}`;
+    },
   }),
   post_copy: template({
     version: 'post_copy@1',

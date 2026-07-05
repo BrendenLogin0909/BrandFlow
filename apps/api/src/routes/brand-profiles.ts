@@ -87,6 +87,30 @@ export async function brandProfileRoutes(app: FastifyInstance) {
     return { status };
   });
 
+  // Content pillars — the brand's standing topics (feed idea generation)
+  app.post('/:id/pillars', manage, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const body = z.object({ name: z.string().min(1).max(80), description: z.string().max(300).optional() }).parse(req.body);
+    const profile = await app.prisma.brandProfile.findFirst({
+      where: { id, clientCompanyId: req.tenant!.clientCompanyId },
+      select: { id: true },
+    });
+    if (!profile) return reply.code(404).send({ error: { code: 'NOT_FOUND' } });
+    const pillar = await app.prisma.contentPillar.create({
+      data: { brandProfileId: id, name: body.name, description: body.description },
+    });
+    return reply.code(201).send(pillar);
+  });
+
+  app.delete('/:id/pillars/:pillarId', manage, async (req, reply) => {
+    const { id, pillarId } = req.params as { id: string; pillarId: string };
+    const deleted = await app.prisma.contentPillar.deleteMany({
+      where: { id: pillarId, brandProfile: { id, clientCompanyId: req.tenant!.clientCompanyId } },
+    });
+    if (deleted.count === 0) return reply.code(404).send({ error: { code: 'NOT_FOUND' } });
+    return { ok: true };
+  });
+
   // AI-assisted draft (queued job; see docs/08-ai-workflow-design.md steps 1-2)
   app.post('/:id/analyze', manage, async (req, reply) => {
     const { id } = req.params as { id: string };

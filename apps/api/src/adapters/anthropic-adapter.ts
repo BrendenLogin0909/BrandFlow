@@ -7,19 +7,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
 import type { AiCompletionMeta, AiProviderPort, PipelineStep } from '../ports/index.js';
 import { PROMPT_TEMPLATES } from '../ai/prompts/index.js';
-
-const MODEL_BY_STEP: Record<PipelineStep, string> = {
-  brand_analysis: 'claude-sonnet-5',
-  brand_profile_draft: 'claude-sonnet-5',
-  content_strategy: 'claude-sonnet-5',
-  post_ideas: 'claude-sonnet-5',
-  post_copy: 'claude-sonnet-5',
-  visual_concept: 'claude-sonnet-5',
-  design_fill: 'claude-sonnet-5',
-  design_freeform: 'claude-fable-5',
-  compliance_review: 'claude-haiku-4-5-20251001',
-  accessibility_review: 'claude-haiku-4-5-20251001',
-};
+import { modelFor } from '../ai/models.js';
 
 const MAX_REPAIRS = 2;
 
@@ -36,7 +24,7 @@ export class AnthropicAdapter implements AiProviderPort {
     schema: z.ZodType<T>,
   ): Promise<{ data: T; meta: AiCompletionMeta }> {
     const template = PROMPT_TEMPLATES[step];
-    const model = MODEL_BY_STEP[step];
+    const model = modelFor('anthropic', step);
     let tokensUsed = 0;
     let lastError = '';
 

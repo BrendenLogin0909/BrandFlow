@@ -39,6 +39,7 @@ export class MockAiAdapter implements AiProviderPort {
   private generate(step: PipelineStep, input: unknown): unknown {
     const req = (input ?? {}) as {
       theme?: string;
+      topics?: string[];
       count?: number;
       expandFrom?: { title: string; angle?: string | null }[];
     };
@@ -56,13 +57,15 @@ export class MockAiAdapter implements AiProviderPort {
           ),
         };
       }
-      const theme = req.theme?.trim() || 'your core service';
+      const topics = req.topics?.length ? req.topics : [req.theme?.trim() || 'your core service'];
       const count = Math.min(Math.max(req.count ?? 5, 1), 10);
       return {
+        // one topic → whole batch on it; several → cycled across the batch
         ideas: Array.from({ length: count }, (_, i) => {
           const t = IDEA_TEMPLATES[i % IDEA_TEMPLATES.length]!;
+          const topic = topics[i % topics.length]!;
           return {
-            title: t.title.replaceAll('{theme}', theme),
+            title: t.title.replaceAll('{theme}', topic),
             angle: t.angle,
             objective: t.objective,
             score: 0.75 - i * 0.03,

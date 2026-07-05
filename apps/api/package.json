@@ -26,6 +26,7 @@
     "fastify": "^5.0.0",
     "fastify-plugin": "^5.0.0",
     "ioredis": "^5.4.0",
+    "openai": "^6.45.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {

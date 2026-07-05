@@ -54,6 +54,30 @@ export function ContentManagerPage() {
   const [aiProvider, setAiProvider] = useState<string | null>(null);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
 
+  // Brand topics (content pillars): one selected focuses the batch, several
+  // spread the ideas across them.
+  const [pickedTopics, setPickedTopics] = useState<Set<string>>(new Set());
+  const [newTopic, setNewTopic] = useState('');
+  const { data: brandProfiles } = useQuery({
+    queryKey: ['brand-profiles'],
+    queryFn: () =>
+      clientApi<{ id: string; pillars: { id: string; name: string }[] }[]>('/brand-profiles'),
+  });
+  const topics = [...new Set((brandProfiles ?? []).flatMap((p) => p.pillars.map((x) => x.name)))];
+  const firstProfileId = brandProfiles?.[0]?.id;
+
+  async function addTopic() {
+    const name = newTopic.trim();
+    if (!name || !firstProfileId) return;
+    await clientApi(`/brand-profiles/${firstProfileId}/pillars`, {
+      method: 'POST',
+      body: JSON.stringify({ name }),
+    });
+    setNewTopic('');
+    setPickedTopics((s) => new Set([...s, name]));
+    queryClient.invalidateQueries({ queryKey: ['brand-profiles'] });
+  }
+
   // multi-select in the Ideas column
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
@@ -93,7 +117,14 @@ export function ContentManagerPage() {
     try {
       const res = await clientApi<{ ideas: Omit<Candidate, 'checked'>[]; provider: string }>(
         '/ideas/suggest-sync',
-        { method: 'POST', body: JSON.stringify({ theme: aiTheme || undefined, count: aiCount }) },
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            topics: pickedTopics.size ? [...pickedTopics] : undefined,
+            theme: aiTheme || undefined,
+            count: aiCount,
+          }),
+        },
       );
       setCandidates(res.ideas.map((i) => ({ ...i, checked: true })));
       setAiProvider(res.provider);
@@ -198,6 +229,55 @@ export function ContentManagerPage() {
             <p className="mt-1 text-sm text-slate-500">
               Generate a batch, tick the keepers, add them to the board. Repeat until the month is full.
             </p>
+
+            {/* brand topics */}
+            <div className="mt-4">
+              <div className="text-sm font-semibold">
+                Brand topics
+                <span className="ml-2 font-normal text-slate-400">
+                  pick one to focus the batch, several for variety, none for open ideas
+                </span>
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                {topics.map((t) => {
+                  const on = pickedTopics.has(t);
+                  return (
+                    <button key={t} type="button"
+                      className={`rounded-full border px-3 py-1 text-xs font-medium ${
+                        on ? 'border-indigo-500 bg-indigo-600 text-white' : 'border-slate-300 bg-white text-slate-600 hover:border-indigo-300'
+                      }`}
+                      onClick={() =>
+                        setPickedTopics((s) => {
+                          const next = new Set(s);
+                          on ? next.delete(t) : next.add(t);
+                          return next;
+                        })
+                      }>
+                      {t}
+                    </button>
+                  );
+                })}
+                <input
+                  className="w-40 rounded-full border border-dashed border-slate-300 px-3 py-1 text-xs"
+                  placeholder="+ add topic…"
+                  value={newTopic}
+                  onChange={(e) => setNewTopic(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      addTopic();
+                    }
+                  }}
+                />
+              </div>
+              {topics.length === 0 && (
+                <div className="mt-1 text-xs text-slate-400">
+                  No topics yet — add the subjects your company talks about (they save to the brand
+                  profile as content pillars).
+                </div>
+              )}
+            </div>
+
             <div className="mt-4 flex items-end gap-2">
               <label className="flex-1 text-sm">
                 <span className="font-semibold">Theme / focus (optional)</span>

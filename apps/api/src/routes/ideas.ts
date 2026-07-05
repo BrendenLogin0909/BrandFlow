@@ -20,6 +20,9 @@ const GeneratedIdea = z.object({
 const GeneratedIdeas = z.object({ ideas: z.array(GeneratedIdea).min(1).max(24) });
 
 const SuggestBody = z.object({
+  /** Brand topics (content pillars) to generate around: one topic focuses
+   *  the whole batch on it; several spread ideas across them for variety. */
+  topics: z.array(z.string().min(1).max(80)).max(12).optional(),
   theme: z.string().max(300).optional(),
   count: z.number().int().min(1).max(10).default(5),
 });
@@ -120,7 +123,18 @@ export async function ideaRoutes(app: FastifyInstance) {
     const body = SuggestBody.parse(req.body ?? {});
     const { data, meta } = await getAiProvider().complete(
       'post_ideas',
-      { theme: body.theme, count: body.count, clientCompanyId: req.tenant!.clientCompanyId },
+      {
+        topics: body.topics,
+        topicInstruction:
+          body.topics?.length === 1
+            ? `Every idea must centre on the topic "${body.topics[0]}", each from a genuinely different angle.`
+            : body.topics?.length
+              ? `Spread the ideas across these brand topics (vary which topic each idea draws from): ${body.topics.join(', ')}.`
+              : undefined,
+        theme: body.theme,
+        count: body.count,
+        clientCompanyId: req.tenant!.clientCompanyId,
+      },
       GeneratedIdeas,
     );
     await recordJob(app, req, 'post_ideas', body, meta.tokensUsed);
