@@ -16,6 +16,8 @@ const GeneratedIdea = z.object({
   angle: z.string().max(500).optional(),
   objective: z.enum(CONTENT_OBJECTIVES),
   score: z.number().min(0).max(1).optional(),
+  /** In expand mode: 0-based index of the source idea this direction came from. */
+  parentIndex: z.number().int().min(0).optional(),
 });
 const GeneratedIdeas = z.object({ ideas: z.array(GeneratedIdea).min(1).max(24) });
 
@@ -192,6 +194,18 @@ export async function ideaRoutes(app: FastifyInstance) {
       GeneratedIdeas,
     );
     await recordJob(app, req, 'post_ideas', { expand: body.ideaIds }, meta.tokensUsed);
-    return { ideas: data.ideas, provider: activeProviderName() };
+
+    // Group directions under their source idea; if the model omitted
+    // parentIndex, fall back to sequential pairs (2 per parent, in order).
+    const indexed = data.ideas.every((i) => i.parentIndex === undefined)
+      ? data.ideas.map((i, n) => ({ ...i, parentIndex: Math.floor(n / 2) }))
+      : data.ideas;
+    const groups = parents.map((parent, idx) => ({
+      parent,
+      directions: indexed
+        .filter((i) => Math.min(i.parentIndex ?? 0, parents.length - 1) === idx)
+        .map(({ parentIndex: _p, ...rest }) => rest),
+    }));
+    return { groups, provider: activeProviderName() };
   });
 }

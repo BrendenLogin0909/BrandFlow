@@ -47,12 +47,13 @@ export class MockAiAdapter implements AiProviderPort {
     if (step === 'post_ideas') {
       if (req.expandFrom?.length) {
         return {
-          ideas: req.expandFrom.flatMap((idea) =>
+          ideas: req.expandFrom.flatMap((idea, parentIndex) =>
             DIRECTION_SUFFIXES.map((d) => ({
               title: `${idea.title} — ${d.suffix}`,
               angle: d.angle,
               objective: 'thought_leadership',
               score: 0.7,
+              parentIndex,
             })),
           ),
         };

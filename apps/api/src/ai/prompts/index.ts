@@ -66,6 +66,11 @@ export const PROMPT_TEMPLATES: Record<PipelineStep, PromptTemplate> = {
                 ],
               },
               score: { type: 'number', minimum: 0, maximum: 1 },
+              parentIndex: {
+                type: 'integer',
+                minimum: 0,
+                description: 'Expand mode only: 0-based index of the expandFrom idea this direction develops',
+              },
             },
             required: ['title', 'objective'],
           },
@@ -81,7 +86,7 @@ export const PROMPT_TEMPLATES: Record<PipelineStep, PromptTemplate> = {
         existingTitles?: string[];
       };
       const task = req.expandFrom?.length
-        ? `For EACH idea in expandFrom, generate exactly 2 distinct creative directions (e.g. a contrarian take vs a story-driven version). Titles must make the direction obvious.`
+        ? `For EACH idea in expandFrom, generate exactly 2 distinct creative directions (e.g. a contrarian take vs a story-driven version). Titles must make the direction obvious. Set parentIndex on every direction to the 0-based index of the expandFrom idea it develops.`
         : `Suggest ${req.count ?? 5} distinct LinkedIn post ideas. Each needs: punchy title, one-line angle, objective, quality score 0-1. Vary formats and hooks — no two ideas alike.`;
       const memory = req.existingTitles?.length
         ? `\nThis brand has already covered the ideas below. Do NOT duplicate or closely paraphrase any of them — bring genuinely new territory, formats or angles:\n- ${req.existingTitles.slice(0, 150).join('\n- ')}`

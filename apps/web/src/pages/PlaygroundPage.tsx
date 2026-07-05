@@ -224,7 +224,8 @@ export function PlaygroundPage() {
     const r = RECIPES[Math.floor(Math.random() * RECIPES.length)]!;
     setRecipeId(r.id);
     setVariant(r.variants[Math.floor(Math.random() * r.variants.length)]!.id);
-    setFill(defaultFill(r));
+    // surprise changes the LOOK, never the linked idea's content
+    setFill(ideaTitle ? applyIdeaTitle(r, defaultFill(r), ideaTitle) : defaultFill(r));
     setTreatment(HEADLINE_TREATMENTS[Math.floor(Math.random() * HEADLINE_TREATMENTS.length)]!);
     setMotif(MOTIFS[Math.floor(Math.random() * MOTIFS.length)]!);
   }
@@ -374,6 +375,19 @@ export function PlaygroundPage() {
 
       {/* preview */}
       <div className="flex-1 overflow-auto bg-slate-100 p-6">
+        {ideaTitle && (
+          <div className="mb-3 flex items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm">
+            <span className="font-semibold text-indigo-800">🎯 Designing idea:</span>
+            <span className="flex-1 truncate text-indigo-900">{ideaTitle}</span>
+            <span className="text-xs text-indigo-400">
+              kept across recipe changes and 🎲 Surprise me
+            </span>
+            <button className="text-indigo-400 hover:text-indigo-700" title="Unlink idea"
+              onClick={() => setIdeaTitle(null)}>
+              ✕
+            </button>
+          </div>
+        )}
         <div className="mb-4 flex items-center gap-2">
           <button className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
             onClick={saveDraft}>

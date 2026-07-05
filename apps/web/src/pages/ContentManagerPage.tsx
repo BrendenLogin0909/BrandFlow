@@ -29,6 +29,12 @@ interface Candidate {
   checked: boolean;
 }
 
+/** One expanded idea: the original (keep or reject) plus its directions. */
+interface ExpandGroup {
+  parent: { id: string; title: string; angle: string | null; objective: string; keep: boolean };
+  directions: Candidate[];
+}
+
 const COLUMNS: { key: string; title: string; hint: string; statuses: Idea['status'][] }[] = [
   { key: 'ideas', title: 'Ideas', hint: 'Captured, not yet approved', statuses: ['SUGGESTED', 'EDITED'] },
   { key: 'approved', title: 'Approved', hint: 'Ready to draft & design', statuses: ['APPROVED'] },
@@ -172,24 +178,50 @@ export function ContentManagerPage() {
     invalidate();
   }
 
+  const [expandGroups, setExpandGroups] = useState<ExpandGroup[]>([]);
+
   async function expandSelected() {
     if (selected.size === 0) return;
-    // directions are curated in the modal like suggestions — nothing saved yet
+    // directions are curated in the modal — nothing changes until Apply
     setAiMode('expand');
-    setCandidates([]);
+    setExpandGroups([]);
     setAiOpen(true);
     setAiBusy(true);
     try {
-      const res = await clientApi<{ ideas: Omit<Candidate, 'checked'>[]; provider: string }>(
-        '/ideas/expand-sync',
-        { method: 'POST', body: JSON.stringify({ ideaIds: [...selected] }) },
+      const res = await clientApi<{
+        groups: { parent: ExpandGroup['parent']; directions: Omit<Candidate, 'checked'>[] }[];
+        provider: string;
+      }>('/ideas/expand-sync', { method: 'POST', body: JSON.stringify({ ideaIds: [...selected] }) });
+      setExpandGroups(
+        res.groups.map((g) => ({
+          parent: { ...g.parent, keep: true },
+          directions: g.directions.map((d) => ({ ...d, checked: false })),
+        })),
       );
-      setCandidates(res.ideas.map((i) => ({ ...i, checked: false })));
       setAiProvider(res.provider);
       setSelected(new Set());
     } finally {
       setAiBusy(false);
     }
+  }
+
+  /** Keep ticked directions; an unticked original moves to Rejected. */
+  async function applyExpand() {
+    const keepDirections = expandGroups.flatMap((g) =>
+      g.directions.filter((d) => d.checked).map(({ checked: _c, ...idea }) => idea),
+    );
+    if (keepDirections.length)
+      await clientApi('/ideas/bulk', { method: 'POST', body: JSON.stringify({ ideas: keepDirections }) });
+    await Promise.all(
+      expandGroups
+        .filter((g) => !g.parent.keep)
+        .map((g) =>
+          clientApi(`/ideas/${g.parent.id}`, { method: 'PATCH', body: JSON.stringify({ status: 'REJECTED' }) }),
+        ),
+    );
+    setExpandGroups([]);
+    setAiOpen(false);
+    invalidate();
   }
 
   function bulkStatus(status: Idea['status']) {
@@ -270,7 +302,7 @@ export function ContentManagerPage() {
             </h2>
             <p className="mt-1 text-sm text-slate-500">
               {aiMode === 'expand'
-                ? 'Two distinct creative directions per idea — tick the ones worth keeping; the originals stay untouched.'
+                ? 'Tick everything worth keeping — original included. Untick an original and it moves to Rejected.'
                 : 'Generate a batch, tick the keepers, add them to the board. Repeat until the month is full.'}
             </p>
             {aiMode === 'expand' && aiBusy && (
@@ -357,38 +389,119 @@ export function ContentManagerPage() {
               </div>
             )}
 
-            <div className="mt-4 space-y-2">
-              {candidates.map((c, i) => (
-                <label key={i}
-                  className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 ${c.checked ? 'border-indigo-300 bg-indigo-50/50' : 'border-slate-200'}`}>
-                  <input type="checkbox" className="mt-1" checked={c.checked}
-                    onChange={() =>
-                      setCandidates((cs) => cs.map((x, j) => (j === i ? { ...x, checked: !x.checked } : x)))
-                    } />
-                  <span>
-                    <span className="block text-sm font-semibold">{c.title}</span>
-                    {c.angle && <span className="block text-xs text-slate-500">{c.angle}</span>}
-                    <span className="text-xs text-indigo-600">{OBJECTIVE_LABELS[c.objective] ?? c.objective}</span>
-                  </span>
-                </label>
-              ))}
-            </div>
-
-            {candidates.length > 0 && (
-              <div className="mt-4 flex items-center justify-between">
-                <span className="text-sm text-slate-500">
-                  {candidates.filter((c) => c.checked).length} of {candidates.length} selected
-                </span>
-                <div className="space-x-2">
-                  <button className="rounded-md border border-slate-300 px-4 py-2 text-sm" onClick={() => setAiOpen(false)}>
-                    Cancel
-                  </button>
-                  <button className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
-                    onClick={addSelectedCandidates}>
-                    {aiMode === 'expand' ? 'Keep selected directions' : 'Add selected to ideas'}
-                  </button>
+            {aiMode === 'suggest' && (
+              <>
+                <div className="mt-4 space-y-2">
+                  {candidates.map((c, i) => (
+                    <label key={i}
+                      className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 ${c.checked ? 'border-indigo-300 bg-indigo-50/50' : 'border-slate-200'}`}>
+                      <input type="checkbox" className="mt-1" checked={c.checked}
+                        onChange={() =>
+                          setCandidates((cs) => cs.map((x, j) => (j === i ? { ...x, checked: !x.checked } : x)))
+                        } />
+                      <span>
+                        <span className="block text-sm font-semibold">{c.title}</span>
+                        {c.angle && <span className="block text-xs text-slate-500">{c.angle}</span>}
+                        <span className="text-xs text-indigo-600">{OBJECTIVE_LABELS[c.objective] ?? c.objective}</span>
+                      </span>
+                    </label>
+                  ))}
                 </div>
-              </div>
+
+                {candidates.length > 0 && (
+                  <div className="mt-4 flex items-center justify-between">
+                    <span className="text-sm text-slate-500">
+                      {candidates.filter((c) => c.checked).length} of {candidates.length} selected
+                    </span>
+                    <div className="space-x-2">
+                      <button className="rounded-md border border-slate-300 px-4 py-2 text-sm" onClick={() => setAiOpen(false)}>
+                        Cancel
+                      </button>
+                      <button className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
+                        onClick={addSelectedCandidates}>
+                        Add selected to ideas
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {aiMode === 'expand' && expandGroups.length > 0 && (
+              <>
+                <div className="mt-4 space-y-4">
+                  {expandGroups.map((g, gi) => (
+                    <div key={g.parent.id} className="rounded-xl border border-slate-300 p-3">
+                      {expandGroups.length > 1 && (
+                        <div className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">
+                          Idea {gi + 1} of {expandGroups.length}
+                        </div>
+                      )}
+                      <label
+                        className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 ${g.parent.keep ? 'border-indigo-300 bg-indigo-50/50' : 'border-slate-200 opacity-70'}`}>
+                        <input type="checkbox" className="mt-1" checked={g.parent.keep}
+                          onChange={() =>
+                            setExpandGroups((gs) =>
+                              gs.map((x, j) => (j === gi ? { ...x, parent: { ...x.parent, keep: !x.parent.keep } } : x)),
+                            )
+                          } />
+                        <span>
+                          <span className="mr-2 rounded bg-slate-700 px-1.5 py-0.5 text-[10px] font-bold uppercase text-white">
+                            Original
+                          </span>
+                          <span className="text-sm font-semibold">{g.parent.title}</span>
+                          {g.parent.angle && <span className="block text-xs text-slate-500">{g.parent.angle}</span>}
+                          {!g.parent.keep && (
+                            <span className="block text-xs text-red-600">will be moved to Rejected</span>
+                          )}
+                        </span>
+                      </label>
+                      <div className="mt-1.5 space-y-1.5 pl-4">
+                        {g.directions.map((d, di) => (
+                          <label key={di}
+                            className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 ${d.checked ? 'border-indigo-300 bg-indigo-50/50' : 'border-slate-200'}`}>
+                            <input type="checkbox" className="mt-1" checked={d.checked}
+                              onChange={() =>
+                                setExpandGroups((gs) =>
+                                  gs.map((x, j) =>
+                                    j === gi
+                                      ? { ...x, directions: x.directions.map((y, k) => (k === di ? { ...y, checked: !y.checked } : y)) }
+                                      : x,
+                                  ),
+                                )
+                              } />
+                            <span>
+                              <span className="mr-2 rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-indigo-700">
+                                Direction {di + 1}
+                              </span>
+                              <span className="text-sm font-semibold">{d.title}</span>
+                              {d.angle && <span className="block text-xs text-slate-500">{d.angle}</span>}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-4 flex items-center justify-between">
+                  <span className="text-sm text-slate-500">
+                    keeping{' '}
+                    {expandGroups.filter((g) => g.parent.keep).length +
+                      expandGroups.reduce((n, g) => n + g.directions.filter((d) => d.checked).length, 0)}{' '}
+                    of {expandGroups.length + expandGroups.reduce((n, g) => n + g.directions.length, 0)}
+                  </span>
+                  <div className="space-x-2">
+                    <button className="rounded-md border border-slate-300 px-4 py-2 text-sm" onClick={() => setAiOpen(false)}>
+                      Cancel
+                    </button>
+                    <button className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
+                      onClick={applyExpand}>
+                      Apply selection
+                    </button>
+                  </div>
+                </div>
+              </>
             )}
           </div>
         </div>
@@ -400,8 +513,8 @@ export function ContentManagerPage() {
           <span className="font-semibold text-indigo-800">{selected.size} selected</span>
           <button className="rounded-md bg-indigo-600 px-3 py-1.5 font-semibold text-white hover:bg-indigo-700"
             onClick={expandSelected}
-            title="Generate two distinct directions for each selected idea">
-            ✨ Expand into 2 directions each
+            title="Generate two distinct directions per selected idea, then choose what to keep">
+            ✨ Expand into 2 directions{selected.size > 1 ? ' each' : ''}
           </button>
           <button className="rounded-md border border-green-300 bg-white px-3 py-1.5 text-green-700 hover:bg-green-50"
             onClick={() => bulkStatus('APPROVED')}>
