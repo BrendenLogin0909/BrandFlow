@@ -4,7 +4,7 @@
  * Reviewers open a draft back into the playground; nothing is ever lost on
  * export.
  */
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { InternalDesignDocument } from '@brandflow/design-schema';
@@ -20,20 +20,46 @@ interface Draft {
   updatedAt: string;
 }
 
+/**
+ * Card preview: the selected page full-size, with every other page as a
+ * mini filmstrip inside the card — the whole carousel is visible at a
+ * glance, and clicking a mini swaps it into the main view.
+ */
 function Thumb({ doc }: { doc: InternalDesignDocument }) {
-  const svg = useMemo(() => {
+  const [selected, setSelected] = useState(0);
+  const svgs = useMemo(() => {
     try {
-      return exportPageSvg(doc, 0);
+      return doc.pages.map((_, i) => exportPageSvg(doc, i));
     } catch {
-      return null;
+      return [];
     }
   }, [doc]);
-  if (!svg) return <div className="flex h-40 items-center justify-center text-xs text-slate-400">preview unavailable</div>;
+
+  if (svgs.length === 0)
+    return <div className="flex h-40 items-center justify-center text-xs text-slate-400">preview unavailable</div>;
+
   return (
-    <div
-      className="overflow-hidden rounded-t-xl [&_svg]:h-auto [&_svg]:w-full"
-      dangerouslySetInnerHTML={{ __html: svg }}
-    />
+    <div className="relative overflow-hidden rounded-t-xl">
+      <div className="[&_svg]:h-auto [&_svg]:w-full" dangerouslySetInnerHTML={{ __html: svgs[selected]! }} />
+      {svgs.length > 1 && (
+        <div className="absolute inset-x-0 bottom-0 flex gap-1.5 overflow-x-auto bg-white/85 p-1.5 backdrop-blur-sm">
+          {svgs.map((svg, i) => (
+            <button
+              key={i}
+              title={`Slide ${i + 1}`}
+              onClick={(e) => {
+                e.preventDefault();
+                setSelected(i);
+              }}
+              className={`w-14 shrink-0 overflow-hidden rounded border bg-white ${
+                i === selected ? 'border-indigo-500 ring-1 ring-indigo-300' : 'border-slate-200 hover:border-slate-400'
+              } [&_svg]:h-auto [&_svg]:w-full`}
+              dangerouslySetInnerHTML={{ __html: svg }}
+            />
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
