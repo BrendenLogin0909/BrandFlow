@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+﻿import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import argon2 from 'argon2';
 
@@ -41,7 +41,7 @@ export async function authRoutes(app: FastifyInstance) {
       },
     });
 
-    const accessToken = app.jwt.sign({ userId: user.id }, { expiresIn: '15m' });
+    const accessToken = app.jwt.sign({ userId: user.id }, { expiresIn: process.env.JWT_EXPIRY ?? '15m' });
     const refreshToken = app.jwt.sign({ userId: user.id, refresh: true }, { expiresIn: '7d' });
     return reply.code(201).send({ accessToken, refreshToken, organisationId: org.id });
   });
@@ -52,7 +52,7 @@ export async function authRoutes(app: FastifyInstance) {
     if (!user || !(await argon2.verify(user.passwordHash, body.password)))
       return reply.code(401).send({ error: { code: 'INVALID_CREDENTIALS' } });
 
-    const accessToken = app.jwt.sign({ userId: user.id }, { expiresIn: '15m' });
+    const accessToken = app.jwt.sign({ userId: user.id }, { expiresIn: process.env.JWT_EXPIRY ?? '15m' });
     const refreshToken = app.jwt.sign({ userId: user.id, refresh: true }, { expiresIn: '7d' });
     return { accessToken, refreshToken };
   });
