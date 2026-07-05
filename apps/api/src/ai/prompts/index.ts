@@ -74,11 +74,19 @@ export const PROMPT_TEMPLATES: Record<PipelineStep, PromptTemplate> = {
       required: ['ideas'],
     },
     render: (input) => {
-      const req = input as { count?: number; expandFrom?: unknown[]; topicInstruction?: string };
+      const req = input as {
+        count?: number;
+        expandFrom?: unknown[];
+        topicInstruction?: string;
+        existingTitles?: string[];
+      };
       const task = req.expandFrom?.length
         ? `For EACH idea in expandFrom, generate exactly 2 distinct creative directions (e.g. a contrarian take vs a story-driven version). Titles must make the direction obvious.`
         : `Suggest ${req.count ?? 5} distinct LinkedIn post ideas. Each needs: punchy title, one-line angle, objective, quality score 0-1. Vary formats and hooks — no two ideas alike.`;
-      return `${task}\n${req.topicInstruction ?? ''}\n\n${JSON.stringify(input)}`;
+      const memory = req.existingTitles?.length
+        ? `\nThis brand has already covered the ideas below. Do NOT duplicate or closely paraphrase any of them — bring genuinely new territory, formats or angles:\n- ${req.existingTitles.slice(0, 150).join('\n- ')}`
+        : '';
+      return `${task}\n${req.topicInstruction ?? ''}${memory}\n\n${JSON.stringify({ ...req, existingTitles: undefined })}`;
     },
   }),
   post_copy: template({

@@ -46,7 +46,8 @@ export function ContentManagerPage() {
   const [angle, setAngle] = useState('');
   const [objective, setObjective] = useState<ContentObjective>('educational');
 
-  // AI suggestion modal
+  // AI suggestion modal ('suggest' = fresh batch, 'expand' = directions for selected ideas)
+  const [aiMode, setAiMode] = useState<'suggest' | 'expand'>('suggest');
   const [aiOpen, setAiOpen] = useState(false);
   const [aiTheme, setAiTheme] = useState('');
   const [aiCount, setAiCount] = useState(5);
@@ -58,28 +59,57 @@ export function ContentManagerPage() {
   // spread the ideas across them.
   const [pickedTopics, setPickedTopics] = useState<Set<string>>(new Set());
   const [newTopic, setNewTopic] = useState('');
-  const { data: brandProfiles } = useQuery({
+  const [topicError, setTopicError] = useState<string | null>(null);
+  const { data: brandProfiles, isLoading: profilesLoading } = useQuery({
     queryKey: ['brand-profiles'],
     queryFn: () =>
       clientApi<{ id: string; pillars: { id: string; name: string }[] }[]>('/brand-profiles'),
   });
   const topics = [...new Set((brandProfiles ?? []).flatMap((p) => p.pillars.map((x) => x.name)))];
-  const firstProfileId = brandProfiles?.[0]?.id;
 
   async function addTopic() {
     const name = newTopic.trim();
-    if (!name || !firstProfileId) return;
-    await clientApi(`/brand-profiles/${firstProfileId}/pillars`, {
-      method: 'POST',
-      body: JSON.stringify({ name }),
-    });
-    setNewTopic('');
-    setPickedTopics((s) => new Set([...s, name]));
-    queryClient.invalidateQueries({ queryKey: ['brand-profiles'] });
+    if (!name) return;
+    if (profilesLoading) return; // profiles not loaded yet — Enter came too early
+    setTopicError(null);
+    try {
+      // Topics attach to a brand profile; create a starter one if the
+      // client has none yet (previously this failed silently).
+      let profileId = brandProfiles?.[0]?.id;
+      if (!profileId) {
+        const created = await clientApi<{ id: string }>('/brand-profiles', {
+          method: 'POST',
+          body: JSON.stringify({ name: 'Default brand' }),
+        });
+        profileId = created.id;
+      }
+      await clientApi(`/brand-profiles/${profileId}/pillars`, {
+        method: 'POST',
+        body: JSON.stringify({ name }),
+      });
+      setNewTopic('');
+      setPickedTopics((s) => new Set([...s, name]));
+      queryClient.invalidateQueries({ queryKey: ['brand-profiles'] });
+    } catch (e) {
+      setTopicError(`Could not add topic: ${e instanceof Error ? e.message : String(e)}`);
+    }
   }
 
   // multi-select in the Ideas column
   const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  // inline editing of a card's title/angle
+  const [editing, setEditing] = useState<{ id: string; title: string; angle: string } | null>(null);
+
+  async function saveEdit() {
+    if (!editing || !editing.title.trim()) return;
+    await clientApi(`/ideas/${editing.id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ title: editing.title.trim(), angle: editing.angle.trim() || undefined }),
+    });
+    setEditing(null);
+    invalidate();
+  }
 
   const { data: ideas, error } = useQuery({
     queryKey: ['ideas'],
@@ -144,12 +174,22 @@ export function ContentManagerPage() {
 
   async function expandSelected() {
     if (selected.size === 0) return;
-    await clientApi('/ideas/expand-sync', {
-      method: 'POST',
-      body: JSON.stringify({ ideaIds: [...selected] }),
-    });
-    setSelected(new Set());
-    invalidate();
+    // directions are curated in the modal like suggestions — nothing saved yet
+    setAiMode('expand');
+    setCandidates([]);
+    setAiOpen(true);
+    setAiBusy(true);
+    try {
+      const res = await clientApi<{ ideas: Omit<Candidate, 'checked'>[]; provider: string }>(
+        '/ideas/expand-sync',
+        { method: 'POST', body: JSON.stringify({ ideaIds: [...selected] }) },
+      );
+      setCandidates(res.ideas.map((i) => ({ ...i, checked: false })));
+      setAiProvider(res.provider);
+      setSelected(new Set());
+    } finally {
+      setAiBusy(false);
+    }
   }
 
   function bulkStatus(status: Idea['status']) {
@@ -214,7 +254,7 @@ export function ContentManagerPage() {
         </button>
         <button type="button"
           className="rounded-md border border-indigo-300 bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-100"
-          onClick={() => { setAiOpen(true); setCandidates([]); }}>
+          onClick={() => { setAiMode('suggest'); setAiOpen(true); setCandidates([]); }}>
           ✨ Suggest ideas with AI
         </button>
       </form>
@@ -225,11 +265,20 @@ export function ContentManagerPage() {
           onClick={() => setAiOpen(false)}>
           <div className="max-h-full w-[640px] overflow-auto rounded-2xl bg-white p-6 shadow-xl"
             onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-lg font-bold">Suggest ideas with AI</h2>
+            <h2 className="text-lg font-bold">
+              {aiMode === 'expand' ? 'Directions for your selected ideas' : 'Suggest ideas with AI'}
+            </h2>
             <p className="mt-1 text-sm text-slate-500">
-              Generate a batch, tick the keepers, add them to the board. Repeat until the month is full.
+              {aiMode === 'expand'
+                ? 'Two distinct creative directions per idea — tick the ones worth keeping; the originals stay untouched.'
+                : 'Generate a batch, tick the keepers, add them to the board. Repeat until the month is full.'}
             </p>
+            {aiMode === 'expand' && aiBusy && (
+              <div className="mt-4 text-sm text-slate-500">Generating directions…</div>
+            )}
 
+            {aiMode === 'suggest' && (
+            <>
             {/* brand topics */}
             <div className="mt-4">
               <div className="text-sm font-semibold">
@@ -270,12 +319,13 @@ export function ContentManagerPage() {
                   }}
                 />
               </div>
-              {topics.length === 0 && (
+              {topics.length === 0 && !topicError && (
                 <div className="mt-1 text-xs text-slate-400">
                   No topics yet — add the subjects your company talks about (they save to the brand
                   profile as content pillars).
                 </div>
               )}
+              {topicError && <div className="mt-1 text-xs text-red-600">{topicError}</div>}
             </div>
 
             <div className="mt-4 flex items-end gap-2">
@@ -298,11 +348,12 @@ export function ContentManagerPage() {
                 {aiBusy ? 'Generating…' : candidates.length ? 'Regenerate' : 'Generate'}
               </button>
             </div>
+            </>
+            )}
 
             {aiProvider === 'mock' && candidates.length > 0 && (
               <div className="mt-3 rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
-                Sample ideas (offline mode) — add ANTHROPIC_API_KEY to the API to generate real,
-                brand-aware ideas.
+                Sample ideas (offline mode) — add an AI API key to generate real, brand-aware ideas.
               </div>
             )}
 
@@ -334,7 +385,7 @@ export function ContentManagerPage() {
                   </button>
                   <button className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
                     onClick={addSelectedCandidates}>
-                    Add selected to ideas
+                    {aiMode === 'expand' ? 'Keep selected directions' : 'Add selected to ideas'}
                   </button>
                 </div>
               </div>
@@ -385,12 +436,35 @@ export function ContentManagerPage() {
                 {items.map((idea) => (
                   <div key={idea.id}
                     className={`rounded-lg border bg-white p-3 shadow-sm ${selected.has(idea.id) ? 'border-indigo-400 ring-1 ring-indigo-200' : 'border-slate-200'}`}>
+                    {editing?.id === idea.id ? (
+                      <div className="space-y-1.5">
+                        <input className="w-full rounded border border-slate-300 px-2 py-1 text-sm font-semibold"
+                          value={editing.title} autoFocus
+                          onChange={(e) => setEditing({ ...editing, title: e.target.value })} />
+                        <textarea className="w-full rounded border border-slate-300 px-2 py-1 text-xs" rows={2}
+                          placeholder="angle / notes" value={editing.angle}
+                          onChange={(e) => setEditing({ ...editing, angle: e.target.value })} />
+                        <div className="flex gap-1.5 text-xs">
+                          <button className="rounded bg-indigo-600 px-2 py-1 font-semibold text-white" onClick={saveEdit}>
+                            Save
+                          </button>
+                          <button className="rounded border border-slate-300 px-2 py-1" onClick={() => setEditing(null)}>
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                    <>
                     <div className="flex items-start gap-2">
                       {col.key === 'ideas' && (
                         <input type="checkbox" className="mt-0.5" checked={selected.has(idea.id)}
                           onChange={() => toggleSelected(idea.id)} />
                       )}
-                      <div className="text-sm font-semibold">{idea.title}</div>
+                      <div className="flex-1 text-sm font-semibold">{idea.title}</div>
+                      <button className="text-slate-400 hover:text-indigo-600" title="Edit"
+                        onClick={() => setEditing({ id: idea.id, title: idea.title, angle: idea.angle ?? '' })}>
+                        ✎
+                      </button>
                     </div>
                     {idea.angle && <div className="mt-0.5 text-xs text-slate-500">{idea.angle}</div>}
                     <div className="mt-1 text-xs text-indigo-600">{OBJECTIVE_LABELS[idea.objective] ?? idea.objective}</div>
@@ -420,10 +494,15 @@ export function ContentManagerPage() {
                         </button>
                       )}
                       <button className="ml-auto rounded border border-red-200 px-2 py-1 text-red-600 hover:bg-red-50"
-                        onClick={() => remove.mutate(idea.id)}>
+                        title="Delete idea"
+                        onClick={() => {
+                          if (confirm(`Delete "${idea.title}"?`)) remove.mutate(idea.id);
+                        }}>
                         ✕
                       </button>
                     </div>
+                    </>
+                    )}
                   </div>
                 ))}
                 {items.length === 0 && (

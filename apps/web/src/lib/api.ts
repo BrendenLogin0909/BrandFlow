@@ -24,7 +24,9 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`/api${path}`, {
     ...init,
     headers: {
-      'Content-Type': 'application/json',
+      // Content-Type only when there IS a body: Fastify 400s on
+      // "application/json" requests with an empty payload (e.g. DELETE).
+      ...(init.body ? { 'Content-Type': 'application/json' } : {}),
       ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       ...init.headers,
     },

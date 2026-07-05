@@ -70,6 +70,15 @@ interface PlaygroundSource {
   bestPractices?: boolean;
 }
 
+/** Put the idea's title into the recipe's primary required text slot. */
+function applyIdeaTitle(recipe: LayoutRecipe, fill: RecipeFill, title: string): RecipeFill {
+  const primary = recipe.slots.find((s) => s.kind === 'text' && s.required);
+  if (!primary) return fill;
+  return {
+    slots: { ...fill.slots, [primary.id]: { kind: 'text', text: title.slice(0, primary.maxChars) } },
+  };
+}
+
 function defaultFill(recipe: LayoutRecipe): RecipeFill {
   const slots: Record<string, SlotValue> = {};
   for (const slot of recipe.slots) {
@@ -96,21 +105,15 @@ export function PlaygroundPage() {
   const [saveState, setSaveState] = useState<string | null>(null);
   const [searchParams] = useSearchParams();
 
-  // Arriving from the content manager (?ideaTitle=...): prefill the
-  // design's primary text slot with the approved idea.
+  // Arriving from the content manager (?ideaTitle=...): the idea becomes the
+  // design's primary text and is REMEMBERED, so switching recipe or variant
+  // re-applies it instead of wiping the content back to sample text.
+  const [ideaTitle, setIdeaTitle] = useState<string | null>(null);
   useEffect(() => {
-    const ideaTitle = searchParams.get('ideaTitle');
-    if (!ideaTitle) return;
-    setFill((f) => {
-      const primary = recipe.slots.find((s) => s.kind === 'text' && s.required);
-      if (!primary) return f;
-      return {
-        slots: {
-          ...f.slots,
-          [primary.id]: { kind: 'text', text: ideaTitle.slice(0, primary.maxChars) },
-        },
-      };
-    });
+    const t = searchParams.get('ideaTitle');
+    if (!t) return;
+    setIdeaTitle(t);
+    setFill((f) => applyIdeaTitle(recipe, f, t));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
@@ -230,7 +233,8 @@ export function PlaygroundPage() {
     const r = RECIPES.find((x) => x.id === id)!;
     setRecipeId(id);
     setVariant(r.variants[0]!.id);
-    setFill(defaultFill(r));
+    // keep the idea's text when changing layout — only the geometry changes
+    setFill(ideaTitle ? applyIdeaTitle(r, defaultFill(r), ideaTitle) : defaultFill(r));
   }
 
   function setTextSlot(id: string, text: string) {

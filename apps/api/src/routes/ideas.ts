@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { CONTENT_OBJECTIVES } from '@brandflow/shared';
-import { getAiProvider, isRealAiConfigured } from '../ai/provider.js';
+import { activeProviderName, getAiProvider } from '../ai/provider.js';
 
 const CreateBody = z.object({
   title: z.string().min(1).max(200),
@@ -37,6 +37,17 @@ const PatchBody = z.object({
   objective: z.enum(CONTENT_OBJECTIVES).optional(),
   status: z.enum(['SUGGESTED', 'APPROVED', 'REJECTED', 'EDITED']).optional(),
 });
+
+/** Recent titles (any status, incl. rejected) so the AI avoids re-treading old ground. */
+async function recentIdeaTitles(app: FastifyInstance, clientCompanyId: string): Promise<string[]> {
+  const rows = await app.prisma.postIdea.findMany({
+    where: { clientCompanyId },
+    orderBy: { createdAt: 'desc' },
+    take: 150,
+    select: { title: true },
+  });
+  return rows.map((r) => r.title);
+}
 
 async function recordJob(
   app: FastifyInstance,
@@ -121,9 +132,11 @@ export async function ideaRoutes(app: FastifyInstance) {
    */
   app.post('/suggest-sync', generate, async (req) => {
     const body = SuggestBody.parse(req.body ?? {});
+    const existingTitles = await recentIdeaTitles(app, req.tenant!.clientCompanyId);
     const { data, meta } = await getAiProvider().complete(
       'post_ideas',
       {
+        existingTitles,
         topics: body.topics,
         topicInstruction:
           body.topics?.length === 1
@@ -138,7 +151,7 @@ export async function ideaRoutes(app: FastifyInstance) {
       GeneratedIdeas,
     );
     await recordJob(app, req, 'post_ideas', body, meta.tokensUsed);
-    return { ideas: data.ideas.slice(0, body.count), provider: isRealAiConfigured() ? 'anthropic' : 'mock' };
+    return { ideas: data.ideas.slice(0, body.count), provider: activeProviderName() };
   });
 
   /** Save the user's selected candidates onto the ideation board. */
@@ -160,7 +173,9 @@ export async function ideaRoutes(app: FastifyInstance) {
 
   /**
    * Further ideation: expand selected ideas into two distinct directions
-   * each (a single angle is never enough to choose from).
+   * each (a single angle is never enough to choose from). Returns the
+   * candidate directions WITHOUT saving — the user curates them in the
+   * same tick-to-keep modal as suggestions, then saves via /bulk.
    */
   app.post('/expand-sync', generate, async (req, reply) => {
     const body = ExpandBody.parse(req.body);
@@ -170,24 +185,13 @@ export async function ideaRoutes(app: FastifyInstance) {
     });
     if (parents.length === 0) return reply.code(404).send({ error: { code: 'NOT_FOUND' } });
 
+    const existingTitles = await recentIdeaTitles(app, req.tenant!.clientCompanyId);
     const { data, meta } = await getAiProvider().complete(
       'post_ideas',
-      { expandFrom: parents, clientCompanyId: req.tenant!.clientCompanyId },
+      { expandFrom: parents, existingTitles, clientCompanyId: req.tenant!.clientCompanyId },
       GeneratedIdeas,
     );
     await recordJob(app, req, 'post_ideas', { expand: body.ideaIds }, meta.tokensUsed);
-
-    await app.prisma.postIdea.createMany({
-      data: data.ideas.map((i) => ({
-        organisationId: req.tenant!.organisationId,
-        clientCompanyId: req.tenant!.clientCompanyId,
-        title: i.title,
-        angle: i.angle,
-        objective: i.objective,
-        score: i.score,
-        status: 'SUGGESTED' as const,
-      })),
-    });
-    return { added: data.ideas.length, provider: isRealAiConfigured() ? 'anthropic' : 'mock' };
+    return { ideas: data.ideas, provider: activeProviderName() };
   });
 }
