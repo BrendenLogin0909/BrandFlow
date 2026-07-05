@@ -481,6 +481,7 @@ model DesignDraft {
   id               String   @id @default(uuid())
   organisationId   String
   clientCompanyId  String
+  ideaId           String? // one design per idea: saving again for the same idea updates it
   name             String
   internalDoc      Json
   playgroundSource Json? // recipe/variant/directives/fill so the playground can restore controls
@@ -489,6 +490,7 @@ model DesignDraft {
   updatedAt        DateTime @updatedAt
 
   @@index([clientCompanyId, updatedAt])
+  @@index([ideaId])
 }
 
 model GenerationJob {

@@ -122,6 +122,13 @@ export function ContentManagerPage() {
     queryFn: () => clientApi<Idea[]>('/ideas'),
   });
 
+  // ideas that already have a saved design reopen it instead of starting fresh
+  const { data: drafts } = useQuery({
+    queryKey: ['design-drafts'],
+    queryFn: () => clientApi<{ id: string; ideaId: string | null }[]>('/design-drafts'),
+  });
+  const draftByIdea = new Map((drafts ?? []).filter((d) => d.ideaId).map((d) => [d.ideaId!, d.id]));
+
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['ideas'] });
 
   const create = useMutation({
@@ -594,12 +601,19 @@ export function ContentManagerPage() {
                           </button>
                         </>
                       )}
-                      {col.key === 'approved' && (
-                        <button className="rounded bg-indigo-600 px-2 py-1 font-semibold text-white hover:bg-indigo-700"
-                          onClick={() => navigate(`/playground?ideaTitle=${encodeURIComponent(idea.title)}`)}>
-                          Design →
-                        </button>
-                      )}
+                      {col.key === 'approved' &&
+                        (draftByIdea.has(idea.id) ? (
+                          <button className="rounded border border-indigo-300 bg-indigo-50 px-2 py-1 font-semibold text-indigo-700 hover:bg-indigo-100"
+                            title="Reopen the saved design for this idea"
+                            onClick={() => navigate(`/playground?draft=${draftByIdea.get(idea.id)}`)}>
+                            Open design 🎨
+                          </button>
+                        ) : (
+                          <button className="rounded bg-indigo-600 px-2 py-1 font-semibold text-white hover:bg-indigo-700"
+                            onClick={() => navigate(`/playground?idea=${idea.id}`)}>
+                            Design →
+                          </button>
+                        ))}
                       {col.key === 'rejected' && (
                         <button className="rounded border border-slate-300 px-2 py-1 hover:bg-slate-50"
                           onClick={() => setStatus.mutate({ id: idea.id, status: 'EDITED' })}>

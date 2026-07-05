@@ -31,6 +31,7 @@ export const MOTIFS = [
   'diagonal-band',
   'underline-accent',
   'oversized-icon',
+  'logo-top-left',
 ] as const;
 export type Motif = (typeof MOTIFS)[number];
 
@@ -236,6 +237,35 @@ function addMotif(
         strokeWidth: 1.5,
       };
       elements.push(icon);
+      return;
+    }
+    case 'logo-top-left': {
+      // brand logo anchored top-left inside the safe area (the classic
+      // carousel signature); a labelled placeholder until the brand-kit
+      // logo asset is attached, replaceable in the editor
+      const page = doc.pages.find((p) => p.elements === elements);
+      const x = page?.safeArea.left ?? 90;
+      const y = page?.safeArea.top ?? 90;
+      const logo: Element = {
+        type: 'image',
+        id: newId(),
+        name: 'brand logo',
+        frame: { x, y, width: 220, height: 64, rotation: 0 },
+        opacity: 1,
+        locked: false,
+        visible: true,
+        zIndex: 5,
+        roleHint: 'logo',
+        tokenRefs: [{ category: 'logo', token: 'primary' }],
+        recipeSlotId: null,
+        meta: { motif: true },
+        assetId: doc.brandTokens.logoAssetIds[0],
+        fit: 'contain',
+        cornerRadius: 0,
+        borderWidth: 0,
+        isPlaceholder: doc.brandTokens.logoAssetIds.length === 0,
+      };
+      elements.push(logo);
       return;
     }
     case 'none':

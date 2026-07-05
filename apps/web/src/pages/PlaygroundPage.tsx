@@ -7,7 +7,7 @@
  * (the AI only fills the same slots this form fills).
  */
 import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { BrandTokensSnapshot, InternalDesignDocument } from '@brandflow/design-schema';
 import { validateDesignDocument } from '@brandflow/design-schema';
 import { exportPptxBlob } from '@brandflow/exporters/pptx';
@@ -31,6 +31,10 @@ const DEFAULT_BRAND = {
   background: '#ffffff',
   text: '#101418',
 };
+
+// web-safe set until customer font upload lands with the brand-kit UI
+const FONT_OPTIONS = ['Arial', 'Arial Black', 'Georgia', 'Verdana', 'Trebuchet MS', 'Impact', 'Times New Roman', 'Courier New'];
+const DEFAULT_FONTS = { heading: 'Arial Black', body: 'Arial' };
 
 const DEFAULT_TEXT: Record<string, string> = {
   quote: 'The best brands are built one consistent post at a time.',
@@ -59,6 +63,14 @@ const DEFAULT_LIST = [
   { title: 'Proof', text: 'Back every claim with a number or a story.', iconName: 'bar-chart' },
 ];
 
+/** The idea a design is being created for — carried whole, not just the title. */
+interface LinkedIdea {
+  id?: string;
+  title: string;
+  angle?: string | null;
+  objective?: string;
+}
+
 /** Everything needed to restore the playground controls from a saved draft. */
 interface PlaygroundSource {
   recipeId: string;
@@ -68,6 +80,8 @@ interface PlaygroundSource {
   brand: typeof DEFAULT_BRAND;
   fill: RecipeFill;
   bestPractices?: boolean;
+  idea?: LinkedIdea | null;
+  fonts?: typeof DEFAULT_FONTS;
 }
 
 /** Put the idea's title into the recipe's primary required text slot. */
@@ -98,22 +112,35 @@ export function PlaygroundPage() {
   const recipe = RECIPES.find((r) => r.id === recipeId)!;
   const [variant, setVariant] = useState(recipe.variants[0]!.id);
   const [brand, setBrand] = useState(DEFAULT_BRAND);
+  const [fonts, setFonts] = useState(DEFAULT_FONTS);
   const [fill, setFill] = useState<RecipeFill>(() => defaultFill(RECIPES[0]!));
   const [treatment, setTreatment] = useState<HeadlineTreatment>('plain');
   const [motif, setMotif] = useState<Motif>('none');
   const [bestPractices, setBestPractices] = useState(true);
   const [saveState, setSaveState] = useState<string | null>(null);
+  const [savedDraftId, setSavedDraftId] = useState<string | null>(null);
   const [searchParams] = useSearchParams();
 
-  // Arriving from the content manager (?ideaTitle=...): the idea becomes the
-  // design's primary text and is REMEMBERED, so switching recipe or variant
-  // re-applies it instead of wiping the content back to sample text.
-  const [ideaTitle, setIdeaTitle] = useState<string | null>(null);
+  // Arriving from the content manager (?idea=<id>): the WHOLE idea is loaded
+  // and linked — it becomes the design's primary text, is remembered across
+  // recipe changes and Surprise me, and travels with saved drafts.
+  const [idea, setIdea] = useState<LinkedIdea | null>(null);
+  const [ideaPopup, setIdeaPopup] = useState(false);
+  const navigate = useNavigate();
+  const ideaTitle = idea?.title ?? null;
+
   useEffect(() => {
-    const t = searchParams.get('ideaTitle');
-    if (!t) return;
-    setIdeaTitle(t);
-    setFill((f) => applyIdeaTitle(recipe, f, t));
+    const ideaId = searchParams.get('idea');
+    const titleOnly = searchParams.get('ideaTitle'); // legacy links
+    if (ideaId && getAccessToken()) {
+      clientApi<LinkedIdea>(`/ideas/${ideaId}`).then((full) => {
+        setIdea(full);
+        setFill((f) => applyIdeaTitle(recipe, f, full.title));
+      }).catch(() => setSaveState('Could not load the linked idea'));
+    } else if (titleOnly) {
+      setIdea({ title: titleOnly });
+      setFill((f) => applyIdeaTitle(recipe, f, titleOnly));
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
@@ -121,7 +148,7 @@ export function PlaygroundPage() {
   useEffect(() => {
     const draftId = searchParams.get('draft');
     if (!draftId || !getAccessToken()) return;
-    clientApi<{ name: string; playgroundSource: PlaygroundSource | null }>(
+    clientApi<{ id: string; name: string; playgroundSource: PlaygroundSource | null }>(
       `/design-drafts/${draftId}`,
     ).then((draft) => {
       const src = draft.playgroundSource;
@@ -133,6 +160,9 @@ export function PlaygroundPage() {
       setBrand(src.brand);
       setFill(src.fill);
       setBestPractices(src.bestPractices ?? true);
+      if (src.fonts) setFonts(src.fonts);
+      if (src.idea) setIdea(src.idea); // the saved design stays linked to its idea
+      setSavedDraftId(draft.id ?? null);
     }).catch(() => setSaveState('Could not load draft'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
@@ -144,7 +174,7 @@ export function PlaygroundPage() {
   const result = useMemo(() => {
     const tokens: BrandTokensSnapshot = {
       colours: brand,
-      fonts: { heading: 'Arial', body: 'Arial' },
+      fonts,
       logoAssetIds: [],
     };
     try {
@@ -170,7 +200,7 @@ export function PlaygroundPage() {
     } catch (e) {
       return { doc: null, report: null, svgs: [], error: String(e) };
     }
-  }, [recipe, activeVariant, brand, fill, treatment, motif, bestPractices]);
+  }, [recipe, activeVariant, brand, fonts, fill, treatment, motif, bestPractices]);
 
   async function saveDraft() {
     if (!result.doc) return;
@@ -178,18 +208,29 @@ export function PlaygroundPage() {
       setSaveState('Sign in and select a client to save drafts');
       return;
     }
-    const name = window.prompt('Draft name', `${recipe.name} — ${new Date().toLocaleDateString()}`);
+    const name = window.prompt(
+      'Draft name',
+      idea?.title ?? `${recipe.name} — ${new Date().toLocaleDateString()}`,
+    );
     if (!name) return;
     setSaveState('Saving…');
     try {
       const source: PlaygroundSource = {
-        recipeId, variant: activeVariant, treatment, motif, brand, fill, bestPractices,
+        recipeId, variant: activeVariant, treatment, motif, brand, fonts, fill, bestPractices, idea,
       };
-      await clientApi('/design-drafts', {
+      const saved = await clientApi<{ id: string }>('/design-drafts', {
         method: 'POST',
-        body: JSON.stringify({ name, internalDoc: result.doc, playgroundSource: source }),
+        body: JSON.stringify({
+          name,
+          internalDoc: result.doc,
+          playgroundSource: source,
+          ideaId: idea?.id, // one design per idea — resaving updates it
+        }),
       });
-      setSaveState(`Saved "${name}" to the design library ✓`);
+      setSavedDraftId(saved.id);
+      setSaveState(
+        idea?.id ? `Saved to idea "${idea.title.slice(0, 40)}" ✓` : `Saved "${name}" to the design library ✓`,
+      );
     } catch (e) {
       setSaveState(`Save failed: ${String(e)}`);
     }
@@ -320,6 +361,25 @@ export function PlaygroundPage() {
         </label>
 
         <fieldset className="rounded border border-slate-200 p-3">
+          <legend className="px-1 text-xs font-semibold uppercase text-slate-400">Brand fonts</legend>
+          <div className="grid grid-cols-2 gap-2">
+            {(['heading', 'body'] as const).map((k) => (
+              <label key={k} className="text-xs">
+                {k}
+                <select className="mt-0.5 block w-full rounded border border-slate-300 p-1"
+                  style={{ fontFamily: fonts[k] }}
+                  value={fonts[k]}
+                  onChange={(e) => setFonts((f) => ({ ...f, [k]: e.target.value }))}>
+                  {FONT_OPTIONS.map((f) => (
+                    <option key={f} value={f} style={{ fontFamily: f }}>{f}</option>
+                  ))}
+                </select>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+
+        <fieldset className="rounded border border-slate-200 p-3">
           <legend className="px-1 text-xs font-semibold uppercase text-slate-400">Brand colours</legend>
           <div className="grid grid-cols-3 gap-2">
             {(['primary', 'accent', 'background', 'text', 'secondary', 'neutral'] as const).map((k) => (
@@ -375,17 +435,46 @@ export function PlaygroundPage() {
 
       {/* preview */}
       <div className="flex-1 overflow-auto bg-slate-100 p-6">
-        {ideaTitle && (
+        {idea && (
           <div className="mb-3 flex items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm">
-            <span className="font-semibold text-indigo-800">🎯 Designing idea:</span>
-            <span className="flex-1 truncate text-indigo-900">{ideaTitle}</span>
-            <span className="text-xs text-indigo-400">
-              kept across recipe changes and 🎲 Surprise me
-            </span>
-            <button className="text-indigo-400 hover:text-indigo-700" title="Unlink idea"
-              onClick={() => setIdeaTitle(null)}>
+            <button className="flex flex-1 items-center gap-2 truncate text-left"
+              title="View the linked idea" onClick={() => setIdeaPopup(true)}>
+              <span className="shrink-0 font-semibold text-indigo-800">🎯 Designing idea:</span>
+              <span className="truncate text-indigo-900 underline decoration-indigo-300 underline-offset-2">
+                {idea.title}
+              </span>
+            </button>
+            {savedDraftId && <span className="shrink-0 text-xs text-green-700">design saved ✓</span>}
+            <button className="shrink-0 text-indigo-400 hover:text-indigo-700" title="Unlink idea"
+              onClick={() => setIdea(null)}>
               ✕
             </button>
+          </div>
+        )}
+
+        {ideaPopup && idea && (
+          <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 p-6"
+            onClick={() => setIdeaPopup(false)}>
+            <div className="w-[480px] rounded-2xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+              <div className="text-xs font-bold uppercase tracking-wide text-slate-400">Linked idea</div>
+              <h2 className="mt-1 text-lg font-bold">{idea.title}</h2>
+              {idea.angle && <p className="mt-2 text-sm text-slate-600">{idea.angle}</p>}
+              {idea.objective && (
+                <div className="mt-2 text-xs font-medium text-indigo-600">
+                  {idea.objective.replaceAll('_', ' ')}
+                </div>
+              )}
+              <div className="mt-5 flex justify-end gap-2">
+                <button className="rounded-md border border-slate-300 px-4 py-2 text-sm"
+                  onClick={() => setIdeaPopup(false)}>
+                  Close
+                </button>
+                <button className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
+                  onClick={() => navigate('/content')}>
+                  Back to Content manager
+                </button>
+              </div>
+            </div>
           </div>
         )}
         <div className="mb-4 flex items-center gap-2">

@@ -88,6 +88,15 @@ export async function ideaRoutes(app: FastifyInstance) {
     });
   });
 
+  app.get('/:id', read, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const idea = await app.prisma.postIdea.findFirst({
+      where: { id, clientCompanyId: req.tenant!.clientCompanyId },
+    });
+    if (!idea) return reply.code(404).send({ error: { code: 'NOT_FOUND' } });
+    return idea;
+  });
+
   app.post('/', edit, async (req, reply) => {
     const body = CreateBody.parse(req.body);
     // Human-captured ideas are born EDITED (already human-owned);
