@@ -39,6 +39,12 @@ export interface StyleDirectives {
   motif: Motif;
   /** Icon for the oversized-icon motif (AI picks one matching the concept). */
   motifIconName?: string;
+  /**
+   * When the brand has opted out of strict display-text contrast
+   * (ValidationContext.contrastMode = 'warn'), two-tone always prefers the
+   * accent token even if it misses WCAG thresholds.
+   */
+  relaxContrast?: boolean;
 }
 
 export function applyStyleDirectives(
@@ -48,7 +54,8 @@ export function applyStyleDirectives(
 ): InternalDesignDocument {
   const out = structuredClone(doc);
   for (const page of out.pages) {
-    if (directives.headlineTreatment === 'two-tone') twoToneHeadline(out, page.elements, newId);
+    if (directives.headlineTreatment === 'two-tone')
+      twoToneHeadline(out, page.elements, newId, directives.relaxContrast ?? false);
     addMotif(out, page.elements, directives, newId);
   }
   return out;
@@ -66,6 +73,7 @@ function twoToneHeadline(
   doc: InternalDesignDocument,
   elements: Element[],
   newId: () => string,
+  relaxContrast: boolean,
 ): void {
   const headline = elements.find(
     (el): el is TextElement => el.type === 'text' && el.roleHint === 'headline' && !el.locked,
@@ -75,7 +83,9 @@ function twoToneHeadline(
   const lines = wrapText(headline.text, headline.fontSize, headline.frame.width, headline.letterSpacing);
   if (lines.length < 2) return;
 
-  const accent = pickDisplayColour(doc, elements, headline);
+  const accent: Colour | null = relaxContrast
+    ? { kind: 'token', token: 'accent' }
+    : pickDisplayColour(doc, elements, headline);
   if (!accent) return;
 
   const split = Math.ceil(lines.length / 2);

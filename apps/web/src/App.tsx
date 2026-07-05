@@ -1,4 +1,5 @@
-import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
+import { useState } from 'react';
+import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { ClientSwitcher } from './components/ClientSwitcher';
 import { DashboardPage } from './pages/DashboardPage';
 import { BrandProfilesPage } from './pages/BrandProfilesPage';
@@ -8,10 +9,14 @@ import { EditorPage } from './pages/EditorPage';
 import { AssetLibraryPage } from './pages/AssetLibraryPage';
 import { ReviewQueuePage } from './pages/ReviewQueuePage';
 import { PlaygroundPage } from './pages/PlaygroundPage';
+import { DesignLibraryPage } from './pages/DesignLibraryPage';
+import { LoginPage } from './pages/LoginPage';
+import { getAccessToken, setAccessToken } from './lib/api';
 
 const NAV = [
   { to: '/', label: 'Dashboard' },
   { to: '/playground', label: 'Recipe playground' },
+  { to: '/designs', label: 'Design library' },
   { to: '/brand', label: 'Brand profiles' },
   { to: '/calendar', label: 'Calendar' },
   { to: '/packages', label: 'Post packages' },
@@ -20,6 +25,13 @@ const NAV = [
 ];
 
 export default function App() {
+  const [authed, setAuthed] = useState(Boolean(getAccessToken()));
+  const location = useLocation();
+
+  // The playground is usable logged-out (saving requires sign-in).
+  if (!authed && !location.pathname.startsWith('/playground'))
+    return <LoginPage onLoggedIn={() => setAuthed(true)} />;
+
   return (
     <div className="flex h-screen bg-slate-50 text-slate-900">
       <aside className="flex w-60 flex-col border-r border-slate-200 bg-white">
@@ -43,11 +55,23 @@ export default function App() {
             </NavLink>
           ))}
         </nav>
+        {authed && (
+          <button
+            className="m-3 rounded-md border border-slate-300 py-1.5 text-xs text-slate-500 hover:bg-slate-50"
+            onClick={() => {
+              setAccessToken(null);
+              setAuthed(false);
+            }}
+          >
+            Sign out
+          </button>
+        )}
       </aside>
       <main className="flex-1 overflow-auto">
         <Routes>
           <Route path="/" element={<DashboardPage />} />
           <Route path="/playground" element={<PlaygroundPage />} />
+          <Route path="/designs" element={<DesignLibraryPage />} />
           <Route path="/brand" element={<BrandProfilesPage />} />
           <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/packages" element={<PostPackagesPage />} />

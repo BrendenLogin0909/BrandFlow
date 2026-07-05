@@ -2,6 +2,10 @@
 
 let accessToken: string | null = localStorage.getItem('bf.accessToken');
 
+export function getAccessToken(): string | null {
+  return accessToken;
+}
+
 export function setAccessToken(token: string | null) {
   accessToken = token;
   if (token) localStorage.setItem('bf.accessToken', token);

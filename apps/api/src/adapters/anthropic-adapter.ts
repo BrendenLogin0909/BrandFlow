@@ -16,6 +16,7 @@ const MODEL_BY_STEP: Record<PipelineStep, string> = {
   post_copy: 'claude-sonnet-5',
   visual_concept: 'claude-sonnet-5',
   design_fill: 'claude-sonnet-5',
+  design_freeform: 'claude-fable-5',
   compliance_review: 'claude-haiku-4-5-20251001',
   accessibility_review: 'claude-haiku-4-5-20251001',
 };

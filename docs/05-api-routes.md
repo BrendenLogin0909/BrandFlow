@@ -76,6 +76,13 @@ All routes are prefixed `/api`. Auth: `Authorization: Bearer <JWT>`. All client-
 | POST | `.../design-documents/:id/validate` | Run validation, return report | `content:read` |
 | GET | `.../design-documents/:id/revisions[/:version]` | List / fetch / revert design revisions | `design:edit` |
 
+## Design drafts (standalone saved designs / playground drafts)
+
+| Method | Route | Purpose | Capability |
+|---|---|---|---|
+| GET/POST | `/clients/:clientId/design-drafts` | List / save (validated InternalDesignDocument + optional playground source) | `content:read` / `design:edit` |
+| GET/PUT/DELETE | `/clients/:clientId/design-drafts/:id` | Read / update / delete | same |
+
 ## Assets
 
 | Method | Route | Purpose | Capability |

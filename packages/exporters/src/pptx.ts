@@ -15,6 +15,15 @@ const px = (n: number) => n / PX_PER_INCH;
 const pt = (fontSizePx: number) => fontSizePx * 0.75; // 96px/in vs 72pt/in
 
 export async function exportPptx(doc: InternalDesignDocument): Promise<Buffer> {
+  return (await buildPptx(doc).write({ outputType: 'nodebuffer' })) as Buffer;
+}
+
+/** Browser variant — same document, returned as a Blob for download links. */
+export async function exportPptxBlob(doc: InternalDesignDocument): Promise<Blob> {
+  return (await buildPptx(doc).write({ outputType: 'blob' })) as Blob;
+}
+
+function buildPptx(doc: InternalDesignDocument): PptxGenJS {
   const pptx = new PptxGenJS();
   pptx.defineLayout({
     name: 'BRANDFLOW',
@@ -34,7 +43,7 @@ export async function exportPptx(doc: InternalDesignDocument): Promise<Buffer> {
       addElement(pptx, slide, el, doc);
   }
 
-  return (await pptx.write({ outputType: 'nodebuffer' })) as Buffer;
+  return pptx;
 }
 
 // Groups flatten to absolute-positioned elements (frames are page coordinates).
@@ -110,10 +119,7 @@ function addElement(
     case 'icon':
       if (el.iconRef.svg) {
         const svg = el.iconRef.svg.replace(/currentColor/g, `#${hex(el.colour, doc)}`);
-        slide.addImage({
-          ...box,
-          data: `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`,
-        });
+        slide.addImage({ ...box, data: `data:image/svg+xml;base64,${toBase64(svg)}` });
       } else {
         // keep a named, editable placeholder so nothing silently disappears
         slide.addShape(pptx.ShapeType.roundRect, {
@@ -161,4 +167,10 @@ function addElement(
 /** pptxgenjs wants hex without '#'. */
 function hex(colour: Colour, doc: InternalDesignDocument): string {
   return (resolveColour(colour, doc) ?? '#000000').replace('#', '').toUpperCase();
+}
+
+/** Cross-environment base64 (Node Buffer or browser btoa). */
+function toBase64(s: string): string {
+  if (typeof Buffer !== 'undefined') return Buffer.from(s).toString('base64');
+  return btoa(unescape(encodeURIComponent(s)));
 }

@@ -79,6 +79,35 @@ export const PROMPT_TEMPLATES: Record<PipelineStep, PromptTemplate> = {
       return `Fill the layout recipe slots below with content for this post. You decide ONLY slot content (text within character limits, icon names, colour treatment) — never positions, sizes or element types. Respect locked slot values verbatim.\n\nRecipe slots:\n${JSON.stringify(recipe.slots, null, 2)}\n\nContext:\n${JSON.stringify(rest)}`;
     },
   }),
+  design_freeform: template({
+    version: 'design_freeform@1',
+    jsonSchema: {
+      type: 'object',
+      properties: {
+        format: { type: 'string' },
+        canvasPreset: { enum: ['square', 'portrait', 'landscape'] },
+        pages: { type: 'array', items: { type: 'object' } },
+      },
+      required: ['format', 'canvasPreset', 'pages'],
+    },
+    render: (input) =>
+      `Design an original LinkedIn visual for this post — you control the full composition:
+element placement, sizes, layering, groups, shapes, decorative motifs, icon and image choices.
+
+Hard rules (violations are rejected and cost you a retry):
+- Only these element types: text, shape, icon, image, group.
+- Every colour must be a brand token reference ({"kind":"token","token":"primary|secondary|accent|neutral|background|text"}). Raw hex is forbidden.
+- Fonts: only the brand's heading and body fonts.
+- Icons: {"provider":"lucide","name":"<lucide icon name>"}. Images: only assetIds from approvedImageAssets, or omit for a placeholder.
+- Keep required content inside the safe area (90px margins); only decorative elements may bleed.
+- Body text ≥14px, captions ≥12px, headlines ≥24px. Respect readable contrast against what each text sits on.
+- Coordinates are absolute page pixels within the chosen canvas preset (square 1080x1080, portrait 1080x1350, landscape 1200x627).
+
+Be genuinely creative with composition — asymmetry, overlaps, oversized numerals, icon clusters,
+split layouts — while keeping the brand's personality. Do not imitate one fixed template.
+
+${JSON.stringify(input)}`,
+  }),
   compliance_review: template({
     version: 'compliance_review@1',
     jsonSchema: { type: 'object' },

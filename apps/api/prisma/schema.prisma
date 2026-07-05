@@ -475,6 +475,22 @@ model AuditEvent {
   @@index([entityType, entityId])
 }
 
+// Standalone saved designs (e.g. playground drafts) — reviewable later,
+// independent of the post-package workflow.
+model DesignDraft {
+  id               String   @id @default(uuid())
+  organisationId   String
+  clientCompanyId  String
+  name             String
+  internalDoc      Json
+  playgroundSource Json? // recipe/variant/directives/fill so the playground can restore controls
+  createdById      String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([clientCompanyId, updatedAt])
+}
+
 model GenerationJob {
   id              String    @id @default(uuid())
   organisationId  String

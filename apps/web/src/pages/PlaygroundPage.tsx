@@ -6,9 +6,12 @@
  * previews. This is the same code path the AI pipeline uses server-side
  * (the AI only fills the same slots this form fills).
  */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import type { BrandTokensSnapshot, InternalDesignDocument } from '@brandflow/design-schema';
 import { validateDesignDocument } from '@brandflow/design-schema';
+import { exportPptxBlob } from '@brandflow/exporters/pptx';
+import { clientApi, getAccessToken, getActiveClientId } from '../lib/api';
 import { RECIPES, applyStyleDirectives, HEADLINE_TREATMENTS, MOTIFS } from '@brandflow/layout-recipes';
 import type {
   HeadlineTreatment,
@@ -55,6 +58,17 @@ const DEFAULT_LIST = [
   { title: 'Proof', text: 'Back every claim with a number or a story.', iconName: 'bar-chart' },
 ];
 
+/** Everything needed to restore the playground controls from a saved draft. */
+interface PlaygroundSource {
+  recipeId: string;
+  variant: string;
+  treatment: HeadlineTreatment;
+  motif: Motif;
+  brand: typeof DEFAULT_BRAND;
+  fill: RecipeFill;
+  bestPractices?: boolean;
+}
+
 function defaultFill(recipe: LayoutRecipe): RecipeFill {
   const slots: Record<string, SlotValue> = {};
   for (const slot of recipe.slots) {
@@ -77,6 +91,29 @@ export function PlaygroundPage() {
   const [fill, setFill] = useState<RecipeFill>(() => defaultFill(RECIPES[0]!));
   const [treatment, setTreatment] = useState<HeadlineTreatment>('plain');
   const [motif, setMotif] = useState<Motif>('none');
+  const [bestPractices, setBestPractices] = useState(true);
+  const [saveState, setSaveState] = useState<string | null>(null);
+  const [searchParams] = useSearchParams();
+
+  // Reopen a saved draft from the design library (?draft=id)
+  useEffect(() => {
+    const draftId = searchParams.get('draft');
+    if (!draftId || !getAccessToken()) return;
+    clientApi<{ name: string; playgroundSource: PlaygroundSource | null }>(
+      `/design-drafts/${draftId}`,
+    ).then((draft) => {
+      const src = draft.playgroundSource;
+      if (!src) return;
+      setRecipeId(src.recipeId);
+      setVariant(src.variant);
+      setTreatment(src.treatment);
+      setMotif(src.motif);
+      setBrand(src.brand);
+      setFill(src.fill);
+      setBestPractices(src.bestPractices ?? true);
+    }).catch(() => setSaveState('Could not load draft'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const activeVariant = recipe.variants.some((v) => v.id === variant)
     ? variant
@@ -100,16 +137,52 @@ export function PlaygroundPage() {
       });
       const doc = applyStyleDirectives(
         base,
-        { headlineTreatment: treatment, motif, motifIconName: 'route' },
+        { headlineTreatment: treatment, motif, motifIconName: 'route', relaxContrast: !bestPractices },
         () => crypto.randomUUID(),
       );
-      const report = validateDesignDocument(doc);
+      const report = validateDesignDocument(doc, {
+        contrastMode: bestPractices ? 'enforce' : 'warn',
+      });
       const svgs = doc.pages.map((_, i) => exportPageSvg(doc, i));
       return { doc, report, svgs, error: null as string | null };
     } catch (e) {
       return { doc: null, report: null, svgs: [], error: String(e) };
     }
-  }, [recipe, activeVariant, brand, fill, treatment, motif]);
+  }, [recipe, activeVariant, brand, fill, treatment, motif, bestPractices]);
+
+  async function saveDraft() {
+    if (!result.doc) return;
+    if (!getAccessToken() || !getActiveClientId()) {
+      setSaveState('Sign in and select a client to save drafts');
+      return;
+    }
+    const name = window.prompt('Draft name', `${recipe.name} — ${new Date().toLocaleDateString()}`);
+    if (!name) return;
+    setSaveState('Saving…');
+    try {
+      const source: PlaygroundSource = {
+        recipeId, variant: activeVariant, treatment, motif, brand, fill, bestPractices,
+      };
+      await clientApi('/design-drafts', {
+        method: 'POST',
+        body: JSON.stringify({ name, internalDoc: result.doc, playgroundSource: source }),
+      });
+      setSaveState(`Saved "${name}" to the design library ✓`);
+    } catch (e) {
+      setSaveState(`Save failed: ${String(e)}`);
+    }
+  }
+
+  async function downloadPptx() {
+    if (!result.doc) return;
+    const blob = await exportPptxBlob(result.doc);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${recipe.id}.pptx`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   function surprise() {
     const r = RECIPES[Math.floor(Math.random() * RECIPES.length)]!;
@@ -207,6 +280,16 @@ export function PlaygroundPage() {
           🎲 Surprise me
         </button>
 
+        <label className="flex items-start gap-2 rounded border border-slate-200 p-3 text-xs text-slate-600">
+          <input type="checkbox" className="mt-0.5" checked={bestPractices}
+            onChange={(e) => setBestPractices(e.target.checked)} />
+          <span>
+            <strong>Enforce design best practices</strong> (recommended) — readability contrast is
+            required. Untick to allow low-contrast display colours; issues are still reported as
+            warnings.
+          </span>
+        </label>
+
         <fieldset className="rounded border border-slate-200 p-3">
           <legend className="px-1 text-xs font-semibold uppercase text-slate-400">Brand colours</legend>
           <div className="grid grid-cols-3 gap-2">
@@ -263,6 +346,18 @@ export function PlaygroundPage() {
 
       {/* preview */}
       <div className="flex-1 overflow-auto bg-slate-100 p-6">
+        <div className="mb-4 flex items-center gap-2">
+          <button className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
+            onClick={saveDraft}>
+            Save draft
+          </button>
+          <button className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50"
+            onClick={downloadPptx}
+            title="Editable PowerPoint — imports into Canva, Google Slides, PowerPoint">
+            Export PPTX
+          </button>
+          {saveState && <span className="text-sm text-slate-500">{saveState}</span>}
+        </div>
         {result.error && (
           <div className="rounded border border-red-300 bg-red-50 p-3 text-sm text-red-800">{result.error}</div>
         )}

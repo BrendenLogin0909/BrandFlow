@@ -38,6 +38,12 @@ export interface ValidationContext {
   bannedPhrases?: string[];
   /** Recipe-required slot ids that must be present. */
   requiredSlotIds?: string[];
+  /**
+   * 'enforce' (default): contrast failures are errors and block approval.
+   * 'warn': the brand has opted out of strict contrast for display text —
+   * failures are still measured and reported, but as warnings.
+   */
+  contrastMode?: 'enforce' | 'warn';
 }
 
 const MIN_FONT_SIZES: Record<string, number> = {
@@ -74,7 +80,7 @@ export function validateDesignDocument(
         checkMinFontSize(el, doc, page, v);
         checkTextOverflow(el, page, v);
         checkBannedPhrases(el, ctx, page, v);
-        checkContrast(el, doc, page, flat.map((f) => f.el), v);
+        checkContrast(el, doc, page, flat.map((f) => f.el), ctx, v);
         checkHiddenText(el, page, v);
       }
     }
@@ -328,6 +334,7 @@ function checkContrast(
   doc: InternalDesignDocument,
   page: Page,
   siblings: Element[],
+  ctx: ValidationContext,
   v: Violation[],
 ) {
   const fg = resolveColour(el.colour, doc);
@@ -339,10 +346,10 @@ function checkContrast(
   if (ratio < required)
     v.push({
       ruleId: 'contrast',
-      severity: 'error',
+      severity: ctx.contrastMode === 'warn' ? 'warning' : 'error',
       pageId: page.id,
       elementId: el.id,
-      message: `Contrast ${ratio.toFixed(2)}:1 below required ${required}:1`,
+      message: `Contrast ${ratio.toFixed(2)}:1 below recommended ${required}:1${ctx.contrastMode === 'warn' ? ' (brand override active)' : ''}`,
     });
 }
 

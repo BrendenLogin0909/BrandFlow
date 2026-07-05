@@ -4,6 +4,7 @@
  * (±0.5px), text, tokenRefs and z-order are preserved. Internal ids/tokens
  * ride in Polotno's `custom` field.
  */
+import { randomUUID } from 'node:crypto';
 import type {
   Colour,
   Element,
@@ -131,7 +132,7 @@ export class PolotnoAdapter implements DesignEnginePort {
     const baseEl = findElement(base, pe.id as string);
 
     const common = {
-      id: (pe.id as string) ?? crypto.randomUUID(),
+      id: (pe.id as string) ?? randomUUID(),
       name: (pe.name as string) || baseEl?.name || 'element',
       frame: {
         x: pe.x as number,
