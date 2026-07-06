@@ -378,24 +378,49 @@ enum AssetType {
 model AssetLibraryItem {
   id              String    @id @default(uuid())
   organisationId  String
-  clientCompanyId String
+  // null clientCompanyId = shared pool (platform-wide, e.g. open-licensed
+  // stock or reusable AI imagery available to every client).
+  clientCompanyId String?
   brandProfileId  String?
   type            AssetType
-  storageKey      String
+  // Either an object-storage key (uploaded/generated) OR a live external
+  // URL (open-licensed provider). At least one is always present.
+  storageKey      String?
+  sourceUrl       String? // page/attribution URL at the source
+  contentUrl      String? // direct CDN URL of the bytes (live-hotlink providers)
+  thumbUrl        String?
+  // --- Licence-aware registry (asset-source whitelist, not web search) ---
+  provider        String? // 'upload' | 'lucide' | 'iconify' | 'undraw' | 'dicebear' | 'openverse' | 'unsplash' | 'pexels' | 'pixabay' | 'wikimedia' | 'ai:<model>'
+  providerId      String? // id at the source, for dedupe + re-fetch
+  creator         String? // author/photographer for attribution
+  licence         String? // 'CC0' | 'ISC' | 'MIT' | 'SIL-OFL' | 'Unsplash' | 'Pexels' | 'Pixabay' | 'CC-BY' | ...
+  commercialUse       Boolean @default(true)
+  attributionRequired Boolean @default(false)
+  modificationAllowed Boolean @default(true)
+  restrictedFlags String[] // 'identifiable_person' | 'possible_trademark' | 'children' | ...
+  usageTier       Int       @default(2) // 1 auto-safe · 2 usable-with-metadata · 3 manual-review-only
+  allowedUseNotes String?
+  retrievedAt     DateTime?
+  aiPrompt        String? // when provider starts with 'ai:'
+  shared          Boolean   @default(false) // reusable across clients (shared pool)
   filename        String
   mimeType        String
-  sizeBytes       Int
+  sizeBytes       Int       @default(0)
+  width           Int?
+  height          Int?
   tags            String[]
   campaign        String?
   approved        Boolean   @default(false)
   allowInPrompts  Boolean   @default(false)
   usageCount      Int       @default(0)
-  uploadedById    String
+  uploadedById    String?
   createdAt       DateTime  @default(now())
 
-  clientCompany ClientCompany @relation(fields: [clientCompanyId], references: [id])
+  clientCompany ClientCompany? @relation(fields: [clientCompanyId], references: [id])
 
   @@index([clientCompanyId, type, approved])
+  @@index([shared, type])
+  @@index([provider, providerId])
 }
 
 // ---------- Governance ----------

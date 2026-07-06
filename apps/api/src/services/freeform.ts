@@ -23,6 +23,7 @@ import {
 } from '@brandflow/design-schema';
 import { LINKEDIN_CANVAS_PRESETS } from '@brandflow/shared';
 import { getAiProvider } from '../ai/provider.js';
+import { searchAssets } from '../assets/providers.js';
 
 export const FreeformOutput = z.object({
   format: z.string().min(1),
@@ -60,7 +61,8 @@ export function normaliseFreeform(data: FreeformOutputT, ctx: FreeformContext): 
     roleHint: null,
     tokenRefs: [],
     recipeSlotId: null,
-    meta: { freeform: true },
+    // preserve the AI's image subject (non-schema field) for asset resolution
+    meta: { freeform: true, ...(el.imageQuery ? { query: String(el.imageQuery) } : {}) },
     ...el,
     ...(el.type === 'group' && Array.isArray(el.children)
       ? { children: (el.children as Record<string, unknown>[]).map(withIds) }
@@ -164,10 +166,58 @@ function effectiveBg(
   return null;
 }
 
+/**
+ * Fill AI-placed image placeholders with real assets from the licensed
+ * providers (per the asset-source whitelist). Only auto-safe results are
+ * used; when no suitable asset is found (e.g. no photo API keys), the
+ * placeholder stays editable so a human can drop one in. Returns the
+ * attribution lines that any used licence requires.
+ */
+export async function resolveImages(doc: InternalDesignDocument): Promise<string[]> {
+  const attributions: string[] = [];
+  const placeholders: { el: Extract<Element, { type: 'image' }>; query: string }[] = [];
+  for (const page of doc.pages)
+    for (const el of flatten(page.elements))
+      if (el.type === 'image' && !el.src && !el.assetId) {
+        const query = (el.meta?.query as string) || el.name || '';
+        if (query) placeholders.push({ el, query });
+      }
+  if (placeholders.length === 0) return attributions;
+
+  const HUMAN = /\b(person|people|team|figure|man|woman|men|women|character|avatar|engineer|worker|founder|ceo|employee|customer|portrait|face|hero|professional|developer|designer|manager|leader|staff|colleague|human)\b/i;
+  const seen = new Set<string>();
+  await Promise.all(
+    placeholders.map(async ({ el, query }) => {
+      try {
+        const wantsFigure = HUMAN.test(query);
+        // primary search; for human subjects prefer illustrations (DiceBear
+        // is always available), otherwise photos
+        let results = await searchAssets({ kind: wantsFigure ? 'illustration' : 'photo', query, limit: 6 });
+        // fallback: if photo providers are dry (no keys) but the subject is
+        // a person, an illustration figure beats an empty grey box
+        if (results.length === 0 && wantsFigure)
+          results = await searchAssets({ kind: 'illustration', query, limit: 6 });
+        const pick = results.find((r) => r.usageTier <= 2 && !seen.has(r.contentUrl));
+        if (!pick) return; // no licensed asset available → leave editable placeholder
+        seen.add(pick.contentUrl);
+        el.src = pick.contentUrl;
+        el.isPlaceholder = false;
+        el.meta = { ...el.meta, assetProvider: pick.provider, assetLicence: pick.licence, assetSource: pick.sourceUrl };
+        if (pick.attributionRequired && pick.creator)
+          attributions.push(`${pick.creator} / ${pick.provider}`);
+      } catch {
+        /* leave the placeholder editable */
+      }
+    }),
+  );
+  return attributions;
+}
+
 export interface ComposeResult {
   document: InternalDesignDocument;
   report: ValidationReport;
   needsAttention: boolean;
+  attributions?: string[];
 }
 
 /**
@@ -190,15 +240,16 @@ export async function composeFreeform(
         FreeformOutput,
       );
       const document = autoFixFreeform(normaliseFreeform(data, ctx));
+      const attributions = await resolveImages(document); // fill placeholders from licensed providers
       const report = validateDesignDocument(document, {
         bannedPhrases: opts.bannedPhrases,
         contrastMode: opts.contrastMode ?? 'enforce',
       });
-      if (report.passed) return { document, report, needsAttention: false };
+      if (report.passed) return { document, report, needsAttention: false, attributions };
       violations = report.errors.map((e) => e.message);
       // keep the closest attempt: humans can fix a few residual errors
       if (!best || report.errors.length < best.report.errors.length)
-        best = { document, report, needsAttention: true };
+        best = { document, report, needsAttention: true, attributions };
     } catch (err) {
       violations = [String(err)];
     }
