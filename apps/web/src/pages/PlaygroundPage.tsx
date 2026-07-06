@@ -71,6 +71,45 @@ interface LinkedIdea {
   objective?: string;
 }
 
+/** A drafted post whose copy populates the design slots. */
+interface DraftPackage {
+  id: string;
+  ideaId: string | null;
+  internalTitle: string;
+  objective?: string;
+  hookOptions: string[] | null;
+  cta: string | null;
+  suggestedVisualFormat: string | null;
+  onImageText: { headline: string; support?: string; badge?: string } | null;
+  slideTexts: { title: string; body: string; iconName?: string }[] | null;
+}
+
+/** Populate every matching slot from the draft's copy — the design shows
+ *  the real post content, not sample text. */
+function fillFromDraft(recipe: LayoutRecipe, pkg: DraftPackage): RecipeFill {
+  const slots = { ...defaultFill(recipe).slots };
+  const oit = pkg.onImageText;
+  for (const slot of recipe.slots) {
+    if (slot.kind === 'text') {
+      const id = slot.id.toLowerCase();
+      let v: string | undefined;
+      if (id.includes('headline') || id.includes('hook') || id.includes('quote') || id.includes('statlabel'))
+        v = oit?.headline ?? pkg.internalTitle;
+      else if (id.includes('support') || id.includes('context') || id.includes('subline')) v = oit?.support;
+      else if (id.includes('kicker')) v = oit?.badge ?? pkg.objective?.replaceAll('_', ' ');
+      else if (id.includes('badge')) v = oit?.badge;
+      else if (id.includes('cta')) v = pkg.cta ?? undefined;
+      if (v) slots[slot.id] = { kind: 'text', text: v.slice(0, slot.maxChars) };
+    } else if (slot.kind === 'list' && pkg.slideTexts?.length) {
+      slots[slot.id] = {
+        kind: 'list',
+        items: pkg.slideTexts.map((s) => ({ title: s.title, text: s.body, iconName: s.iconName })),
+      };
+    }
+  }
+  return { slots };
+}
+
 /** Everything needed to restore the playground controls from a saved draft. */
 interface PlaygroundSource {
   recipeId: string;
@@ -125,14 +164,33 @@ export function PlaygroundPage() {
   // and linked — it becomes the design's primary text, is remembered across
   // recipe changes and Surprise me, and travels with saved drafts.
   const [idea, setIdea] = useState<LinkedIdea | null>(null);
+  const [draftPkg, setDraftPkg] = useState<DraftPackage | null>(null);
   const [ideaPopup, setIdeaPopup] = useState(false);
   const navigate = useNavigate();
   const ideaTitle = idea?.title ?? null;
 
   useEffect(() => {
     const ideaId = searchParams.get('idea');
+    const packageId = searchParams.get('package');
     const titleOnly = searchParams.get('ideaTitle'); // legacy links
-    if (ideaId && getAccessToken()) {
+    if (packageId && getAccessToken()) {
+      // designing a DRAFT: preselect the suggested format and fill every
+      // slot with the AI-written copy
+      clientApi<DraftPackage>(`/post-packages/${packageId}`).then((pkg) => {
+        setDraftPkg(pkg);
+        setIdea({
+          id: pkg.ideaId ?? undefined,
+          title: pkg.internalTitle,
+          angle: pkg.hookOptions?.[0],
+          objective: pkg.objective,
+        });
+        const fmt = pkg.suggestedVisualFormat;
+        const r = (fmt && RECIPES.find((x) => (x.formats as string[]).includes(fmt))) || recipe;
+        setRecipeId(r.id);
+        setVariant(r.variants[0]!.id);
+        setFill(fillFromDraft(r, pkg));
+      }).catch(() => setSaveState('Could not load the draft'));
+    } else if (ideaId && getAccessToken()) {
       clientApi<LinkedIdea>(`/ideas/${ideaId}`).then((full) => {
         setIdea(full);
         setFill((f) => applyIdeaTitle(recipe, f, full.title));
@@ -262,21 +320,31 @@ export function PlaygroundPage() {
   }
 
   function surprise() {
-    const r = RECIPES[Math.floor(Math.random() * RECIPES.length)]!;
+    // stay within the draft's suggested format family when one is linked
+    const pool = draftPkg?.suggestedVisualFormat
+      ? RECIPES.filter((x) => (x.formats as string[]).includes(draftPkg.suggestedVisualFormat!))
+      : RECIPES;
+    const r = (pool.length ? pool : RECIPES)[Math.floor(Math.random() * (pool.length || RECIPES.length))]!;
     setRecipeId(r.id);
     setVariant(r.variants[Math.floor(Math.random() * r.variants.length)]!.id);
-    // surprise changes the LOOK, never the linked idea's content
-    setFill(ideaTitle ? applyIdeaTitle(r, defaultFill(r), ideaTitle) : defaultFill(r));
+    // surprise changes the LOOK, never the linked content
+    setFill(contentFillFor(r));
     setTreatment(HEADLINE_TREATMENTS[Math.floor(Math.random() * HEADLINE_TREATMENTS.length)]!);
     setMotif(MOTIFS[Math.floor(Math.random() * MOTIFS.length)]!);
+  }
+
+  /** Content survives layout changes: draft copy first, then idea title, then samples. */
+  function contentFillFor(r: LayoutRecipe): RecipeFill {
+    if (draftPkg) return fillFromDraft(r, draftPkg);
+    if (ideaTitle) return applyIdeaTitle(r, defaultFill(r), ideaTitle);
+    return defaultFill(r);
   }
 
   function selectRecipe(id: string) {
     const r = RECIPES.find((x) => x.id === id)!;
     setRecipeId(id);
     setVariant(r.variants[0]!.id);
-    // keep the idea's text when changing layout — only the geometry changes
-    setFill(ideaTitle ? applyIdeaTitle(r, defaultFill(r), ideaTitle) : defaultFill(r));
+    setFill(contentFillFor(r));
   }
 
   function setTextSlot(id: string, text: string) {

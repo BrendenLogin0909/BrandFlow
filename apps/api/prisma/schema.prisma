@@ -266,7 +266,7 @@ model PostPackage {
   id                    String         @id @default(uuid())
   organisationId        String
   clientCompanyId       String
-  brandProfileId        String
+  brandProfileId        String?
   ideaId                String?
   internalTitle         String
   objective             String

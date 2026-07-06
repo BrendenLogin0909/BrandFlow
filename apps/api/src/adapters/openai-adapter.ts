@@ -16,7 +16,9 @@ export class OpenAIAdapter implements AiProviderPort {
   private client: OpenAI;
 
   constructor(apiKey = process.env.OPENAI_API_KEY) {
-    this.client = new OpenAI({ apiKey });
+    // fail fast instead of the SDK's 10-minute default — a hung call should
+    // hit the repair loop, not freeze the request
+    this.client = new OpenAI({ apiKey, timeout: 120_000, maxRetries: 1 });
   }
 
   async complete<T>(
@@ -37,6 +39,11 @@ export class OpenAIAdapter implements AiProviderPort {
 
       const response = await this.client.chat.completions.create({
         model,
+        // marketing copy doesn't need deep deliberation; default reasoning
+        // effort on gpt-5-class models makes drafts take minutes
+        ...(model.startsWith('gpt-5')
+          ? { reasoning_effort: (process.env.AI_OPENAI_REASONING ?? 'low') as 'low' }
+          : {}),
         messages: [
           { role: 'system', content: template.system },
           { role: 'user', content: template.render(input) + repairNote },

@@ -75,6 +75,40 @@ export class MockAiAdapter implements AiProviderPort {
       };
     }
 
+    if (step === 'post_copy') {
+      const r = (input ?? {}) as {
+        idea?: { title?: string };
+        direction?: string;
+        brand?: { companyName?: string };
+      };
+      const title = r.idea?.title ?? 'Your topic';
+      const flavour = r.direction?.includes('story') ? 'Here is what actually happened.' : 'Everyone gets this backwards.';
+      return {
+        hooks: [
+          `${title} — ${flavour}`,
+          `The uncomfortable truth about ${title.toLowerCase()}`,
+          `We changed how we think about ${title.toLowerCase()}. Results below.`,
+        ],
+        mainText: `${flavour}\n\n${title} is not about doing more — it is about doing the right things in the right order.\n\nThree things we see work:\n1. Start from outcomes, not activity.\n2. Make the invisible visible with one simple metric.\n3. Review weekly, adjust monthly.\n\nThe teams that do this consistently outperform the ones chasing tools.`,
+        shortVersion: `${title}: start from outcomes, measure one thing, review weekly. That is the whole playbook.`,
+        cta: 'What would you add? Tell us in the comments.',
+        hashtags: ['#QualityEngineering', '#Leadership', '#ContinuousImprovement'],
+        firstComment: 'We wrote a longer breakdown of this framework — happy to share it, just ask below.',
+        suggestedVisualFormat: 'carousel',
+        onImageText: {
+          headline: title.slice(0, 90),
+          support: 'Three moves that change the outcome',
+          badge: 'GUIDE',
+        },
+        slides: [
+          { title: 'Start from outcomes', body: 'Define what better looks like before touching tools.', iconName: 'target' },
+          { title: 'Make it visible', body: 'One simple metric everyone can see beats ten dashboards.', iconName: 'eye' },
+          { title: 'Review weekly', body: 'Small consistent corrections outperform big resets.', iconName: 'calendar-check' },
+        ],
+        altText: `Carousel about ${title}: three practical steps with icons.`,
+      };
+    }
+
     throw new Error(`MockAiAdapter has no canned output for step "${step}"`);
   }
 }

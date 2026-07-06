@@ -95,10 +95,58 @@ export const PROMPT_TEMPLATES: Record<PipelineStep, PromptTemplate> = {
     },
   }),
   post_copy: template({
-    version: 'post_copy@1',
-    jsonSchema: { type: 'object' },
-    render: (input) =>
-      `Write a complete LinkedIn post package for the approved idea below, in the brand voice, honouring locked fields verbatim if provided. Include: 3 hook options, main text, shorter version, longer version, CTA, hashtags, first comment, suggested visual format, carousel outline if applicable, on-image text, slide-by-slide text if carousel, accessibility alt text, brand compliance notes, quality score.\n\n${JSON.stringify(input)}`,
+    version: 'post_copy@2',
+    jsonSchema: {
+      type: 'object',
+      properties: {
+        hooks: { type: 'array', minItems: 3, maxItems: 3, items: { type: 'string', maxLength: 200 } },
+        mainText: { type: 'string', maxLength: 2800 },
+        shortVersion: { type: 'string', maxLength: 900 },
+        cta: { type: 'string', maxLength: 150 },
+        hashtags: { type: 'array', minItems: 3, maxItems: 8, items: { type: 'string', maxLength: 40 } },
+        firstComment: { type: 'string', maxLength: 500 },
+        suggestedVisualFormat: {
+          type: 'string',
+          enum: ['single_image', 'carousel', 'quote_card', 'statistic_card', 'announcement_graphic'],
+        },
+        onImageText: {
+          type: 'object',
+          properties: {
+            headline: { type: 'string', maxLength: 90 },
+            support: { type: 'string', maxLength: 140 },
+            badge: { type: 'string', maxLength: 20 },
+          },
+          required: ['headline'],
+        },
+        slides: {
+          type: 'array',
+          minItems: 3,
+          maxItems: 7,
+          items: {
+            type: 'object',
+            properties: {
+              title: { type: 'string', maxLength: 60 },
+              body: { type: 'string', maxLength: 180 },
+              iconName: { type: 'string', maxLength: 40, description: 'lucide icon matching this slide' },
+            },
+            required: ['title', 'body'],
+          },
+        },
+        altText: { type: 'string', maxLength: 300 },
+      },
+      required: ['hooks', 'mainText', 'cta', 'hashtags', 'firstComment', 'suggestedVisualFormat', 'onImageText', 'altText'],
+    },
+    render: (input) => {
+      const req = input as { directions?: boolean };
+      const task = req.directions
+        ? `Write 2 DISTINCT complete draft variants for this idea (e.g. contrarian vs story-driven) — return the FIRST variant only in the schema fields; a second call handles the other. Make the framing genuinely different from the current draft provided.`
+        : `Write a complete LinkedIn post draft for the idea below, in the brand voice.`;
+      return `${task}
+Rules: hook-first writing, short paragraphs, no hashtags inside mainText, concrete and specific over generic.
+Include: exactly 3 hook options (first = best), main post text, a shorter alternative, CTA, hashtags, a value-adding first comment, the best visual format, on-image text (headline max 90 chars + optional support line + optional short badge), 3-7 carousel slides (title+body+lucide icon) when the content suits a carousel, and accessibility alt text for the visual.
+
+${JSON.stringify(input)}`;
+    },
   }),
   visual_concept: template({
     version: 'visual_concept@1',

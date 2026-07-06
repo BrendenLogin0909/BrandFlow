@@ -54,7 +54,10 @@ All routes are prefixed `/api`. Auth: `Authorization: Bearer <JWT>`. All client-
 |---|---|---|---|
 | POST | `/clients/:clientId/ideas/suggest` | 202 — AI post ideas `{ brandProfileId, objective, sourceMaterial? }` | `content:generate` |
 | GET/POST/PATCH | `/clients/:clientId/ideas[/:id]` | List / create / approve-edit-reject | `content:read` / `content:edit` |
-| POST | `/clients/:clientId/post-packages/generate` | 202 — full package from approved idea | `content:generate` |
+| POST | `/clients/:clientId/post-packages/generate` | 202 — full package from approved idea (queued) | `content:generate` |
+| POST | `/clients/:clientId/post-packages/draft-sync` | Interactive draft: AI writes the full copy for an idea (one draft per idea; re-drafting updates it) | `content:generate` |
+| POST | `.../post-packages/:id/directions-sync` | Two alternative complete drafts (contrarian / story-driven) for curation | `content:generate` |
+| POST | `.../post-packages/:id/apply-draft` | Apply a chosen direction's copy onto the draft | `content:edit` |
 | GET/PATCH | `/clients/:clientId/post-packages[/:id]` | List (filter by status/brand/format) / edit fields | `content:read` / `content:edit` |
 | POST | `.../post-packages/:id/regenerate` | 202 — part-level regen `{ part: hook\|cta\|mainText\|hashtags\|firstComment\|slide:<n>\|onImageHeadline\|... }`; locked fields preserved | `content:generate` |
 | POST | `.../post-packages/:id/lock` | Lock/unlock fields `{ fields[], locked }` | `content:edit` |

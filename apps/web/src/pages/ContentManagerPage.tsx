@@ -35,9 +35,40 @@ interface ExpandGroup {
   directions: Candidate[];
 }
 
+/** A drafted post (PostPackage) — the Draft stage of the pipeline. */
+interface Draft {
+  id: string;
+  ideaId: string | null;
+  internalTitle: string;
+  status: string;
+  hookOptions: string[] | null;
+  mainText: string | null;
+  cta: string | null;
+  hashtags: string[];
+  firstComment: string | null;
+  suggestedVisualFormat: string | null;
+  onImageText: { headline: string; support?: string; badge?: string } | null;
+  slideTexts: { title: string; body: string; iconName?: string }[] | null;
+}
+
+/** Copy shape returned by the directions endpoint. */
+interface DirectionCopy {
+  hooks: string[];
+  mainText: string;
+  cta: string;
+  hashtags: string[];
+  firstComment: string;
+  suggestedVisualFormat: string;
+  onImageText: { headline: string; support?: string; badge?: string };
+  slides?: { title: string; body: string; iconName?: string }[];
+  altText: string;
+  shortVersion?: string;
+}
+
 const COLUMNS: { key: string; title: string; hint: string; statuses: Idea['status'][] }[] = [
   { key: 'ideas', title: 'Ideas', hint: 'Captured, not yet approved', statuses: ['SUGGESTED', 'EDITED'] },
-  { key: 'approved', title: 'Approved', hint: 'Ready to draft & design', statuses: ['APPROVED'] },
+  { key: 'approved', title: 'Approved', hint: 'Ready to draft', statuses: ['APPROVED'] },
+  { key: 'drafts', title: 'Drafts', hint: 'AI-written copy, human-edited', statuses: [] },
   { key: 'rejected', title: 'Rejected', hint: 'Kept for reference', statuses: ['REJECTED'] },
 ];
 
@@ -128,6 +159,80 @@ export function ContentManagerPage() {
     queryFn: () => clientApi<{ id: string; ideaId: string | null }[]>('/design-drafts'),
   });
   const draftByIdea = new Map((drafts ?? []).filter((d) => d.ideaId).map((d) => [d.ideaId!, d.id]));
+
+  // drafted posts (the Draft column)
+  const { data: packages } = useQuery({
+    queryKey: ['post-packages'],
+    queryFn: () => clientApi<Draft[]>('/post-packages'),
+  });
+  const activeDrafts = (packages ?? []).filter((p) =>
+    ['DRAFTING', 'GENERATED', 'IN_REVIEW', 'NEEDS_CHANGES'].includes(p.status),
+  );
+  const packageByIdea = new Map(activeDrafts.filter((p) => p.ideaId).map((p) => [p.ideaId!, p]));
+
+  const [draftingIdeaId, setDraftingIdeaId] = useState<string | null>(null);
+  async function createDraft(ideaId: string) {
+    setDraftingIdeaId(ideaId);
+    try {
+      await clientApi('/post-packages/draft-sync', { method: 'POST', body: JSON.stringify({ ideaId }) });
+      queryClient.invalidateQueries({ queryKey: ['post-packages'] });
+    } finally {
+      setDraftingIdeaId(null);
+    }
+  }
+
+  // inline draft editing modal
+  const [editDraft, setEditDraft] = useState<{
+    id: string; hook: string; mainText: string; cta: string; hashtags: string; firstComment: string;
+  } | null>(null);
+  async function saveDraftEdit() {
+    if (!editDraft) return;
+    await clientApi(`/post-packages/${editDraft.id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        hookOptions: [editDraft.hook],
+        mainText: editDraft.mainText,
+        cta: editDraft.cta,
+        hashtags: editDraft.hashtags.split(/[,\s]+/).filter(Boolean),
+        firstComment: editDraft.firstComment,
+      }),
+    });
+    setEditDraft(null);
+    queryClient.invalidateQueries({ queryKey: ['post-packages'] });
+  }
+
+  // draft directions modal (same keep-what-you-like pattern, applied as ONE choice)
+  const [dirState, setDirState] = useState<{
+    pkgId: string; busy: boolean; original: { hook?: string; mainText?: string | null } | null;
+    directions: DirectionCopy[]; picked: number | null;
+  } | null>(null);
+  async function openDirections(pkg: Draft) {
+    setDirState({ pkgId: pkg.id, busy: true, original: null, directions: [], picked: null });
+    try {
+      const res = await clientApi<{ original: { hook?: string; mainText?: string | null }; directions: DirectionCopy[] }>(
+        `/post-packages/${pkg.id}/directions-sync`,
+        { method: 'POST', body: '{}' },
+      );
+      setDirState({ pkgId: pkg.id, busy: false, original: res.original, directions: res.directions, picked: null });
+    } catch {
+      setDirState(null);
+    }
+  }
+  async function applyDirection() {
+    if (!dirState || dirState.picked === null) return;
+    await clientApi(`/post-packages/${dirState.pkgId}/apply-draft`, {
+      method: 'POST',
+      body: JSON.stringify(dirState.directions[dirState.picked]),
+    });
+    setDirState(null);
+    queryClient.invalidateQueries({ queryKey: ['post-packages'] });
+  }
+
+  async function archiveDraft(pkg: Draft) {
+    if (!confirm(`Archive draft "${pkg.internalTitle}"?`)) return;
+    await clientApi(`/post-packages/${pkg.id}/status`, { method: 'POST', body: JSON.stringify({ status: 'ARCHIVED' }) });
+    queryClient.invalidateQueries({ queryKey: ['post-packages'] });
+  }
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['ideas'] });
 
@@ -514,6 +619,99 @@ export function ContentManagerPage() {
         </div>
       )}
 
+      {/* draft copy editor */}
+      {editDraft && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 p-6"
+          onClick={() => setEditDraft(null)}>
+          <div className="max-h-full w-[640px] overflow-auto rounded-2xl bg-white p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-bold">Edit draft</h2>
+            <label className="mt-4 block text-sm">
+              <span className="font-semibold">Hook</span>
+              <input className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5"
+                value={editDraft.hook} onChange={(e) => setEditDraft({ ...editDraft, hook: e.target.value })} />
+            </label>
+            <label className="mt-3 block text-sm">
+              <span className="font-semibold">Post text</span>
+              <textarea className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5" rows={9}
+                value={editDraft.mainText} onChange={(e) => setEditDraft({ ...editDraft, mainText: e.target.value })} />
+            </label>
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <label className="block text-sm">
+                <span className="font-semibold">CTA</span>
+                <input className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5"
+                  value={editDraft.cta} onChange={(e) => setEditDraft({ ...editDraft, cta: e.target.value })} />
+              </label>
+              <label className="block text-sm">
+                <span className="font-semibold">Hashtags</span>
+                <input className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5"
+                  value={editDraft.hashtags} onChange={(e) => setEditDraft({ ...editDraft, hashtags: e.target.value })} />
+              </label>
+            </div>
+            <label className="mt-3 block text-sm">
+              <span className="font-semibold">First comment</span>
+              <textarea className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5" rows={2}
+                value={editDraft.firstComment} onChange={(e) => setEditDraft({ ...editDraft, firstComment: e.target.value })} />
+            </label>
+            <div className="mt-5 flex justify-end gap-2">
+              <button className="rounded-md border border-slate-300 px-4 py-2 text-sm" onClick={() => setEditDraft(null)}>
+                Cancel
+              </button>
+              <button className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
+                onClick={saveDraftEdit}>
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* draft directions chooser */}
+      {dirState && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 p-6"
+          onClick={() => setDirState(null)}>
+          <div className="max-h-full w-[720px] overflow-auto rounded-2xl bg-white p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-bold">Draft directions</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Two alternative drafts — pick the one to apply, or keep the original as is.
+            </p>
+            {dirState.busy && <div className="mt-4 text-sm text-slate-500">Writing two alternative drafts…</div>}
+            {!dirState.busy && dirState.original && (
+              <div className="mt-4 space-y-3">
+                <label className={`block cursor-pointer rounded-lg border p-3 ${dirState.picked === null ? 'border-indigo-300 bg-indigo-50/50' : 'border-slate-200'}`}>
+                  <input type="radio" className="mr-2" checked={dirState.picked === null}
+                    onChange={() => setDirState({ ...dirState, picked: null })} />
+                  <span className="rounded bg-slate-700 px-1.5 py-0.5 text-[10px] font-bold uppercase text-white">Original</span>
+                  <span className="ml-2 text-sm font-semibold">{dirState.original.hook}</span>
+                  <div className="mt-1 line-clamp-3 whitespace-pre-line pl-6 text-xs text-slate-500">{dirState.original.mainText}</div>
+                </label>
+                {dirState.directions.map((d, i) => (
+                  <label key={i} className={`block cursor-pointer rounded-lg border p-3 ${dirState.picked === i ? 'border-indigo-300 bg-indigo-50/50' : 'border-slate-200'}`}>
+                    <input type="radio" className="mr-2" checked={dirState.picked === i}
+                      onChange={() => setDirState({ ...dirState, picked: i })} />
+                    <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-indigo-700">
+                      Direction {i + 1}
+                    </span>
+                    <span className="ml-2 text-sm font-semibold">{d.hooks[0]}</span>
+                    <div className="mt-1 line-clamp-3 whitespace-pre-line pl-6 text-xs text-slate-500">{d.mainText}</div>
+                  </label>
+                ))}
+                <div className="flex justify-end gap-2">
+                  <button className="rounded-md border border-slate-300 px-4 py-2 text-sm" onClick={() => setDirState(null)}>
+                    Cancel
+                  </button>
+                  <button className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+                    disabled={dirState.picked === null} onClick={applyDirection}>
+                    Apply direction
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* multi-select action bar */}
       {selected.size > 0 && (
         <div className="mt-4 flex items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 p-3 text-sm">
@@ -542,8 +740,75 @@ export function ContentManagerPage() {
       )}
 
       {/* board */}
-      <div className="mt-6 grid flex-1 grid-cols-3 gap-4 overflow-auto">
+      <div className="mt-6 grid flex-1 grid-cols-4 gap-4 overflow-auto">
         {COLUMNS.map((col) => {
+          if (col.key === 'drafts')
+            return (
+              <div key="drafts" className="flex flex-col rounded-xl bg-slate-100 p-3">
+                <div className="mb-2 px-1">
+                  <span className="font-semibold">{col.title}</span>
+                  <span className="ml-2 rounded-full bg-slate-200 px-2 text-xs">{activeDrafts.length}</span>
+                  <div className="text-xs text-slate-400">{col.hint}</div>
+                </div>
+                <div className="space-y-2 overflow-auto">
+                  {activeDrafts.map((pkg) => (
+                    <div key={pkg.id} className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+                      <div className="text-sm font-semibold">{pkg.internalTitle}</div>
+                      {pkg.hookOptions?.[0] && (
+                        <div className="mt-1 text-xs italic text-slate-600">“{pkg.hookOptions[0]}”</div>
+                      )}
+                      {pkg.mainText && (
+                        <div className="mt-1 line-clamp-2 text-xs text-slate-500">{pkg.mainText}</div>
+                      )}
+                      <div className="mt-1 flex gap-1 text-[10px]">
+                        {pkg.suggestedVisualFormat && (
+                          <span className="rounded bg-indigo-100 px-1.5 py-0.5 font-semibold text-indigo-700">
+                            {pkg.suggestedVisualFormat.replaceAll('_', ' ')}
+                          </span>
+                        )}
+                        {pkg.slideTexts && (
+                          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-slate-500">
+                            {pkg.slideTexts.length} slides
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-2 flex gap-1.5 text-xs">
+                        <button className="rounded border border-slate-300 px-2 py-1 hover:bg-slate-50" title="Edit the copy"
+                          onClick={() =>
+                            setEditDraft({
+                              id: pkg.id,
+                              hook: pkg.hookOptions?.[0] ?? '',
+                              mainText: pkg.mainText ?? '',
+                              cta: pkg.cta ?? '',
+                              hashtags: (pkg.hashtags ?? []).join(' '),
+                              firstComment: pkg.firstComment ?? '',
+                            })
+                          }>
+                          ✎ Edit
+                        </button>
+                        <button className="rounded border border-indigo-300 px-2 py-1 text-indigo-700 hover:bg-indigo-50"
+                          title="Two alternative drafts to choose from" onClick={() => openDirections(pkg)}>
+                          ✨ Directions
+                        </button>
+                        <button className="rounded bg-indigo-600 px-2 py-1 font-semibold text-white hover:bg-indigo-700"
+                          onClick={() => navigate(`/playground?package=${pkg.id}`)}>
+                          🎨 Design
+                        </button>
+                        <button className="ml-auto rounded border border-red-200 px-2 py-1 text-red-600 hover:bg-red-50"
+                          title="Archive draft" onClick={() => archiveDraft(pkg)}>
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  {activeDrafts.length === 0 && (
+                    <div className="rounded-lg border border-dashed border-slate-300 p-4 text-center text-xs text-slate-400">
+                      Draft an approved idea to start
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
           const items = (ideas ?? []).filter((i) => col.statuses.includes(i.status));
           return (
             <div key={col.key} className="flex flex-col rounded-xl bg-slate-100 p-3">
@@ -601,19 +866,35 @@ export function ContentManagerPage() {
                           </button>
                         </>
                       )}
-                      {col.key === 'approved' &&
-                        (draftByIdea.has(idea.id) ? (
-                          <button className="rounded border border-indigo-300 bg-indigo-50 px-2 py-1 font-semibold text-indigo-700 hover:bg-indigo-100"
-                            title="Reopen the saved design for this idea"
-                            onClick={() => navigate(`/playground?draft=${draftByIdea.get(idea.id)}`)}>
-                            Open design 🎨
-                          </button>
-                        ) : (
-                          <button className="rounded bg-indigo-600 px-2 py-1 font-semibold text-white hover:bg-indigo-700"
-                            onClick={() => navigate(`/playground?idea=${idea.id}`)}>
-                            Design →
-                          </button>
-                        ))}
+                      {col.key === 'approved' && (
+                        <>
+                          {packageByIdea.has(idea.id) ? (
+                            <span className="rounded bg-slate-100 px-2 py-1 text-slate-500" title="This idea has a draft in the Drafts column">
+                              drafted ✓
+                            </span>
+                          ) : (
+                            <button className="rounded bg-indigo-600 px-2 py-1 font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+                              disabled={draftingIdeaId === idea.id}
+                              title="AI writes the full LinkedIn copy for this idea"
+                              onClick={() => createDraft(idea.id)}>
+                              {draftingIdeaId === idea.id ? 'Drafting…' : '✨ Draft'}
+                            </button>
+                          )}
+                          {draftByIdea.has(idea.id) ? (
+                            <button className="rounded border border-indigo-300 bg-indigo-50 px-2 py-1 font-semibold text-indigo-700 hover:bg-indigo-100"
+                              title="Reopen the saved design for this idea"
+                              onClick={() => navigate(`/playground?draft=${draftByIdea.get(idea.id)}`)}>
+                              Open design 🎨
+                            </button>
+                          ) : (
+                            <button className="rounded border border-slate-300 px-2 py-1 hover:bg-slate-50"
+                              title="Skip drafting and design directly"
+                              onClick={() => navigate(`/playground?idea=${idea.id}`)}>
+                              Design →
+                            </button>
+                          )}
+                        </>
+                      )}
                       {col.key === 'rejected' && (
                         <button className="rounded border border-slate-300 px-2 py-1 hover:bg-slate-50"
                           onClick={() => setStatus.mutate({ id: idea.id, status: 'EDITED' })}>
