@@ -362,13 +362,20 @@ export async function postPackageRoutes(app: FastifyInstance) {
     if (!pkg) return reply.code(404).send({ error: { code: 'NOT_FOUND' } });
 
     const brand = await brandVoiceContext(app, req.tenant!.clientCompanyId);
+    // the ORIGINAL idea stays the unchanged reference point for every rewrite
+    const originalIdea = pkg.ideaId
+      ? await app.prisma.postIdea.findUnique({
+          where: { id: pkg.ideaId },
+          select: { title: true, angle: true, objective: true },
+        })
+      : null;
     const currentDraft = {
       hook: (pkg.hookOptions as string[] | null)?.[0],
       mainText: pkg.mainText,
       cta: pkg.cta,
     };
     const base = {
-      idea: { title: pkg.internalTitle, objective: pkg.objective },
+      idea: originalIdea ?? { title: pkg.internalTitle, objective: pkg.objective },
       brand,
       currentDraft,
       directions: true,
@@ -398,6 +405,65 @@ export async function postPackageRoutes(app: FastifyInstance) {
     });
     if (updated.count === 0) return reply.code(404).send({ error: { code: 'NOT_FOUND' } });
     return app.prisma.postPackage.findUnique({ where: { id } });
+  });
+
+  /**
+   * Assign a publish date independent of approval (Buffer-style).
+   * No date in the body → next available day (after the latest planned
+   * slot, starting tomorrow).
+   */
+  app.post('/:id/plan', edit, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const body = z.object({ plannedFor: z.string().datetime().optional() }).parse(req.body ?? {});
+    const pkg = await app.prisma.postPackage.findFirst({
+      where: { id, clientCompanyId: req.tenant!.clientCompanyId },
+    });
+    if (!pkg) return reply.code(404).send({ error: { code: 'NOT_FOUND' } });
+
+    let calendar = await app.prisma.contentCalendar.findFirst({
+      where: { clientCompanyId: req.tenant!.clientCompanyId },
+    });
+    calendar ??= await app.prisma.contentCalendar.create({
+      data: {
+        organisationId: req.tenant!.organisationId,
+        clientCompanyId: req.tenant!.clientCompanyId,
+        name: 'Content calendar',
+        status: 'APPROVED', // single-user fast path; Gate 2 applies to AI batch plans
+      },
+    });
+
+    let date: Date;
+    if (body.plannedFor) {
+      date = new Date(body.plannedFor);
+    } else {
+      // next available: the day after the latest planned post, at least tomorrow
+      const latest = await app.prisma.calendarSlot.findFirst({
+        where: { calendarId: calendar.id },
+        orderBy: { date: 'desc' },
+        select: { date: true },
+      });
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setHours(9, 0, 0, 0);
+      const afterLatest = latest ? new Date(latest.date.getTime() + 24 * 3600 * 1000) : tomorrow;
+      date = afterLatest > tomorrow ? afterLatest : tomorrow;
+    }
+
+    const existing = await app.prisma.calendarSlot.findFirst({
+      where: { calendarId: calendar.id, postPackageId: id },
+    });
+    if (existing) await app.prisma.calendarSlot.update({ where: { id: existing.id }, data: { date } });
+    else
+      await app.prisma.calendarSlot.create({
+        data: {
+          calendarId: calendar.id,
+          date,
+          objective: pkg.objective,
+          format: pkg.suggestedVisualFormat ?? 'single_image',
+          postPackageId: id,
+        },
+      });
+    return { plannedFor: date };
   });
 
   /** Part-level regeneration: locked fields are never touched (docs/08 §4). */

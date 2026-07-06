@@ -69,10 +69,10 @@ interface DirectionCopy {
 }
 
 const COLUMNS: { key: string; title: string; hint: string; statuses: Idea['status'][] }[] = [
-  { key: 'ideas', title: 'Ideas', hint: 'Captured, not yet approved', statuses: ['SUGGESTED', 'EDITED'] },
-  { key: 'approved', title: 'Approved', hint: 'Ready to draft', statuses: ['APPROVED'] },
-  { key: 'drafts', title: 'Drafts', hint: 'Copy + storyboard, human-edited', statuses: [] },
-  { key: 'review', title: 'Review & planned', hint: 'Gate 3 approval and a date', statuses: [] },
+  { key: 'ideas', title: 'Ideas', hint: 'Captured — press Draft to move one forward', statuses: ['SUGGESTED', 'EDITED', 'APPROVED'] },
+  { key: 'drafts', title: 'Drafts', hint: 'AI copy + storyboard, human-edited', statuses: [] },
+  { key: 'review', title: 'Review & planned', hint: 'Assign a date and approve', statuses: [] },
+  { key: 'approvedPkgs', title: 'Approved', hint: 'Dated and approved — ready to publish', statuses: [] },
   { key: 'rejected', title: 'Rejected', hint: 'Kept for reference', statuses: ['REJECTED'] },
 ];
 
@@ -172,10 +172,45 @@ export function ContentManagerPage() {
   const activeDrafts = (packages ?? []).filter((p) =>
     ['DRAFTING', 'GENERATED', 'NEEDS_CHANGES'].includes(p.status),
   );
-  const inReview = (packages ?? []).filter((p) => ['IN_REVIEW', 'APPROVED'].includes(p.status));
+  // Review & planned holds items missing EITHER the approval OR the date;
+  // with both, an item graduates to Approved.
+  const inReview = (packages ?? []).filter(
+    (p) => p.status === 'IN_REVIEW' || (p.status === 'APPROVED' && !p.plannedFor),
+  );
+  const approvedPkgs = (packages ?? []).filter((p) => p.status === 'APPROVED' && p.plannedFor);
   const packageByIdea = new Map(
     (packages ?? []).filter((p) => p.ideaId && p.status !== 'ARCHIVED').map((p) => [p.ideaId!, p]),
   );
+  const ideaById = new Map((ideas ?? []).map((i) => [i.id, i]));
+
+  // collapsible columns (persisted)
+  const [collapsed, setCollapsed] = useState<Set<string>>(
+    () => new Set(JSON.parse(localStorage.getItem('bf.collapsedCols') ?? '[]') as string[]),
+  );
+  function toggleCollapsed(key: string) {
+    setCollapsed((c) => {
+      const next = new Set(c);
+      next.has(key) ? next.delete(key) : next.add(key);
+      localStorage.setItem('bf.collapsedCols', JSON.stringify([...next]));
+      return next;
+    });
+  }
+
+  async function assignDate(pkg: Draft, plannedFor?: string) {
+    await clientApi(`/post-packages/${pkg.id}/plan`, {
+      method: 'POST',
+      body: JSON.stringify(plannedFor ? { plannedFor } : {}),
+    });
+    queryClient.invalidateQueries({ queryKey: ['post-packages'] });
+  }
+
+  async function approvePackage(pkg: Draft) {
+    await clientApi(`/post-packages/${pkg.id}/approve`, {
+      method: 'POST',
+      body: JSON.stringify({ decision: 'APPROVED' }),
+    });
+    queryClient.invalidateQueries({ queryKey: ['post-packages'] });
+  }
 
   async function setPackageStatus(pkg: Draft, status: string) {
     await clientApi(`/post-packages/${pkg.id}/status`, { method: 'POST', body: JSON.stringify({ status }) });
@@ -194,28 +229,19 @@ export function ContentManagerPage() {
     queryClient.invalidateQueries({ queryKey: ['post-packages'] });
   }
 
-  // Gate 3 approval with optional planning date
-  const [approval, setApproval] = useState<{ pkgId: string; date: string; note: string } | null>(null);
-  async function submitApproval(decision: 'APPROVED' | 'CHANGES_REQUESTED') {
-    if (!approval) return;
-    await clientApi(`/post-packages/${approval.pkgId}/approve`, {
-      method: 'POST',
-      body: JSON.stringify({
-        decision,
-        note: approval.note || undefined,
-        plannedFor: decision === 'APPROVED' && approval.date ? new Date(approval.date).toISOString() : undefined,
-      }),
-    });
-    setApproval(null);
-    queryClient.invalidateQueries({ queryKey: ['post-packages'] });
-  }
+  // Buffer-style date assignment: next available slot, or a specific date
+  const [assignModal, setAssignModal] = useState<{ pkg: Draft; date: string } | null>(null);
 
   const [draftingIdeaId, setDraftingIdeaId] = useState<string | null>(null);
   async function createDraft(ideaId: string) {
     setDraftingIdeaId(ideaId);
     try {
       await clientApi('/post-packages/draft-sync', { method: 'POST', body: JSON.stringify({ ideaId }) });
+      // the idea moves to Drafts; the original stays on record (APPROVED)
+      // as the unchanged reference for the user and the AI
+      await clientApi(`/ideas/${ideaId}`, { method: 'PATCH', body: JSON.stringify({ status: 'APPROVED' }) });
       queryClient.invalidateQueries({ queryKey: ['post-packages'] });
+      invalidate();
     } finally {
       setDraftingIdeaId(null);
     }
@@ -795,40 +821,37 @@ export function ContentManagerPage() {
         </div>
       )}
 
-      {/* Gate 3 approval with planning date */}
-      {approval && (
+      {/* assign a publish date (Buffer-style) */}
+      {assignModal && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 p-6"
-          onClick={() => setApproval(null)}>
+          onClick={() => setAssignModal(null)}>
           <div className="w-[440px] rounded-2xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-lg font-bold">Approve & plan</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Approving passes Gate 3. Pick a date to place it on the calendar, or leave empty to
-              schedule later.
-            </p>
-            <label className="mt-4 block text-sm">
-              <span className="font-semibold">Publish date (optional)</span>
-              <input type="date" className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5"
-                value={approval.date} onChange={(e) => setApproval({ ...approval, date: e.target.value })} />
-            </label>
-            <label className="mt-3 block text-sm">
-              <span className="font-semibold">Note (optional)</span>
-              <input className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5"
-                value={approval.note} onChange={(e) => setApproval({ ...approval, note: e.target.value })} />
-            </label>
-            <div className="mt-5 flex justify-between">
-              <button className="rounded-md border border-amber-300 px-4 py-2 text-sm text-amber-700 hover:bg-amber-50"
-                onClick={() => submitApproval('CHANGES_REQUESTED')}>
-                ↩ Request changes
+            <h2 className="text-lg font-bold">Assign publish date</h2>
+            <p className="mt-1 line-clamp-1 text-sm text-slate-500">{assignModal.pkg.internalTitle}</p>
+            <button className="mt-4 w-full rounded-md border border-indigo-300 bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-100"
+              title="The day after your latest planned post (at least tomorrow)"
+              onClick={async () => {
+                await assignDate(assignModal.pkg);
+                setAssignModal(null);
+              }}>
+              ⚡ Next available slot
+            </button>
+            <div className="my-3 text-center text-xs text-slate-400">— or pick a date —</div>
+            <input type="date" className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+              value={assignModal.date}
+              onChange={(e) => setAssignModal({ ...assignModal, date: e.target.value })} />
+            <div className="mt-5 flex justify-end gap-2">
+              <button className="rounded-md border border-slate-300 px-4 py-2 text-sm" onClick={() => setAssignModal(null)}>
+                Cancel
               </button>
-              <div className="space-x-2">
-                <button className="rounded-md border border-slate-300 px-4 py-2 text-sm" onClick={() => setApproval(null)}>
-                  Cancel
-                </button>
-                <button className="rounded-md bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700"
-                  onClick={() => submitApproval('APPROVED')}>
-                  ✓ Approve
-                </button>
-              </div>
+              <button className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+                disabled={!assignModal.date}
+                onClick={async () => {
+                  await assignDate(assignModal.pkg, new Date(assignModal.date).toISOString());
+                  setAssignModal(null);
+                }}>
+                Save date
+              </button>
             </div>
           </div>
         </div>
@@ -889,9 +912,15 @@ export function ContentManagerPage() {
             title="Generate two distinct directions per selected idea, then choose what to keep">
             ✨ Expand into 2 directions{selected.size > 1 ? ' each' : ''}
           </button>
-          <button className="rounded-md border border-green-300 bg-white px-3 py-1.5 text-green-700 hover:bg-green-50"
-            onClick={() => bulkStatus('APPROVED')}>
-            Approve
+          <button className="rounded-md border border-green-300 bg-white px-3 py-1.5 text-green-700 hover:bg-green-50 disabled:opacity-50"
+            disabled={draftingIdeaId !== null}
+            title="AI drafts each selected idea in turn"
+            onClick={async () => {
+              const ids = [...selected];
+              setSelected(new Set());
+              for (const id of ids) await createDraft(id);
+            }}>
+            {draftingIdeaId ? 'Drafting…' : '✨ Draft all'}
           </button>
           <button className="rounded-md border border-slate-300 bg-white px-3 py-1.5 hover:bg-slate-100"
             onClick={() => bulkStatus('REJECTED')}>
@@ -908,16 +937,40 @@ export function ContentManagerPage() {
       )}
 
       {/* board */}
-      <div className="mt-6 grid flex-1 grid-cols-5 gap-4 overflow-auto">
+      <div className="mt-6 flex flex-1 gap-3 overflow-auto">
         {COLUMNS.map((col) => {
+          const count =
+            col.key === 'drafts' ? activeDrafts.length
+            : col.key === 'review' ? inReview.length
+            : col.key === 'approvedPkgs' ? approvedPkgs.length
+            : (ideas ?? []).filter((i) => col.statuses.includes(i.status) && (col.key !== 'ideas' || !packageByIdea.has(i.id))).length;
+
+          // collapsed: a narrow strip — click to expand
+          if (collapsed.has(col.key))
+            return (
+              <button key={col.key}
+                className="flex w-9 shrink-0 flex-col items-center gap-2 rounded-xl bg-slate-100 py-3 hover:bg-slate-200"
+                title={`Expand ${col.title}`} onClick={() => toggleCollapsed(col.key)}>
+                <span className="rounded-full bg-slate-200 px-1.5 text-xs">{count}</span>
+                <span className="text-xs font-semibold text-slate-600" style={{ writingMode: 'vertical-rl' }}>
+                  {col.title}
+                </span>
+              </button>
+            );
+
+          const header = (
+            <button className="mb-2 w-full px-1 text-left" title="Click to minimise this column"
+              onClick={() => toggleCollapsed(col.key)}>
+              <span className="font-semibold">{col.title}</span>
+              <span className="ml-2 rounded-full bg-slate-200 px-2 text-xs">{count}</span>
+              <div className="text-xs text-slate-400">{col.hint}</div>
+            </button>
+          );
+
           if (col.key === 'drafts')
             return (
-              <div key="drafts" className="flex flex-col rounded-xl bg-slate-100 p-3">
-                <div className="mb-2 px-1">
-                  <span className="font-semibold">{col.title}</span>
-                  <span className="ml-2 rounded-full bg-slate-200 px-2 text-xs">{activeDrafts.length}</span>
-                  <div className="text-xs text-slate-400">{col.hint}</div>
-                </div>
+              <div key="drafts" className="flex min-w-56 flex-1 flex-col rounded-xl bg-slate-100 p-3">
+                {header}
                 <div className="space-y-2 overflow-auto">
                   {activeDrafts.map((pkg) => (
                     <div key={pkg.id} className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
@@ -927,6 +980,17 @@ export function ContentManagerPage() {
                       )}
                       {pkg.mainText && (
                         <div className="mt-1 line-clamp-2 text-xs text-slate-500">{pkg.mainText}</div>
+                      )}
+                      {pkg.ideaId && ideaById.has(pkg.ideaId) && (
+                        <details className="mt-1 text-xs">
+                          <summary className="cursor-pointer text-slate-400 hover:text-slate-600">
+                            💡 Original idea
+                          </summary>
+                          <div className="mt-1 rounded bg-slate-50 p-2 text-slate-600">
+                            <div className="font-semibold">{ideaById.get(pkg.ideaId)!.title}</div>
+                            {ideaById.get(pkg.ideaId)!.angle && <div>{ideaById.get(pkg.ideaId)!.angle}</div>}
+                          </div>
+                        </details>
                       )}
                       <div className="mt-1 flex gap-1 text-[10px]">
                         {pkg.suggestedVisualFormat && (
@@ -977,10 +1041,6 @@ export function ContentManagerPage() {
                             🎨 Design
                           </button>
                         )}
-                        <button className="rounded border border-green-300 px-2 py-1 text-green-700 hover:bg-green-50"
-                          title="Send to review (Gate 3)" onClick={() => setPackageStatus(pkg, 'IN_REVIEW')}>
-                          → Review
-                        </button>
                         <button className="ml-auto rounded border border-red-200 px-2 py-1 text-red-600 hover:bg-red-50"
                           title="Archive draft" onClick={() => archiveDraft(pkg)}>
                           ✕
@@ -990,7 +1050,7 @@ export function ContentManagerPage() {
                   ))}
                   {activeDrafts.length === 0 && (
                     <div className="rounded-lg border border-dashed border-slate-300 p-4 text-center text-xs text-slate-400">
-                      Draft an approved idea to start
+                      Press ✨ Draft on an idea to start
                     </div>
                   )}
                 </div>
@@ -998,12 +1058,8 @@ export function ContentManagerPage() {
             );
           if (col.key === 'review')
             return (
-              <div key="review" className="flex flex-col rounded-xl bg-slate-100 p-3">
-                <div className="mb-2 px-1">
-                  <span className="font-semibold">{col.title}</span>
-                  <span className="ml-2 rounded-full bg-slate-200 px-2 text-xs">{inReview.length}</span>
-                  <div className="text-xs text-slate-400">{col.hint}</div>
-                </div>
+              <div key="review" className="flex min-w-56 flex-1 flex-col rounded-xl bg-slate-100 p-3">
+                {header}
                 <div className="space-y-2 overflow-auto">
                   {inReview.map((pkg) => (
                     <div key={pkg.id} className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
@@ -1012,27 +1068,33 @@ export function ContentManagerPage() {
                         <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${
                           pkg.status === 'APPROVED' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
                         }`}>
-                          {pkg.status === 'APPROVED' ? 'Approved' : 'In review'}
+                          {pkg.status === 'APPROVED' ? 'Needs date' : 'In review'}
                         </span>
                       </div>
                       {pkg.hookOptions?.[0] && (
                         <div className="mt-1 line-clamp-2 text-xs italic text-slate-600">“{pkg.hookOptions[0]}”</div>
                       )}
-                      {pkg.status === 'APPROVED' && (
-                        <div className="mt-1 text-xs font-medium text-green-700">
-                          📅 {pkg.plannedFor ? new Date(pkg.plannedFor).toLocaleDateString() : 'not scheduled'}
-                        </div>
-                      )}
+                      <div className="mt-1 text-xs text-slate-500">
+                        📅 {pkg.plannedFor ? new Date(pkg.plannedFor).toLocaleDateString() : 'no date yet'}
+                        {' · '}
+                        {pkg.status === 'APPROVED' ? 'approved ✓' : 'not approved'}
+                      </div>
                       <div className="mt-2 flex flex-wrap gap-1.5 text-xs">
+                        <button className="rounded border border-indigo-300 px-2 py-1 text-indigo-700 hover:bg-indigo-50"
+                          title="Next available slot or a specific date"
+                          onClick={() => setAssignModal({ pkg, date: pkg.plannedFor?.slice(0, 10) ?? '' })}>
+                          📅 Assign date
+                        </button>
                         {pkg.status === 'IN_REVIEW' && (
                           <>
                             <button className="rounded bg-green-600 px-2 py-1 font-semibold text-white hover:bg-green-700"
-                              onClick={() => setApproval({ pkgId: pkg.id, date: '', note: '' })}>
+                              title="Gate 3 approval"
+                              onClick={() => approvePackage(pkg)}>
                               ✓ Approve
                             </button>
                             <button className="rounded border border-amber-300 px-2 py-1 text-amber-700 hover:bg-amber-50"
                               title="Back to Drafts with changes requested"
-                              onClick={() => setApproval({ pkgId: pkg.id, date: '', note: '' }) /* modal offers both */}>
+                              onClick={() => setPackageStatus(pkg, 'NEEDS_CHANGES')}>
                               ↩ Changes
                             </button>
                           </>
@@ -1040,13 +1102,7 @@ export function ContentManagerPage() {
                         {pkg.ideaId && draftByIdea.has(pkg.ideaId) && (
                           <button className="rounded border border-indigo-300 bg-indigo-50 px-2 py-1 font-semibold text-indigo-700 hover:bg-indigo-100"
                             onClick={() => navigate(`/playground?draft=${draftByIdea.get(pkg.ideaId!)}`)}>
-                            🎨 Open design
-                          </button>
-                        )}
-                        {pkg.status === 'APPROVED' && (
-                          <button className="ml-auto rounded border border-slate-300 px-2 py-1 text-slate-500 hover:bg-slate-50"
-                            title="Mark exported / archive" onClick={() => archiveDraft(pkg)}>
-                            Archive
+                            🎨 Design
                           </button>
                         )}
                       </div>
@@ -1054,20 +1110,59 @@ export function ContentManagerPage() {
                   ))}
                   {inReview.length === 0 && (
                     <div className="rounded-lg border border-dashed border-slate-300 p-4 text-center text-xs text-slate-400">
-                      Send a draft to review
+                      Save a design to move a draft here
                     </div>
                   )}
                 </div>
               </div>
             );
-          const items = (ideas ?? []).filter((i) => col.statuses.includes(i.status));
-          return (
-            <div key={col.key} className="flex flex-col rounded-xl bg-slate-100 p-3">
-              <div className="mb-2 px-1">
-                <span className="font-semibold">{col.title}</span>
-                <span className="ml-2 rounded-full bg-slate-200 px-2 text-xs">{items.length}</span>
-                <div className="text-xs text-slate-400">{col.hint}</div>
+          if (col.key === 'approvedPkgs')
+            return (
+              <div key="approvedPkgs" className="flex min-w-56 flex-1 flex-col rounded-xl bg-slate-100 p-3">
+                {header}
+                <div className="space-y-2 overflow-auto">
+                  {approvedPkgs.map((pkg) => (
+                    <div key={pkg.id} className="rounded-lg border border-green-200 bg-white p-3 shadow-sm">
+                      <div className="text-sm font-semibold">{pkg.internalTitle}</div>
+                      <div className="mt-1 text-xs font-medium text-green-700">
+                        📅 {new Date(pkg.plannedFor!).toLocaleDateString()} · approved ✓
+                      </div>
+                      <div className="mt-1 text-[10px] text-slate-400">
+                        publishing to LinkedIn/Buffer: integration TBC
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-1.5 text-xs">
+                        <button className="rounded border border-slate-300 px-2 py-1 hover:bg-slate-50"
+                          title="Change the publish date"
+                          onClick={() => setAssignModal({ pkg, date: pkg.plannedFor!.slice(0, 10) })}>
+                          📅 Change date
+                        </button>
+                        {pkg.ideaId && draftByIdea.has(pkg.ideaId) && (
+                          <button className="rounded border border-indigo-300 px-2 py-1 text-indigo-700 hover:bg-indigo-50"
+                            onClick={() => navigate(`/playground?draft=${draftByIdea.get(pkg.ideaId!)}`)}>
+                            🎨 Design
+                          </button>
+                        )}
+                        <button className="ml-auto rounded border border-slate-300 px-2 py-1 text-slate-500 hover:bg-slate-50"
+                          title="Mark exported / archive" onClick={() => archiveDraft(pkg)}>
+                          Archive
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  {approvedPkgs.length === 0 && (
+                    <div className="rounded-lg border border-dashed border-slate-300 p-4 text-center text-xs text-slate-400">
+                      Approve + assign a date to land here
+                    </div>
+                  )}
+                </div>
               </div>
+            );
+          const items = (ideas ?? []).filter(
+            (i) => col.statuses.includes(i.status) && (col.key !== 'ideas' || !packageByIdea.has(i.id)),
+          );
+          return (
+            <div key={col.key} className="flex min-w-56 flex-1 flex-col rounded-xl bg-slate-100 p-3">
+              {header}
               <div className="space-y-2 overflow-auto">
                 {items.map((idea) => (
                   <div key={idea.id}
@@ -1107,43 +1202,16 @@ export function ContentManagerPage() {
                     <div className="mt-2 flex gap-1.5 text-xs">
                       {col.key === 'ideas' && (
                         <>
-                          <button className="rounded border border-green-300 px-2 py-1 text-green-700 hover:bg-green-50"
-                            onClick={() => setStatus.mutate({ id: idea.id, status: 'APPROVED' })}>
-                            Approve
+                          <button className="rounded bg-indigo-600 px-2 py-1 font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+                            disabled={draftingIdeaId === idea.id}
+                            title="AI drafts the full post and moves this idea to Drafts; the original idea is kept as reference"
+                            onClick={() => createDraft(idea.id)}>
+                            {draftingIdeaId === idea.id ? 'Drafting…' : '✨ Draft'}
                           </button>
                           <button className="rounded border border-slate-300 px-2 py-1 hover:bg-slate-50"
                             onClick={() => setStatus.mutate({ id: idea.id, status: 'REJECTED' })}>
                             Reject
                           </button>
-                        </>
-                      )}
-                      {col.key === 'approved' && (
-                        <>
-                          {packageByIdea.has(idea.id) ? (
-                            <span className="rounded bg-slate-100 px-2 py-1 text-slate-500" title="This idea has a draft in the Drafts column">
-                              drafted ✓
-                            </span>
-                          ) : (
-                            <button className="rounded bg-indigo-600 px-2 py-1 font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
-                              disabled={draftingIdeaId === idea.id}
-                              title="AI writes the full LinkedIn copy for this idea"
-                              onClick={() => createDraft(idea.id)}>
-                              {draftingIdeaId === idea.id ? 'Drafting…' : '✨ Draft'}
-                            </button>
-                          )}
-                          {draftByIdea.has(idea.id) ? (
-                            <button className="rounded border border-indigo-300 bg-indigo-50 px-2 py-1 font-semibold text-indigo-700 hover:bg-indigo-100"
-                              title="Reopen the saved design for this idea"
-                              onClick={() => navigate(`/playground?draft=${draftByIdea.get(idea.id)}`)}>
-                              Open design 🎨
-                            </button>
-                          ) : (
-                            <button className="rounded border border-slate-300 px-2 py-1 hover:bg-slate-50"
-                              title="Skip drafting and design directly"
-                              onClick={() => navigate(`/playground?idea=${idea.id}`)}>
-                              Design →
-                            </button>
-                          )}
                         </>
                       )}
                       {col.key === 'rejected' && (

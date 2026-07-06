@@ -76,6 +76,7 @@ interface DraftPackage {
   id: string;
   ideaId: string | null;
   internalTitle: string;
+  status?: string;
   objective?: string;
   hookOptions: string[] | null;
   cta: string | null;
@@ -286,6 +287,22 @@ export function PlaygroundPage() {
         }),
       });
       setSavedDraftId(saved.id);
+
+      // Saving the design advances the pipeline: the draft moves from
+      // Drafts to Review & planned (no save = it stays a draft).
+      if (draftPkg && ['DRAFTING', 'GENERATED', 'NEEDS_CHANGES'].includes(draftPkg.status ?? '')) {
+        try {
+          await clientApi(`/post-packages/${draftPkg.id}/status`, {
+            method: 'POST',
+            body: JSON.stringify({ status: 'IN_REVIEW' }),
+          });
+          setDraftPkg({ ...draftPkg, status: 'IN_REVIEW' });
+          setSaveState(`Design saved — "${(idea?.title ?? name).slice(0, 36)}…" moved to Review & planned ✓`);
+          return;
+        } catch {
+          /* status move is best-effort; the save itself succeeded */
+        }
+      }
       setSaveState(
         idea?.id ? `Saved to idea "${idea.title.slice(0, 40)}" ✓` : `Saved "${name}" to the design library ✓`,
       );
