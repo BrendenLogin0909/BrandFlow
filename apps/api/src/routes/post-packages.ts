@@ -71,6 +71,8 @@ const StatusBody = z.object({ status: z.custom<WorkflowStatus>() });
 const ApproveBody = z.object({
   decision: z.enum(['APPROVED', 'CHANGES_REQUESTED']),
   note: z.string().optional(),
+  /** Optional publish date — approving can plan the post in one step. */
+  plannedFor: z.string().datetime().optional(),
 });
 const RegenerateBody = z.object({
   part: z.enum(['hook', 'cta', 'mainText', 'hashtags', 'firstComment', 'onImageHeadline', 'all'])
@@ -146,7 +148,7 @@ export async function postPackageRoutes(app: FastifyInstance) {
 
   app.get('/', read, async (req) => {
     const { status, brandProfileId } = req.query as { status?: WorkflowStatus; brandProfileId?: string };
-    return app.prisma.postPackage.findMany({
+    const pkgs = await app.prisma.postPackage.findMany({
       where: {
         clientCompanyId: req.tenant!.clientCompanyId,
         ...(status ? { status } : {}),
@@ -155,6 +157,13 @@ export async function postPackageRoutes(app: FastifyInstance) {
       orderBy: { updatedAt: 'desc' },
       take: 50,
     });
+    // attach the planned calendar date, if any
+    const slots = await app.prisma.calendarSlot.findMany({
+      where: { postPackageId: { in: pkgs.map((p) => p.id) } },
+      select: { postPackageId: true, date: true },
+    });
+    const dateByPkg = new Map(slots.map((s) => [s.postPackageId, s.date]));
+    return pkgs.map((p) => ({ ...p, plannedFor: dateByPkg.get(p.id) ?? null }));
   });
 
   app.get('/:id', read, async (req, reply) => {
@@ -265,7 +274,38 @@ export async function postPackageRoutes(app: FastifyInstance) {
         },
       }),
     ]);
-    return { status };
+
+    // Approved & Planned in one step: drop the post onto the calendar.
+    let plannedFor: Date | null = null;
+    if (body.decision === 'APPROVED' && body.plannedFor) {
+      plannedFor = new Date(body.plannedFor);
+      let calendar = await app.prisma.contentCalendar.findFirst({
+        where: { clientCompanyId: req.tenant!.clientCompanyId },
+      });
+      calendar ??= await app.prisma.contentCalendar.create({
+        data: {
+          organisationId: req.tenant!.organisationId,
+          clientCompanyId: req.tenant!.clientCompanyId,
+          name: 'Content calendar',
+          status: 'APPROVED', // single-user fast path; Gate 2 applies to AI batch plans
+        },
+      });
+      const existing = await app.prisma.calendarSlot.findFirst({
+        where: { calendarId: calendar.id, postPackageId: id },
+      });
+      if (existing) await app.prisma.calendarSlot.update({ where: { id: existing.id }, data: { date: plannedFor } });
+      else
+        await app.prisma.calendarSlot.create({
+          data: {
+            calendarId: calendar.id,
+            date: plannedFor,
+            objective: pkg.objective,
+            format: pkg.suggestedVisualFormat ?? 'single_image',
+            postPackageId: id,
+          },
+        });
+    }
+    return { status, plannedFor };
   });
 
   /**

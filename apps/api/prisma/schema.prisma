@@ -198,7 +198,7 @@ model ContentCalendar {
   id              String           @id @default(uuid())
   organisationId  String
   clientCompanyId String
-  brandProfileId  String
+  brandProfileId  String?
   name            String
   status          ApprovableStatus @default(DRAFT)
   approvedById    String?
