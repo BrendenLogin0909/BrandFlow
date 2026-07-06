@@ -9,6 +9,7 @@
 import PptxGenJS from 'pptxgenjs';
 import type { Colour, Element, InternalDesignDocument } from '@brandflow/design-schema';
 import { resolveColour } from '@brandflow/design-schema';
+import { resolveIconSvg, styleIconSvg } from './icons.js';
 
 const PX_PER_INCH = 96;
 const px = (n: number) => n / PX_PER_INCH;
@@ -116,9 +117,10 @@ function addElement(
       return;
     }
 
-    case 'icon':
-      if (el.iconRef.svg) {
-        const svg = el.iconRef.svg.replace(/currentColor/g, `#${hex(el.colour, doc)}`);
+    case 'icon': {
+      const artwork = resolveIconSvg(el.iconRef);
+      if (artwork) {
+        const svg = styleIconSvg(artwork, `#${hex(el.colour, doc)}`, el.strokeWidth);
         slide.addImage({ ...box, data: `data:image/svg+xml;base64,${toBase64(svg)}` });
       } else {
         // keep a named, editable placeholder so nothing silently disappears
@@ -136,6 +138,7 @@ function addElement(
         });
       }
       return;
+    }
 
     case 'image':
       if (el.src) slide.addImage({ ...box, path: el.src, sizing: { type: el.fit === 'contain' ? 'contain' : 'cover', w: box.w, h: box.h } });

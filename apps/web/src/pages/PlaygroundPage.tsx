@@ -8,8 +8,8 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import type { BrandTokensSnapshot, InternalDesignDocument } from '@brandflow/design-schema';
-import { validateDesignDocument } from '@brandflow/design-schema';
+import type { BrandTokensSnapshot, InternalDesignDocument, ValidationReport } from '@brandflow/design-schema';
+import { parseDesignDocument, validateDesignDocument } from '@brandflow/design-schema';
 import { exportPptxBlob } from '@brandflow/exporters/pptx';
 import JSZip from 'jszip';
 import { clientApi, getAccessToken, getActiveClientId } from '../lib/api';
@@ -122,6 +122,8 @@ interface PlaygroundSource {
   bestPractices?: boolean;
   idea?: LinkedIdea | null;
   fonts?: typeof DEFAULT_FONTS;
+  /** 'freeform' = the saved internalDoc IS the design (AI-composed). */
+  mode?: 'recipe' | 'freeform';
 }
 
 /** Put the idea's title into the recipe's primary required text slot. */
@@ -160,6 +162,13 @@ export function PlaygroundPage() {
   const [saveState, setSaveState] = useState<string | null>(null);
   const [savedDraftId, setSavedDraftId] = useState<string | null>(null);
   const [searchParams] = useSearchParams();
+
+  // AI-composed mode: the AI invents the full layout; recipes step aside
+  const [composedDoc, setComposedDoc] = useState<InternalDesignDocument | null>(null);
+  const [composeOpen, setComposeOpen] = useState(false);
+  const [composeBrief, setComposeBrief] = useState('');
+  const [composeBusy, setComposeBusy] = useState(false);
+  const [composeError, setComposeError] = useState<string | null>(null);
 
   // Arriving from the content manager (?idea=<id>): the WHOLE idea is loaded
   // and linked — it becomes the design's primary text, is remembered across
@@ -207,7 +216,7 @@ export function PlaygroundPage() {
   useEffect(() => {
     const draftId = searchParams.get('draft');
     if (!draftId || !getAccessToken()) return;
-    clientApi<{ id: string; name: string; playgroundSource: PlaygroundSource | null }>(
+    clientApi<{ id: string; name: string; internalDoc: unknown; playgroundSource: PlaygroundSource | null }>(
       `/design-drafts/${draftId}`,
     ).then((draft) => {
       const src = draft.playgroundSource;
@@ -221,6 +230,10 @@ export function PlaygroundPage() {
       setBestPractices(src.bestPractices ?? true);
       if (src.fonts) setFonts(src.fonts);
       if (src.idea) setIdea(src.idea); // the saved design stays linked to its idea
+      // an AI-composed design reopens as the exact saved document
+      if (src.mode === 'freeform') {
+        try { setComposedDoc(parseDesignDocument(draft.internalDoc)); } catch { /* fall back to recipe view */ }
+      }
       setSavedDraftId(draft.id ?? null);
     }).catch(() => setSaveState('Could not load draft'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -236,6 +249,17 @@ export function PlaygroundPage() {
       fonts,
       logoAssetIds: [],
     };
+    // AI-composed document: display as-is (retinted to the current brand)
+    if (composedDoc) {
+      try {
+        const doc: InternalDesignDocument = { ...composedDoc, brandTokens: tokens };
+        const report = validateDesignDocument(doc, { contrastMode: bestPractices ? 'enforce' : 'warn' });
+        const svgs = doc.pages.map((_, i) => exportPageSvg(doc, i));
+        return { doc, report, svgs, error: null as string | null };
+      } catch (e) {
+        return { doc: null, report: null as ValidationReport | null, svgs: [] as string[], error: String(e) };
+      }
+    }
     try {
       const base: InternalDesignDocument = recipe.layout(fill, {
         documentId: crypto.randomUUID(),
@@ -259,7 +283,50 @@ export function PlaygroundPage() {
     } catch (e) {
       return { doc: null, report: null, svgs: [], error: String(e) };
     }
-  }, [recipe, activeVariant, brand, fonts, fill, treatment, motif, bestPractices]);
+  }, [recipe, activeVariant, brand, fonts, fill, treatment, motif, bestPractices, composedDoc]);
+
+  /** Builds a rich brief from whatever content is linked. */
+  function defaultBrief(): string {
+    if (draftPkg) {
+      const parts = [
+        `Post: ${draftPkg.internalTitle}`,
+        draftPkg.onImageText?.headline && `On-image headline: ${draftPkg.onImageText.headline}`,
+        draftPkg.onImageText?.support && `Support line: ${draftPkg.onImageText.support}`,
+        draftPkg.hookOptions?.[0] && `Hook: ${draftPkg.hookOptions[0]}`,
+        draftPkg.slideTexts?.length &&
+          `Slides:\n${draftPkg.slideTexts.map((s, i) => `${i + 1}. ${s.title} — ${s.body}`).join('\n')}`,
+        draftPkg.cta && `CTA: ${draftPkg.cta}`,
+      ].filter(Boolean);
+      return parts.join('\n');
+    }
+    if (idea) return `Post idea: ${idea.title}${idea.angle ? `\nAngle: ${idea.angle}` : ''}`;
+    return 'A bold LinkedIn post about doing hard things well. Surprise me with the composition.';
+  }
+
+  async function compose() {
+    setComposeBusy(true);
+    setComposeError(null);
+    try {
+      const res = await clientApi<{ document: InternalDesignDocument; provider: string }>(
+        '/compose-sync',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            brief: composeBrief,
+            format: draftPkg?.suggestedVisualFormat ?? undefined,
+            brandTokens: { colours: brand, fonts },
+            contrastMode: bestPractices ? 'enforce' : 'warn',
+          }),
+        },
+      );
+      setComposedDoc(parseDesignDocument(res.document));
+      setComposeOpen(false);
+    } catch (e) {
+      setComposeError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setComposeBusy(false);
+    }
+  }
 
   async function saveDraft() {
     if (!result.doc) return;
@@ -276,6 +343,7 @@ export function PlaygroundPage() {
     try {
       const source: PlaygroundSource = {
         recipeId, variant: activeVariant, treatment, motif, brand, fonts, fill, bestPractices, idea,
+        mode: composedDoc ? 'freeform' : 'recipe',
       };
       const saved = await clientApi<{ id: string }>('/design-drafts', {
         method: 'POST',
@@ -537,6 +605,37 @@ export function PlaygroundPage() {
           </div>
         )}
 
+        {composeOpen && (
+          <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 p-6"
+            onClick={() => !composeBusy && setComposeOpen(false)}>
+            <div className="w-[560px] rounded-2xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+              <h2 className="text-lg font-bold">✨ Compose with AI</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                The AI art-directs the whole graphic — icon illustration scenes, charts, arrows,
+                colour blocks, layered composition. Edit the brief to steer it.
+              </p>
+              <textarea className="mt-4 w-full rounded border border-slate-300 px-2 py-1.5 text-sm" rows={8}
+                value={composeBrief} onChange={(e) => setComposeBrief(e.target.value)} />
+              {composeError && <div className="mt-2 text-sm text-red-600">{composeError}</div>}
+              <div className="mt-4 flex items-center justify-between">
+                <span className="text-xs text-slate-400">
+                  {composeBusy ? 'Composing — this takes 30–90 seconds…' : 'Uses your current brand colours and fonts'}
+                </span>
+                <div className="space-x-2">
+                  <button className="rounded-md border border-slate-300 px-4 py-2 text-sm" disabled={composeBusy}
+                    onClick={() => setComposeOpen(false)}>
+                    Cancel
+                  </button>
+                  <button className="rounded-md bg-purple-600 px-4 py-2 text-sm font-semibold text-white hover:bg-purple-700 disabled:opacity-50"
+                    disabled={composeBusy || !composeBrief.trim()} onClick={compose}>
+                    {composeBusy ? 'Composing…' : 'Compose'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {ideaPopup && idea && (
           <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 p-6"
             onClick={() => setIdeaPopup(false)}>
@@ -562,7 +661,24 @@ export function PlaygroundPage() {
             </div>
           </div>
         )}
+        {composedDoc && (
+          <div className="mb-3 flex items-center gap-2 rounded-lg border border-purple-200 bg-purple-50 px-3 py-2 text-sm">
+            <span className="font-semibold text-purple-800">✨ AI-composed layout</span>
+            <span className="flex-1 text-xs text-purple-500">
+              recipe and variant controls are inactive; brand colours and fonts still apply live
+            </span>
+            <button className="rounded border border-purple-300 px-2 py-1 text-xs font-semibold text-purple-700 hover:bg-purple-100"
+              onClick={() => { setComposedDoc(null); setSavedDraftId(null); }}>
+              ↩ Back to recipes
+            </button>
+          </div>
+        )}
         <div className="mb-4 flex items-center gap-2">
+          <button className="rounded-md bg-purple-600 px-4 py-2 text-sm font-semibold text-white hover:bg-purple-700"
+            title="The AI invents the entire composition — layout, scenes, charts, arrows"
+            onClick={() => { setComposeBrief(defaultBrief()); setComposeError(null); setComposeOpen(true); }}>
+            ✨ Compose with AI
+          </button>
           <button className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
             onClick={saveDraft}>
             Save draft

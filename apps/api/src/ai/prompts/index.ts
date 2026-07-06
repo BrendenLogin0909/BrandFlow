@@ -172,32 +172,67 @@ ${JSON.stringify(input)}`;
     },
   }),
   design_freeform: template({
-    version: 'design_freeform@1',
+    version: 'design_freeform@3',
     jsonSchema: {
       type: 'object',
       properties: {
         format: { type: 'string' },
-        canvasPreset: { enum: ['square', 'portrait', 'landscape'] },
-        pages: { type: 'array', items: { type: 'object' } },
+        canvasPreset: { type: 'string', enum: ['square', 'portrait', 'landscape'] },
+        pages: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              name: { type: 'string' },
+              background: {
+                type: 'object',
+                properties: { kind: { type: 'string', enum: ['token'] }, token: { type: 'string' } },
+                required: ['kind', 'token'],
+              },
+              elements: { type: 'array', items: { type: 'object' } },
+            },
+            required: ['name', 'background', 'elements'],
+          },
+        },
       },
       required: ['format', 'canvasPreset', 'pages'],
     },
     render: (input) =>
-      `Design an original LinkedIn visual for this post — you control the full composition:
-element placement, sizes, layering, groups, shapes, decorative motifs, icon and image choices.
+      `You are an award-winning social media art director. Design an ORIGINAL, visually rich LinkedIn graphic for the content below. You control the entire composition: placement, sizes, layering, colour blocking, decorative motifs.
 
-Hard rules (violations are rejected and cost you a retry):
-- Only these element types: text, shape, icon, image, group.
-- Every colour must be a brand token reference ({"kind":"token","token":"primary|secondary|accent|neutral|background|text"}). Raw hex is forbidden.
-- Fonts: only the brand's heading and body fonts.
-- Icons: {"provider":"lucide","name":"<lucide icon name>"}. Images: only assetIds from approvedImageAssets, or omit for a placeholder.
-- Keep required content inside the safe area (90px margins); only decorative elements may bleed.
-- Body text ≥14px, captions ≥12px, headlines ≥24px. Respect readable contrast against what each text sits on.
-- Coordinates are absolute page pixels within the chosen canvas preset (square 1080x1080, portrait 1080x1350, landscape 1200x627).
+## Element types (exact JSON shapes)
+- TEXT: {"type":"text","text":"...","frame":{"x":0,"y":0,"width":0,"height":0,"rotation":0},"fontFamily":"<heading-or-body font>","fontSize":48,"fontWeight":800,"lineHeight":1.15,"align":"left|center|right","colour":{"kind":"token","token":"text"},"zIndex":5,"roleHint":"headline|subheadline|body|caption|cta|badge|data|decoration"}
+- ICON (line artwork, any size — these are your illustrations): {"type":"icon","iconRef":{"provider":"lucide","name":"trophy"},"frame":{...},"colour":{"kind":"token","token":"accent"},"strokeWidth":1.5,"zIndex":3,"roleHint":"icon|decoration"}
+- SHAPE: {"type":"shape","shape":"rect|ellipse|line|triangle|arrow","frame":{...},"fill":{"kind":"token","token":"primary"},"cornerRadius":24,"zIndex":1,"roleHint":"decoration|badge"} (arrow points right; rotate the frame for other directions; opacity 0.06-0.15 on big shapes makes soft background blobs)
+- CHART (real data viz): {"type":"chart","chartType":"bar|donut|progress|stat","data":[{"label":"Before","value":38},{"label":"After","value":82}],"palette":[{"category":"colour","token":"primary"},{"category":"colour","token":"accent"}],"frame":{...},"zIndex":4}
+- IMAGE placeholder (photo dropped in later by a human): {"type":"image","frame":{...},"fit":"cover","cornerRadius":24,"isPlaceholder":true,"zIndex":2,"roleHint":"image"}
 
-Be genuinely creative with composition — asymmetry, overlaps, oversized numerals, icon clusters,
-split layouts — while keeping the brand's personality. Do not imitate one fixed template.
+## Composition craft (this is what separates you from a template)
+- Build ILLUSTRATION SCENES from icons: ONE hero icon at 240-380px, strokeWidth 1.25-1.75, in a STRONG colour (token primary on light areas; token background when sitting on a filled primary/text panel or ellipse). Support it with 2-4 icons at 64-120px around it. Never draw hero icons in pale/accent-on-light — they must pop. Example scene: "winning" = 320px trophy in primary on a soft accent ellipse, medal + flag at 90px beside it, 5-8 small accent dots (10-16px ellipses) as confetti.
+- TWO-TONE HEADLINES: two text elements STACKED WITHOUT OVERLAP — element 2's frame.y MUST equal element 1's frame.y + element 1's frame.height (they share x and width; line 1 token text, line 2 token primary).
+- NO TEXT OVERLAPS ANYTHING: every text frame must be at least 16px clear of every other text/icon frame; when text sits on a busy area, put an opaque rect panel (zIndex below the text) behind it.
+- Use ARROWS and LINES to connect ideas (before -> after, problem -> fix); rotate arrows via frame.rotation.
+- Use CHARTS whenever numbers appear — a bar pair for before/after, donut for a share, progress for a percentage, stat for one big number.
+- COLOUR-BLOCK the canvas: full-width bands, corner panels or diagonal rects (rotation ±6) in primary/accent behind sections; put text ON these blocks with contrasting token colours.
+- Numbered chips (small accent circles + white numeral) for list points; badge pills (rounded rect + short uppercase text) for labels like "GUIDE" or "NEW".
+- Aim for 14-30 elements per page with deliberate zIndex layering (background blobs 0-1, panels 2, illustration 3-5, text 6+). Vary alignment per page: left-anchored, centred hero, split halves, diagonal flow.
 
+## Hard rules (violations are rejected and cost a retry)
+- Colours ONLY as {"kind":"token","token":"primary|secondary|accent|neutral|background|text"}. Raw hex is forbidden.
+- Fonts: only the brand's heading font (headlines/numbers) and body font (everything else).
+- Keep readable content inside the 90px safe margins; only roleHint "decoration"/"background" may bleed off-canvas.
+- Body text >=14px, captions >=12px, headlines >=24px.
+- COLOUR PAIRING (memorise): on the page background use tokens text or primary for text; on a primary or text panel use token background for text; token accent is for shapes, chips, icons-on-dark and big bold numerals only — NEVER for sentences or captions on a light background.
+- Fill the canvas with intent: no empty dead zone larger than ~25% of the page; balance the quadrants.
+- Token neutral is for hairlines and small dividers only — big panels and bands use primary, text or accent (soft versions via opacity 0.06-0.15), never large grey slabs.
+- Canvas: square 1080x1080, portrait 1080x1350 (best for feeds), landscape 1200x627. Coordinates are absolute pixels.
+- Icon names must be real lucide names (e.g. trophy, rocket, target, flag, medal, users, brain, bug, shield-check, trending-up, alert-triangle, lightbulb, check-circle-2, x-circle, arrow-right, bar-chart-3, clock, zap, route, layers).
+
+## Worked example of the expected level (structure only — NEVER copy it)
+Page "Cover": background token background; big soft accent ellipse (700px, opacity 0.10) top-right, zIndex 0; kicker badge pill top-left; two-tone headline upper third ("WORLD'S GREATEST" in text + "TEST TEAM" in primary, 84px); hero scene centre-right: trophy icon 300px in accent on a primary ellipse panel, medal 90px and flag 80px flanking it, three 14px accent dots as confetti; bottom-left panel: rect primary, 5 numbered chips with short lines "5 moves to win the race"; arrow from panel pointing to the trophy.
+Page "Data": diagonal primary band behind the top; headline; bar chart Before/After centre-left; two arrows pointing left and right to icon+caption pairs; progress chart 78% lower right; CTA pill bottom.
+
+Now design for:
 ${JSON.stringify(input)}`,
   }),
   compliance_review: template({

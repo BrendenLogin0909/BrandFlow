@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@brandflow/design-schema": "*",
+    "lucide-static": "^1.23.0",
     "pptxgenjs": "^3.12.0"
   },
   "devDependencies": {

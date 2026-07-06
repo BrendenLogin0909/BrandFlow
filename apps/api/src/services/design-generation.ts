@@ -14,8 +14,8 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type { PrismaClient } from '@prisma/client';
 import type { BrandTokensSnapshot, InternalDesignDocument, ValidationReport } from '@brandflow/design-schema';
-import { parseDesignDocument, validateDesignDocument } from '@brandflow/design-schema';
-import { LINKEDIN_CANVAS_PRESETS } from '@brandflow/shared';
+import { validateDesignDocument } from '@brandflow/design-schema';
+import { composeFreeform } from './freeform.js';
 import {
   getRecipe,
   selectRecipe,
@@ -136,11 +136,9 @@ export class DesignGenerationService {
   }
 
   /**
-   * Freeform compose (creative mode): the AI emits the composition itself —
-   * element placement, layering, motifs — constrained by the schema, brand
-   * tokens and the validation engine, with one violation-guided repair
-   * round. Returns null when the output can't be repaired (caller falls
-   * back to recipe mode), so creativity can never produce a broken design.
+   * Freeform compose (creative mode) — delegated to services/freeform.ts.
+   * Returns null when the output can't be repaired (caller falls back to
+   * recipe mode), so creativity can never produce a broken design.
    */
   private async tryFreeform(input: GenerateVisualInput, brand: BrandContext) {
     const request = {
@@ -151,79 +149,11 @@ export class DesignGenerationService {
       approvedImageAssets: brand.promptableAssets.filter((a) => a.type === 'PHOTO'),
       format: input.format,
     };
-
-    let violations: string[] = [];
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        const { data } = await this.ai.complete(
-          'design_freeform',
-          attempt === 0 ? request : { ...request, violations },
-          FreeformOutput,
-        );
-        const document = this.normaliseFreeform(data, input, brand);
-        const report = validateDesignDocument(document, {
-          bannedPhrases: brand.styleGuide.bannedPhrases,
-        });
-        if (report.passed) return { document, report, needsAttention: false };
-        violations = report.errors.map((e) => e.message);
-        if (attempt === 1 && report.errors.length <= 2)
-          // near-miss on the last try: let a human fix the residue rather than
-          // discarding the creative composition entirely
-          return { document, report, needsAttention: true };
-      } catch (err) {
-        violations = [String(err)];
-      }
-    }
-    return null;
-  }
-
-  /** Assign ids/defaults to AI-emitted elements and hard-parse the result. */
-  private normaliseFreeform(
-    data: z.infer<typeof FreeformOutput>,
-    input: GenerateVisualInput,
-    brand: BrandContext,
-  ): InternalDesignDocument {
-    const preset = LINKEDIN_CANVAS_PRESETS[data.canvasPreset];
-    const tokens: BrandTokensSnapshot = {
-      colours: brand.kit.colours,
-      fonts: brand.kit.fonts,
-      logoAssetIds: [],
-    };
-    const withIds = (el: Record<string, unknown>, i: number): unknown => ({
-      id: randomUUID(),
-      name: (el.name as string) ?? `${el.type}`,
-      opacity: 1,
-      locked: false,
-      visible: true,
-      zIndex: i,
-      roleHint: null,
-      tokenRefs: [],
-      recipeSlotId: null,
-      meta: { freeform: true },
-      ...el,
-      ...(el.type === 'group' && Array.isArray(el.children)
-        ? { children: (el.children as Record<string, unknown>[]).map(withIds) }
-        : {}),
-    });
-
-    return parseDesignDocument({
-      id: randomUUID(),
-      schemaVersion: 1,
-      version: 1,
+    return composeFreeform(request, {
       brandProfileId: input.brandProfileId,
       clientCompanyId: input.clientCompanyId,
-      layoutRecipeRef: { recipeId: 'freeform', recipeVersion: 1, variant: 'ai-composed' },
-      format: data.format,
-      canvas: { ...preset, unit: 'px', dpi: 96 },
-      brandTokens: tokens,
-      pages: data.pages.map((p) => ({
-        id: randomUUID(),
-        name: p.name,
-        background: p.background,
-        safeArea: { top: 90, right: 90, bottom: 90, left: 90 },
-        elements: p.elements.map(withIds),
-      })),
-    });
+      brandTokens: { colours: brand.kit.colours, fonts: brand.kit.fonts, logoAssetIds: [] },
+    }, { bannedPhrases: brand.styleGuide.bannedPhrases });
   }
 
   private async persist(
@@ -319,31 +249,6 @@ export class DesignGenerationService {
     };
   }
 }
-
-// ---------- freeform output schema (step 7b — creative mode) ----------
-
-/**
- * What the AI may emit in freeform mode: full pages of elements, but only
- * token colours, and only schema element types. Elements are loosely typed
- * here (ids/defaults are injected in normaliseFreeform), then hard-parsed
- * by parseDesignDocument — unknown element types or raw colours can never
- * reach the database.
- */
-const FreeformOutput = z.object({
-  format: z.string().min(1),
-  canvasPreset: z.enum(['square', 'portrait', 'landscape']),
-  pages: z
-    .array(
-      z.object({
-        name: z.string().min(1).max(60),
-        // token-only: raw hex is forbidden in freeform mode
-        background: z.object({ kind: z.literal('token'), token: z.string().min(1) }),
-        elements: z.array(z.record(z.unknown())).min(1).max(60),
-      }),
-    )
-    .min(1)
-    .max(20),
-});
 
 // ---------- recipe fill schema (built from the recipe contract) ----------
 

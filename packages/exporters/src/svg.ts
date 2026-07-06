@@ -13,6 +13,7 @@ import type {
   TextElement,
 } from '@brandflow/design-schema';
 import { resolveColour, wrapText } from '@brandflow/design-schema';
+import { resolveIconSvg, styleIconSvg } from './icons.js';
 
 export function exportPageSvg(doc: InternalDesignDocument, pageIndex: number): string {
   const page = doc.pages[pageIndex];
@@ -64,7 +65,27 @@ function elementToSvg(el: Element, doc: InternalDesignDocument, defs: string[]):
           return `  <ellipse ${common} cx="${f.x + f.width / 2}" cy="${f.y + f.height / 2}" rx="${f.width / 2}" ry="${f.height / 2}" fill="${fill}"${stroke}/>`;
         case 'line':
           return `  <line ${common} x1="${f.x}" y1="${f.y + f.height / 2}" x2="${f.x + f.width}" y2="${f.y + f.height / 2}" stroke="${fill}" stroke-width="${Math.max(el.strokeWidth, 2)}"/>`;
-        default: // rect, triangle, arrow, polygon simplified to rect/polygon
+        case 'triangle': {
+          const pts = `${f.x + f.width / 2},${f.y} ${f.x + f.width},${f.y + f.height} ${f.x},${f.y + f.height}`;
+          return `  <polygon ${common} points="${pts}" fill="${fill}"${stroke}/>`;
+        }
+        case 'arrow': {
+          // horizontal arrow filling the frame (rotate via frame.rotation)
+          const shaft = f.height * 0.34;
+          const headW = Math.min(f.width * 0.35, f.height);
+          const y0 = f.y + (f.height - shaft) / 2;
+          const pts = [
+            `${f.x},${y0}`,
+            `${f.x + f.width - headW},${y0}`,
+            `${f.x + f.width - headW},${f.y}`,
+            `${f.x + f.width},${f.y + f.height / 2}`,
+            `${f.x + f.width - headW},${f.y + f.height}`,
+            `${f.x + f.width - headW},${y0 + shaft}`,
+            `${f.x},${y0 + shaft}`,
+          ].join(' ');
+          return `  <polygon ${common} points="${pts}" fill="${fill}"${stroke}/>`;
+        }
+        default: // rect, polygon
           if (el.points?.length)
             return `  <polygon ${common} points="${el.points.map((p) => `${p.x},${p.y}`).join(' ')}" fill="${fill}"${stroke}/>`;
           return `  <rect ${common} x="${f.x}" y="${f.y}" width="${f.width}" height="${f.height}" rx="${el.cornerRadius}" fill="${fill}"${stroke}/>`;
@@ -72,16 +93,19 @@ function elementToSvg(el: Element, doc: InternalDesignDocument, defs: string[]):
     }
     case 'icon': {
       const f = el.frame;
-      if (el.iconRef.svg) {
-        // inline the icon's own svg, scaled into the frame, recoloured
-        const inner = el.iconRef.svg
-          .replace(/<\?xml[^>]*\?>/, '')
-          .replace(/currentColor/g, colourToHex(el.colour, doc));
+      const artwork = resolveIconSvg(el.iconRef);
+      if (artwork) {
+        const hexColour = colourToHex(el.colour, doc);
+        const inner = styleIconSvg(artwork, hexColour, el.strokeWidth)
+          .replace(/^[\s\S]*?<svg[^>]*>/, '')
+          .replace(/<\/svg>\s*$/, '');
+        // paint attributes live on the wrapper: lucide paths inherit stroke
+        // from their root, which we strip — without these the icon is invisible
         return `  <g ${common} data-icon="${el.iconRef.provider}/${el.iconRef.name}" transform="translate(${f.x},${f.y})">
-    <svg width="${f.width}" height="${f.height}" viewBox="0 0 24 24">${inner}</svg>
+    <svg width="${f.width}" height="${f.height}" viewBox="0 0 24 24" fill="none" stroke="${hexColour}" stroke-width="${el.strokeWidth}" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>
   </g>`;
       }
-      // no svg body available: keep an editable named placeholder
+      // unknown icon: keep an editable named placeholder
       return `  <g ${common} data-icon="${el.iconRef.provider}/${el.iconRef.name}">
     <rect x="${f.x}" y="${f.y}" width="${f.width}" height="${f.height}" rx="${Math.min(f.width, f.height) * 0.2}" fill="none" stroke="${colourToHex(el.colour, doc)}" stroke-width="2" stroke-dasharray="6 4"/>
     <text x="${f.x + f.width / 2}" y="${f.y + f.height / 2}" text-anchor="middle" dominant-baseline="middle" font-size="${Math.max(10, f.height * 0.14)}" fill="${colourToHex(el.colour, doc)}">${escapeXml(el.iconRef.name)}</text>
@@ -101,17 +125,62 @@ function elementToSvg(el: Element, doc: InternalDesignDocument, defs: string[]):
         .map((c) => elementToSvg(c, doc, defs))
         .join('\n')}\n  </g>`;
     case 'chart': {
-      // simple editable bar representation; charts stay vector shapes
+      // charts render as grouped vector shapes so they stay editable
       const f = el.frame;
+      const palette = (i: number) =>
+        colourToHex({ kind: 'token', token: el.palette[i % el.palette.length]!.token } as Colour, doc);
+
+      if (el.chartType === 'donut') {
+        const total = el.data.reduce((s, d) => s + Math.max(d.value, 0), 0) || 1;
+        const r = Math.min(f.width, f.height) / 2 - 8;
+        const cx = f.x + f.width / 2;
+        const cy = f.y + f.height / 2;
+        const circumference = 2 * Math.PI * r;
+        let offset = 0;
+        const rings = el.data
+          .map((d, i) => {
+            const frac = Math.max(d.value, 0) / total;
+            const seg = `    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${palette(i)}" stroke-width="${r * 0.45}" stroke-dasharray="${(frac * circumference).toFixed(1)} ${circumference.toFixed(1)}" stroke-dashoffset="${(-offset * circumference).toFixed(1)}" transform="rotate(-90 ${cx} ${cy})"/>`;
+            offset += frac;
+            return seg;
+          })
+          .join('\n');
+        return `  <g ${common} data-chart="donut">\n${rings}\n  </g>`;
+      }
+
+      if (el.chartType === 'progress') {
+        const v = Math.min(Math.max(el.data[0]?.value ?? 0, 0), 100);
+        const barH = Math.min(f.height * 0.4, 28);
+        const y = f.y + (f.height - barH) / 2;
+        return `  <g ${common} data-chart="progress">
+    <rect x="${f.x}" y="${y}" width="${f.width}" height="${barH}" rx="${barH / 2}" fill="${palette(0)}" opacity="0.2"/>
+    <rect x="${f.x}" y="${y}" width="${(f.width * v) / 100}" height="${barH}" rx="${barH / 2}" fill="${palette(0)}"/>
+    <text x="${f.x + f.width}" y="${y - 8}" text-anchor="end" font-family="Arial" font-weight="700" font-size="${barH * 0.9}" fill="${palette(0)}">${v}%</text>
+  </g>`;
+      }
+
+      if (el.chartType === 'stat') {
+        const d = el.data[0];
+        return `  <g ${common} data-chart="stat">
+    <text x="${f.x}" y="${f.y + f.height * 0.55}" font-family="Arial" font-weight="800" font-size="${f.height * 0.5}" fill="${palette(0)}">${escapeXml(String(d?.value ?? ''))}</text>
+    <text x="${f.x}" y="${f.y + f.height * 0.85}" font-family="Arial" font-size="${f.height * 0.16}" fill="${palette(1)}">${escapeXml(d?.label ?? '')}</text>
+  </g>`;
+      }
+
+      // bar chart: rounded bars + labels
       const max = Math.max(...el.data.map((d) => d.value), 1);
+      const labelH = Math.min(18, f.height * 0.12);
+      const chartH = f.height - labelH - 4;
       const barW = f.width / el.data.length;
       const bars = el.data
         .map((d, i) => {
-          const h = (d.value / max) * f.height * 0.9;
-          return `    <rect x="${f.x + i * barW + barW * 0.1}" y="${f.y + f.height - h}" width="${barW * 0.8}" height="${h}" fill="${colourToHex({ kind: 'token', token: el.palette[i % el.palette.length]!.token } as Colour, doc)}"/>`;
+          const h = Math.max((d.value / max) * chartH, 4);
+          const bx = f.x + i * barW + barW * 0.15;
+          return `    <rect x="${bx}" y="${f.y + chartH - h}" width="${barW * 0.7}" height="${h}" rx="${Math.min(6, barW * 0.15)}" fill="${palette(i)}"/>
+    <text x="${bx + barW * 0.35}" y="${f.y + chartH + labelH}" text-anchor="middle" font-family="Arial" font-size="${labelH * 0.85}" fill="${palette(i)}">${escapeXml(d.label.slice(0, 10))}</text>`;
         })
         .join('\n');
-      return `  <g ${common} data-chart="${el.chartType}">\n${bars}\n  </g>`;
+      return `  <g ${common} data-chart="bar">\n${bars}\n  </g>`;
     }
   }
 }
