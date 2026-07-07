@@ -14,7 +14,22 @@ import { GOOGLE_FONTS, WEB_SAFE_FONTS, googleFontsCssUrl, fontStack } from '@bra
 import { exportPptxBlob } from '@brandflow/exporters/pptx';
 import { exportPageSvg } from '@brandflow/exporters/svg';
 import JSZip from 'jszip';
-import { DesignCanvas, DesignCanvasPlaceholder, DesignPageTabs, LayersPanel, PropertyInspector, ValidationPanel } from '../components/design-studio';
+import {
+  AssetPicker,
+  DesignCanvas,
+  DesignCanvasPlaceholder,
+  DesignPageTabs,
+  DesignStudioAssetToolbar,
+  findElement,
+  IconSwapPanel,
+  insertImageOnPage,
+  LayersPanel,
+  PropertyInspector,
+  replaceIconWithName,
+  replaceImageWithAsset,
+  ValidationPanel,
+} from '../components/design-studio';
+import type { AssetPick } from '../components/design-studio';
 import { clientApi, getAccessToken, getActiveClientId } from '../lib/api';
 import { buildRecipeDocument } from '../lib/buildRecipeDocument';
 import { RECIPES, HEADLINE_TREATMENTS, MOTIFS } from '@brandflow/layout-recipes';
@@ -196,6 +211,12 @@ export function PlaygroundPage() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [editedDoc, setEditedDoc] = useState<InternalDesignDocument | null>(null);
   const [saveTrigger, setSaveTrigger] = useState(0);
+  const [assetPickerOpen, setAssetPickerOpen] = useState(false);
+  const [assetPickerTitle, setAssetPickerTitle] = useState('Pick asset');
+  const [assetPickerMode, setAssetPickerMode] = useState<'image' | 'icon'>('image');
+  const [replaceImageId, setReplaceImageId] = useState<string | null>(null);
+  const [pendingInsert, setPendingInsert] = useState<AssetPick | null>(null);
+  const [insertMode, setInsertMode] = useState(false);
   const navigate = useNavigate();
   const ideaTitle = idea?.title ?? null;
 
@@ -306,7 +327,29 @@ export function PlaygroundPage() {
       }
     : null;
 
-  // Load the selected Google Fonts so the live preview renders in the real
+  const selectedElement =
+    displayDoc && selectedIds.length === 1 && selectedIds[0]
+      ? findElement(displayDoc, selectedIds[0])
+      : null;
+
+  function handleAssetPick(pick: AssetPick) {
+    if (replaceImageId && displayDoc) {
+      setEditedDoc(replaceImageWithAsset(displayDoc, replaceImageId, pick));
+      setReplaceImageId(null);
+      return;
+    }
+    setPendingInsert(pick);
+    setInsertMode(true);
+  }
+
+  function handleCanvasPageClick(pageX: number, pageY: number) {
+    if (!insertMode || !pendingInsert || !displayDoc || !resolvedActivePageId) return;
+    setEditedDoc(insertImageOnPage(displayDoc, resolvedActivePageId, pendingInsert, pageX, pageY));
+    setInsertMode(false);
+    setPendingInsert(null);
+  }
+
+  // Load the selected Google Fonts
   // typeface (the same @import the exported SVG embeds). No key, no cost;
   // web-safe fonts produce no URL and skip the network entirely.
   useEffect(() => {
@@ -778,6 +821,8 @@ export function PlaygroundPage() {
             onFirstManualEdit={() => {
               /* hybrid mode — persisted on save via playgroundSource.mode */
             }}
+            insertMode={insertMode && Boolean(pendingInsert)}
+            onPageClick={handleCanvasPageClick}
           />
         ) : (
           <DesignCanvasPlaceholder
@@ -796,10 +841,51 @@ export function PlaygroundPage() {
 
       {canDirectEdit && studioBindings && (
         <div className="flex w-72 shrink-0 flex-col gap-4 overflow-auto border-l border-slate-200 bg-white p-4">
+          <DesignStudioAssetToolbar
+            {...studioBindings}
+            insertMode={insertMode && Boolean(pendingInsert)}
+            onInsertModeChange={(on) => {
+              setInsertMode(on);
+              if (!on) setPendingInsert(null);
+            }}
+            onInsertImage={() => {
+              setReplaceImageId(null);
+              setAssetPickerMode('image');
+              setAssetPickerTitle('Insert image');
+              setAssetPickerOpen(true);
+            }}
+            onReplaceImage={() => {
+              const id = selectedIds[0];
+              if (!id) return;
+              setReplaceImageId(id);
+              setAssetPickerMode('image');
+              setAssetPickerTitle('Replace image');
+              setAssetPickerOpen(true);
+            }}
+          />
           <PropertyInspector {...studioBindings} allowRawColourOverride={false} />
+          {selectedElement?.type === 'icon' && (
+            <IconSwapPanel
+              currentName={selectedElement.iconRef.name}
+              onSwap={(iconName, label) => {
+                setEditedDoc(replaceIconWithName(displayDoc!, selectedElement.id, iconName, label));
+              }}
+            />
+          )}
           <LayersPanel {...studioBindings} />
         </div>
       )}
+
+      <AssetPicker
+        open={assetPickerOpen}
+        mode={assetPickerMode}
+        title={assetPickerTitle}
+        onClose={() => {
+          setAssetPickerOpen(false);
+          setReplaceImageId(null);
+        }}
+        onPick={handleAssetPick}
+      />
     </div>
   );
 }

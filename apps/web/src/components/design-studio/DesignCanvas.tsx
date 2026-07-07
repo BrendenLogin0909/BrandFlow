@@ -48,6 +48,10 @@ export interface DesignCanvasProps {
   onFirstManualEdit?: () => void;
   /** Double-click on a text element (Phase 2 opens the inspector textarea). */
   onRequestTextEdit?: (id: string) => void;
+  /** Click on empty canvas area — coordinates in page space (px). */
+  onPageClick?: (pageX: number, pageY: number) => void;
+  /** Visual hint that the next canvas click will place an asset. */
+  insertMode?: boolean;
   className?: string;
   minZoom?: number;
   maxZoom?: number;
@@ -64,6 +68,8 @@ export function DesignCanvas(props: DesignCanvasProps) {
     onSelectionChange,
     onFirstManualEdit,
     onRequestTextEdit,
+    onPageClick,
+    insertMode,
     minZoom = 0.05,
     maxZoom = 8,
   } = props;
@@ -162,13 +168,23 @@ export function DesignCanvas(props: DesignCanvasProps) {
 
   const clearSelection = useCallback(
     (e: Konva.KonvaEventObject<MouseEvent>) => {
-      // deselect only when the click landed on empty canvas (stage or background)
       const target = e.target;
       if (target === stageRef.current || target.name() === '__background__') {
+        const stage = stageRef.current;
+        if (stage && onPageClick) {
+          const pointer = stage.getPointerPosition();
+          if (pointer) {
+            const pageX = (pointer.x - stagePos.x) / scale;
+            const pageY = (pointer.y - stagePos.y) / scale;
+            if (pageX >= 0 && pageY >= 0 && pageX <= canvas.width && pageY <= canvas.height) {
+              onPageClick(pageX, pageY);
+            }
+          }
+        }
         if (selectedIds.length) onSelectionChange([]);
       }
     },
-    [selectedIds, onSelectionChange],
+    [selectedIds, onSelectionChange, onPageClick, stagePos, scale, canvas.width, canvas.height],
   );
 
   const fireFirstEdit = useCallback(() => {
@@ -353,7 +369,12 @@ export function DesignCanvas(props: DesignCanvasProps) {
   };
 
   return (
-    <div ref={containerRef} className={props.className ?? 'relative h-full w-full overflow-hidden bg-slate-200'}>
+    <div
+      ref={containerRef}
+      className={`${props.className ?? 'relative h-full w-full overflow-hidden bg-slate-200'} ${
+        insertMode ? 'cursor-crosshair' : ''
+      }`}
+    >
       <Stage
         ref={stageRef}
         width={size.width}

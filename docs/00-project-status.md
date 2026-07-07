@@ -118,12 +118,19 @@ pool reusable across clients.
 - `BrandColourPicker`, `document-mutations.ts`, `element-tree.ts`, `studio-props.ts` — shared bindings contract.
 - Right sidebar on `/playground` when signed in.
 
+**Asset insert & swap (Agent 6, `feat/design-asset-insert`) — DONE (P2-C/D/E):**
+- `AssetPicker` slide-over — search whitelisted providers + saved library; tier hints.
+- Replace image on selected image element; insert-at-coordinates (pick asset → click canvas).
+- `IconSwapPanel` — Lucide search when an icon is selected.
+- Attributions merged onto `InternalDesignDocument` when required.
+- Requires sign-in (uses `/assets/search`).
+
 See **[docs/16-backlog.md](16-backlog.md)** for the full parked list. Highest-value next:
 1. ✅ **Google Fonts** in the playground — DONE. 30-family curated catalog in `packages/design-schema/src/fonts.ts` (shared source of truth), grouped picker (system + sans/serif/display/mono), selected families live-loaded via an injected `<link>`, and the SVG exporter embeds a portable `@import` so standalone `.svg` files render in-font. Free, no key. **PPTX caveat:** PowerPoint substitutes the family name if the font isn't installed locally (webfonts can't embed into PPTX without the binary).
 2. ✅ **Flat illustration pack** — DONE (backlog item 4). 22 bundled recolourable flat scene illustrations in `apps/api/src/assets/undraw-manifest.ts`, served by the `searchUndraw` adapter (tier 1, no key, `#6c63ff`→brand-hue recolour, data-URI delivery). **Honest caveat:** the agent could NOT fetch real unDraw art (its CDN URLs are hashed/unstable), so these are **original hand-authored** scenes in the unDraw style — unencumbered, no attribution. Registry `undraw` entry relabelled "Flat illustrations" to reflect this; real unDraw SVGs can be dropped into the same manifest later.
 3. ✅ **Attribution rendering on export** — DONE (backlog item 4c). `attributions` is now an optional field on `InternalDesignDocument`; `resolveImages` attaches credits to the doc so they persist through save/reopen/export; SVG + PPTX exporters render a credits line, and the playground shows an "Asset credits" panel.
 4. **Customer logo/photo upload** → StoragePort/MinIO → feeds logo-top-left motif.
-5. **Manual asset insert** into a design in the playground (compose auto-fill works; manual drag does not yet).
+5. ✅ **Manual asset insert in playground** — DONE (Agent 6). AssetPicker + insert/replace + icon swap on `/playground` when signed in.
 6. Calendar page, Brand-profile editor UI, publish integration, queue workers.
 
 ## 9. Product-owner working style (important)

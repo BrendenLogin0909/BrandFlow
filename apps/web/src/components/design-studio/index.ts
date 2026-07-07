@@ -31,3 +31,13 @@ export type { PropertyInspectorProps } from './PropertyInspector';
 export { LayersPanel } from './LayersPanel';
 export { BrandColourPicker } from './BrandColourPicker';
 export type { BrandColourPickerProps } from './BrandColourPicker';
+export { AssetPicker } from './AssetPicker';
+export type { AssetPickerProps, AssetPickerMode } from './AssetPicker';
+export { IconSwapPanel } from './IconSwapPanel';
+export { DesignStudioAssetToolbar } from './DesignStudioAssetToolbar';
+export type { AssetPick } from './assetTypes';
+export {
+  insertImageOnPage,
+  replaceImageWithAsset,
+  replaceIconWithName,
+} from './assetDocumentOps';
