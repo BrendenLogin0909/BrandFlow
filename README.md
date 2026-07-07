@@ -6,7 +6,13 @@ BrandFlow generates complete LinkedIn content packages — post text **plus matc
 
 The core differentiator: **AI never produces static images.** Every visual is a structured `InternalDesignDocument` of editable elements (text, icons, shapes, logos, groups, layers) that a human can adjust element-by-element in an embedded Canva-style editor (Polotno SDK), validated against brand rules before it is ever shown.
 
-## Documentation
+## 👉 Current status & AI handoff
+
+- **[docs/00-project-status.md](docs/00-project-status.md)** — living status: what's built vs stubbed, gotchas, next steps (read first).
+- **[CLAUDE.md](CLAUDE.md)** — orientation for AI agents.
+- **[docs/16-backlog.md](docs/16-backlog.md)** — parked work.
+
+## Documentation (design & spec)
 
 | # | Document |
 |---|---|
