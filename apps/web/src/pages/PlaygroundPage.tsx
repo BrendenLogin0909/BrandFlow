@@ -8,13 +8,15 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import type { BrandTokensSnapshot, InternalDesignDocument, ValidationReport } from '@brandflow/design-schema';
-import { parseDesignDocument, validateDesignDocument } from '@brandflow/design-schema';
+import type { InternalDesignDocument } from '@brandflow/design-schema';
+import { parseDesignDocument } from '@brandflow/design-schema';
 import { GOOGLE_FONTS, WEB_SAFE_FONTS, googleFontsCssUrl, fontStack } from '@brandflow/design-schema';
 import { exportPptxBlob } from '@brandflow/exporters/pptx';
 import JSZip from 'jszip';
+import { DesignCanvasPlaceholder, DesignPageTabs } from '../components/design-studio';
 import { clientApi, getAccessToken, getActiveClientId } from '../lib/api';
-import { RECIPES, applyStyleDirectives, HEADLINE_TREATMENTS, MOTIFS } from '@brandflow/layout-recipes';
+import { buildRecipeDocument } from '../lib/buildRecipeDocument';
+import { RECIPES, HEADLINE_TREATMENTS, MOTIFS } from '@brandflow/layout-recipes';
 import type {
   HeadlineTreatment,
   LayoutRecipe,
@@ -22,8 +24,6 @@ import type {
   RecipeFill,
   SlotValue,
 } from '@brandflow/layout-recipes';
-import { exportPageSvg } from '@brandflow/exporters/svg';
-
 const DEFAULT_BRAND = {
   primary: '#1a3c8f',
   secondary: '#4a6fd4',
@@ -191,6 +191,7 @@ export function PlaygroundPage() {
   const [idea, setIdea] = useState<LinkedIdea | null>(null);
   const [draftPkg, setDraftPkg] = useState<DraftPackage | null>(null);
   const [ideaPopup, setIdeaPopup] = useState(false);
+  const [activePageId, setActivePageId] = useState<string | null>(null);
   const navigate = useNavigate();
   const ideaTitle = idea?.title ?? null;
 
@@ -258,47 +259,32 @@ export function PlaygroundPage() {
     ? variant
     : recipe.variants[0]!.id;
 
-  const result = useMemo(() => {
-    const tokens: BrandTokensSnapshot = {
-      colours: brand,
-      fonts,
-      logoAssetIds: [],
-    };
-    // AI-composed document: display as-is (retinted to the current brand)
-    if (composedDoc) {
-      try {
-        const doc: InternalDesignDocument = { ...composedDoc, brandTokens: tokens };
-        const report = validateDesignDocument(doc, { contrastMode: bestPractices ? 'enforce' : 'warn' });
-        const svgs = doc.pages.map((_, i) => exportPageSvg(doc, i));
-        return { doc, report, svgs, error: null as string | null };
-      } catch (e) {
-        return { doc: null, report: null as ValidationReport | null, svgs: [] as string[], error: String(e) };
-      }
-    }
-    try {
-      const base: InternalDesignDocument = recipe.layout(fill, {
-        documentId: crypto.randomUUID(),
-        brandProfileId: 'playground',
-        clientCompanyId: 'playground',
-        brandTokens: tokens,
-        variant: activeVariant,
-        seed: 7,
-        newId: () => crypto.randomUUID(),
-      });
-      const doc = applyStyleDirectives(
-        base,
-        { headlineTreatment: treatment, motif, motifIconName: 'route', relaxContrast: !bestPractices },
-        () => crypto.randomUUID(),
-      );
-      const report = validateDesignDocument(doc, {
-        contrastMode: bestPractices ? 'enforce' : 'warn',
-      });
-      const svgs = doc.pages.map((_, i) => exportPageSvg(doc, i));
-      return { doc, report, svgs, error: null as string | null };
-    } catch (e) {
-      return { doc: null, report: null, svgs: [], error: String(e) };
-    }
-  }, [recipe, activeVariant, brand, fonts, fill, treatment, motif, bestPractices, composedDoc]);
+  const result = useMemo(
+    () =>
+      buildRecipeDocument({
+        recipe,
+        activeVariant,
+        brand,
+        fonts,
+        fill,
+        treatment,
+        motif,
+        bestPractices,
+        composedDoc,
+      }),
+    [recipe, activeVariant, brand, fonts, fill, treatment, motif, bestPractices, composedDoc],
+  );
+
+  const pages = result.doc?.pages ?? [];
+  const resolvedActivePageId =
+    activePageId && pages.some((p) => p.id === activePageId)
+      ? activePageId
+      : pages[0]?.id ?? null;
+  const activePageIndex = resolvedActivePageId
+    ? pages.findIndex((p) => p.id === resolvedActivePageId)
+    : 0;
+  const activeSvg = activePageIndex >= 0 ? result.svgs[activePageIndex] ?? null : null;
+  const canDirectEdit = Boolean(getAccessToken() && getActiveClientId());
 
   // Load the selected Google Fonts so the live preview renders in the real
   // typeface (the same @import the exported SVG embeds). No key, no cost;
@@ -482,11 +468,11 @@ export function PlaygroundPage() {
   return (
     <div className="flex h-full">
       {/* controls */}
-      <div className="w-96 space-y-4 overflow-auto border-r border-slate-200 bg-white p-5">
-        <h1 className="text-lg font-bold">Recipe playground</h1>
+      <div className="w-96 shrink-0 space-y-4 overflow-auto border-r border-slate-200 bg-white p-5">
+        <h1 className="text-lg font-bold">Design Studio</h1>
         <p className="text-xs text-slate-500">
-          The full design engine running in your browser — no backend, AI key or licence. The AI
-          pipeline fills exactly these slots; geometry always comes from the recipe.
+          Generate from recipes or AI compose, then refine on the canvas. Recipes need no backend;
+          save, compose, and direct edit require sign-in.
         </p>
 
         <label className="block text-sm">
@@ -622,8 +608,9 @@ export function PlaygroundPage() {
         })}
       </div>
 
-      {/* preview */}
-      <div className="flex-1 overflow-auto bg-slate-100 p-6">
+      {/* canvas column */}
+      <div className="flex min-w-0 flex-1 flex-col bg-slate-100">
+        <div className="shrink-0 space-y-0 overflow-auto p-4 pb-0">
         {idea && (
           <div className="mb-3 flex items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm">
             <button className="flex flex-1 items-center gap-2 truncate text-left"
@@ -754,17 +741,25 @@ export function PlaygroundPage() {
             <div className="mt-1">{result.doc.attributions.join(' · ')}</div>
           </div>
         ) : null}
-        <div className="flex flex-wrap gap-4">
-          {result.svgs.map((svg, i) => (
-            <div key={i} className="w-64">
-              <div className="overflow-hidden rounded-lg border border-slate-300 bg-white shadow-sm [&_svg]:h-auto [&_svg]:w-full"
-                dangerouslySetInnerHTML={{ __html: svg }} />
-              {result.svgs.length > 1 && (
-                <div className="mt-1 text-center text-xs text-slate-400">Slide {i + 1}</div>
-              )}
-            </div>
-          ))}
         </div>
+        {pages.length > 0 && (
+          <DesignPageTabs
+            pages={pages}
+            activePageId={resolvedActivePageId ?? pages[0]!.id}
+            onSelect={setActivePageId}
+          />
+        )}
+        <DesignCanvasPlaceholder
+          svg={activeSvg}
+          pageLabel={
+            pages.length > 1 && activePageIndex >= 0
+              ? pages[activePageIndex]?.name || `Slide ${activePageIndex + 1}`
+              : undefined
+          }
+          canDirectEdit={canDirectEdit}
+          canvasWidth={result.doc?.canvas.width}
+          canvasHeight={result.doc?.canvas.height}
+        />
       </div>
     </div>
   );

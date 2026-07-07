@@ -50,7 +50,7 @@ vendor-neutral internal design schema, and a licence-aware free-asset stack.
 | Content-manager board (Buffer-style) | ✅ Ideas → Drafts → Review&planned → Approved → Rejected; items MOVE between columns; collapsible columns |
 | Idea stage | ✅ AI batch suggest (tick-to-keep), expand-into-2-directions (grouped modal), inline edit, delete, brand-topic chips |
 | Draft stage | ✅ one AI draft per idea; edit modal; directions (radio); **Storyboard** slide editor; original idea preserved as reference |
-| Design stage (Recipe Playground) | ✅ 8 recipes×variants + style directives (two-tone headline, motifs incl. logo-top-left); brand colour picker + **Google Fonts** brand-typography picker (30 families, live-loaded, no key); Surprise-me; Save draft; **✨ Compose with AI** (freeform) |
+| Design stage (Recipe Playground) | ✅ 8 recipes×variants + style directives; brand colour/font pickers; Surprise-me; Save draft; **✨ Compose with AI**; **Design Studio shell** (split layout, page tabs, canvas placeholder — Agent 1 on `feat/design-studio-shell`) |
 | Freeform compose | ✅ AI invents full layout (icons/scenes/charts/arrows/colour-blocks); `autoFixFreeform` guarantees contrast+overflow; validation-gated with repair loop |
 | Review & planned | ✅ Assign date (next-available / specific), Approve (Gate 3), both-set → Approved column |
 | Design library | ✅ saved designs, filmstrip thumbnails, reopen exact |
