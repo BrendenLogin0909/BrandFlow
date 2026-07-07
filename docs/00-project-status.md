@@ -52,6 +52,7 @@ vendor-neutral internal design schema, and a licence-aware free-asset stack.
 | Draft stage | ✅ one AI draft per idea; edit modal; directions (radio); **Storyboard** slide editor; original idea preserved as reference |
 | Design stage (Recipe Playground) | ✅ 8 recipes×variants + style directives (two-tone headline, motifs incl. logo-top-left); brand colour picker + **Google Fonts** brand-typography picker (30 families, live-loaded, no key); Surprise-me; Save draft; **✨ Compose with AI** (freeform) |
 | Freeform compose | ✅ AI invents full layout (icons/scenes/charts/arrows/colour-blocks); `autoFixFreeform` guarantees contrast+overflow; validation-gated with repair loop |
+| Native DesignCanvas (Design Studio, P1-A/B/G) | ✅ `apps/web/src/components/design-studio/DesignCanvas.tsx` — Konva render of every element type (text/shape/icon/image/group/chart), click/shift-click selection + move/resize/rotate transform handles, snap guides (canvas centre/edges + neighbour edges/centres), zoom/pan, controlled React API. Reuses `resolveColour`/`fontStack`/icon resolver (no exporter duplication). First manual edit fires the `hybrid`-mode contract. Demo route `/studio-canvas-demo`. Studio-shell wiring + property/layers panels (Phase 2) pending. |
 | Review & planned | ✅ Assign date (next-available / specific), Approve (Gate 3), both-set → Approved column |
 | Design library | ✅ saved designs, filmstrip thumbnails, reopen exact |
 | Export | ✅ PPTX (Canva-friendly) + SVG (zip for carousels), in-browser |
@@ -94,6 +95,18 @@ pool reusable across clients.
 ## 8. Backlog / next steps
 
 **Active plan:** **[docs/17-design-editing-plan.md](17-design-editing-plan.md)** — native Design Studio (direct edit + AI patches + SVG re-import). Copy-paste agent prompts: **[docs/17a-design-editing-agent-prompts.md](17a-design-editing-agent-prompts.md)**. Polotno placeholder code stays; not in design direction.
+
+**Native DesignCanvas (Agent 3, `feat/design-canvas`) — DONE (P1-A/B/G):**
+- `apps/web/src/components/design-studio/`:
+  - `DesignCanvas.tsx` — Konva `<Stage>` editor. **Controlled** component: props `document`, `activePageId`, `selectedIds`, `onDocumentChange`, `onSelectionChange` (+ `onFirstManualEdit`, `onRequestTextEdit`). Renders one page; selection (click / shift-click multi-select) drives a Konva `Transformer` (move/resize/rotate); snap guides on drag (canvas centre/edges + every neighbour's edges/centres); wheel-zoom-to-pointer + drag-to-pan + Fit/±. Locked elements are non-draggable, excluded from the transformer, drawn with a red dashed outline.
+  - `ElementNode.tsx` — maps each element type to Konva nodes in **local coords**; wrapper group positioned by frame *centre* (offset) so rotation matches the schema + SVG exporter. Group children render with an `origin` offset (they carry absolute page coords per the exporter) and move as a unit.
+  - `frame.ts` — **pure**, unit-tested frame math (`normaliseFrame`, `updateElementFrame`, `translateElement` [group-subtree aware], `boundingBox`, structural-sharing `mapElement`). `frame.test.ts` — 17 tests.
+  - `snapping.ts` — pure snap-guide computation; `paint.ts` — `Fill`→Konva props (reuses `resolveColour`, gradients handled); `useAssetImage.ts` — image/icon loading (reuses exporter `resolveIconSvg`/`styleIconSvg` via new `@brandflow/exporters/icons` subpath export).
+- **Reuse, not duplication:** colour/font/icon helpers come from `design-schema` + `exporters`; the canvas mirrors exporter geometry only for live rendering.
+- **hybrid-mode contract:** first manual geometry edit fires `onFirstManualEdit`; the Studio shell must then set `playgroundSource.mode = 'hybrid'` (plan §4.3). Documented in `DesignCanvas.tsx`.
+- **Deps:** `konva` + `react-konva`, pinned to konva **^10.3.0** to share the single hoisted copy polotno already pulls in (a `^9` pin created a duplicate install → TS type-identity errors). `vitest` added to `apps/web`.
+- **Verify:** `npm run dev:web` → **`/studio-canvas-demo`** (works logged-out). Verified in-browser: renders the recipe doc, select→transform, drag flips mode to `hybrid`, lock detaches the transformer, zero console errors.
+- **Not in this slice:** in-place text editing (double-click emits `onRequestTextEdit` for the Phase-2 inspector), page tabs (P1-C, Agent 1), save/load wiring (P1-D, Agent 2), layers/property panels (Phase 2). Group *resize* is intentionally disabled (rotate/move only) — the schema doesn't scale group children by the group frame.
 
 See **[docs/16-backlog.md](16-backlog.md)** for the full parked list. Highest-value next:
 1. ✅ **Google Fonts** in the playground — DONE. 30-family curated catalog in `packages/design-schema/src/fonts.ts` (shared source of truth), grouped picker (system + sans/serif/display/mono), selected families live-loaded via an injected `<link>`, and the SVG exporter embeds a portable `@import` so standalone `.svg` files render in-font. Free, no key. **PPTX caveat:** PowerPoint substitutes the family name if the font isn't installed locally (webfonts can't embed into PPTX without the binary).

@@ -11,6 +11,7 @@ import { ReviewQueuePage } from './pages/ReviewQueuePage';
 import { PlaygroundPage } from './pages/PlaygroundPage';
 import { DesignLibraryPage } from './pages/DesignLibraryPage';
 import { ContentManagerPage } from './pages/ContentManagerPage';
+import { DesignCanvasDemo } from './components/design-studio/DesignCanvasDemo';
 import { LoginPage } from './pages/LoginPage';
 import { getAccessToken, setAccessToken } from './lib/api';
 
@@ -30,8 +31,9 @@ export default function App() {
   const [authed, setAuthed] = useState(Boolean(getAccessToken()));
   const location = useLocation();
 
-  // The playground is usable logged-out (saving requires sign-in).
-  if (!authed && !location.pathname.startsWith('/playground'))
+  // The playground and the canvas demo are usable logged-out.
+  const PUBLIC_PREFIXES = ['/playground', '/studio-canvas-demo'];
+  if (!authed && !PUBLIC_PREFIXES.some((p) => location.pathname.startsWith(p)))
     return <LoginPage onLoggedIn={() => setAuthed(true)} />;
 
   return (
@@ -73,6 +75,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<DashboardPage />} />
           <Route path="/playground" element={<PlaygroundPage />} />
+          <Route path="/studio-canvas-demo" element={<DesignCanvasDemo />} />
           <Route path="/designs" element={<DesignLibraryPage />} />
           <Route path="/content" element={<ContentManagerPage />} />
           <Route path="/brand" element={<BrandProfilesPage />} />
