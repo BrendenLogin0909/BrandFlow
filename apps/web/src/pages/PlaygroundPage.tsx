@@ -10,6 +10,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { BrandTokensSnapshot, InternalDesignDocument, ValidationReport } from '@brandflow/design-schema';
 import { parseDesignDocument, validateDesignDocument } from '@brandflow/design-schema';
+import { GOOGLE_FONTS, WEB_SAFE_FONTS, googleFontsCssUrl, fontStack } from '@brandflow/design-schema';
 import { exportPptxBlob } from '@brandflow/exporters/pptx';
 import JSZip from 'jszip';
 import { clientApi, getAccessToken, getActiveClientId } from '../lib/api';
@@ -32,9 +33,23 @@ const DEFAULT_BRAND = {
   text: '#101418',
 };
 
-// web-safe set until customer font upload lands with the brand-kit UI
-const FONT_OPTIONS = ['Arial', 'Arial Black', 'Georgia', 'Verdana', 'Trebuchet MS', 'Impact', 'Times New Roman', 'Courier New'];
-const DEFAULT_FONTS = { heading: 'Arial Black', body: 'Arial' };
+// Real brand typography from Google Fonts (free, no key) grouped for the
+// picker, plus web-safe system fonts that need no network load. Selected
+// families are loaded live so the preview renders in the actual typeface.
+const FONT_CATEGORY_LABELS: Record<string, string> = {
+  'sans-serif': 'Sans-serif',
+  serif: 'Serif',
+  display: 'Display',
+  monospace: 'Monospace',
+};
+const FONT_GROUPS: { label: string; families: string[] }[] = [
+  { label: 'System (no load)', families: WEB_SAFE_FONTS },
+  ...Object.keys(FONT_CATEGORY_LABELS).map((cat) => ({
+    label: FONT_CATEGORY_LABELS[cat]!,
+    families: GOOGLE_FONTS.filter((f) => f.category === cat).map((f) => f.family),
+  })),
+];
+const DEFAULT_FONTS = { heading: 'Poppins', body: 'Inter' };
 
 const DEFAULT_TEXT: Record<string, string> = {
   quote: 'The best brands are built one consistent post at a time.',
@@ -285,6 +300,23 @@ export function PlaygroundPage() {
     }
   }, [recipe, activeVariant, brand, fonts, fill, treatment, motif, bestPractices, composedDoc]);
 
+  // Load the selected Google Fonts so the live preview renders in the real
+  // typeface (the same @import the exported SVG embeds). No key, no cost;
+  // web-safe fonts produce no URL and skip the network entirely.
+  useEffect(() => {
+    const url = googleFontsCssUrl([fonts.heading, fonts.body]);
+    if (!url) return;
+    const id = 'brandflow-google-fonts';
+    let link = document.getElementById(id) as HTMLLinkElement | null;
+    if (!link) {
+      link = document.createElement('link');
+      link.id = id;
+      link.rel = 'stylesheet';
+      document.head.appendChild(link);
+    }
+    if (link.href !== url) link.href = url;
+  }, [fonts.heading, fonts.body]);
+
   /** Builds a rich brief from whatever content is linked. */
   function defaultBrief(): string {
     if (draftPkg) {
@@ -520,11 +552,15 @@ export function PlaygroundPage() {
               <label key={k} className="text-xs">
                 {k}
                 <select className="mt-0.5 block w-full rounded border border-slate-300 p-1"
-                  style={{ fontFamily: fonts[k] }}
+                  style={{ fontFamily: fontStack(fonts[k]) }}
                   value={fonts[k]}
                   onChange={(e) => setFonts((f) => ({ ...f, [k]: e.target.value }))}>
-                  {FONT_OPTIONS.map((f) => (
-                    <option key={f} value={f} style={{ fontFamily: f }}>{f}</option>
+                  {FONT_GROUPS.map((g) => (
+                    <optgroup key={g.label} label={g.label}>
+                      {g.families.map((f) => (
+                        <option key={f} value={f} style={{ fontFamily: fontStack(f) }}>{f}</option>
+                      ))}
+                    </optgroup>
                   ))}
                 </select>
               </label>

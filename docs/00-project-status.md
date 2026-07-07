@@ -50,7 +50,7 @@ vendor-neutral internal design schema, and a licence-aware free-asset stack.
 | Content-manager board (Buffer-style) | ✅ Ideas → Drafts → Review&planned → Approved → Rejected; items MOVE between columns; collapsible columns |
 | Idea stage | ✅ AI batch suggest (tick-to-keep), expand-into-2-directions (grouped modal), inline edit, delete, brand-topic chips |
 | Draft stage | ✅ one AI draft per idea; edit modal; directions (radio); **Storyboard** slide editor; original idea preserved as reference |
-| Design stage (Recipe Playground) | ✅ 8 recipes×variants + style directives (two-tone headline, motifs incl. logo-top-left); brand colour/font pickers; Surprise-me; Save draft; **✨ Compose with AI** (freeform) |
+| Design stage (Recipe Playground) | ✅ 8 recipes×variants + style directives (two-tone headline, motifs incl. logo-top-left); brand colour picker + **Google Fonts** brand-typography picker (30 families, live-loaded, no key); Surprise-me; Save draft; **✨ Compose with AI** (freeform) |
 | Freeform compose | ✅ AI invents full layout (icons/scenes/charts/arrows/colour-blocks); `autoFixFreeform` guarantees contrast+overflow; validation-gated with repair loop |
 | Review & planned | ✅ Assign date (next-available / specific), Approve (Gate 3), both-set → Approved column |
 | Design library | ✅ saved designs, filmstrip thumbnails, reopen exact |
@@ -93,7 +93,7 @@ pool reusable across clients.
 ## 8. Backlog / next steps
 
 See **[docs/16-backlog.md](16-backlog.md)** for the full parked list. Highest-value next:
-1. **Google Fonts** in the playground (real brand typography — free, no key). *In progress when this doc was written.*
+1. ✅ **Google Fonts** in the playground — DONE. 30-family curated catalog in `packages/design-schema/src/fonts.ts` (shared source of truth), grouped picker (system + sans/serif/display/mono), selected families live-loaded via an injected `<link>`, and the SVG exporter embeds a portable `@import` so standalone `.svg` files render in-font. Free, no key. **PPTX caveat:** PowerPoint substitutes the family name if the font isn't installed locally (webfonts can't embed into PPTX without the binary).
 2. **unDraw** scene-illustration pack (bundle a manifest; hashed CDN URLs are unstable).
 3. **Customer logo/photo upload** → StoragePort/MinIO → feeds logo-top-left motif.
 4. **Attribution rendering** on export (compose already returns `attributions[]`).

@@ -12,7 +12,7 @@ import type {
   Page,
   TextElement,
 } from '@brandflow/design-schema';
-import { resolveColour, wrapText } from '@brandflow/design-schema';
+import { fontStack, googleFontsCssUrl, resolveColour, wrapText } from '@brandflow/design-schema';
 import { resolveIconSvg, styleIconSvg } from './icons.js';
 
 export function exportPageSvg(doc: InternalDesignDocument, pageIndex: number): string {
@@ -21,6 +21,12 @@ export function exportPageSvg(doc: InternalDesignDocument, pageIndex: number): s
 
   const { width, height } = doc.canvas;
   const defs: string[] = [];
+  // Embed the webfonts the page actually uses so the standalone .svg renders
+  // with real brand typography when opened in a browser — free, no key. Tools
+  // that ignore @import (Figma/Illustrator) still keep the family name + stack.
+  const fontUrl = googleFontsCssUrl(collectFontFamilies(page.elements));
+  if (fontUrl)
+    defs.push(`    <style type="text/css"><![CDATA[\n@import url('${fontUrl}');\n    ]]></style>`);
   const body = [...page.elements]
     .sort((a, b) => a.zIndex - b.zIndex)
     .map((el) => elementToSvg(el, doc, defs))
@@ -39,6 +45,16 @@ ${body}
 /** All pages of a carousel as individual SVG strings. */
 export function exportAllPagesSvg(doc: InternalDesignDocument): string[] {
   return doc.pages.map((_, i) => exportPageSvg(doc, i));
+}
+
+/** Every font family referenced by text elements, recursing into groups. */
+function collectFontFamilies(elements: Element[]): string[] {
+  const out: string[] = [];
+  for (const el of elements) {
+    if (el.type === 'text') out.push(el.fontFamily);
+    else if (el.type === 'group') out.push(...collectFontFamilies(el.children));
+  }
+  return out;
 }
 
 // ---------- element rendering ----------
@@ -209,7 +225,7 @@ function textToSvg(el: TextElement, doc: InternalDesignDocument, common: string)
     )
     .join('\n');
 
-  return `  <text ${common} text-anchor="${anchor}" font-family="${escapeXml(el.fontFamily)}" font-size="${el.fontSize}" font-weight="${el.fontWeight}" font-style="${el.fontStyle}"${el.letterSpacing ? ` letter-spacing="${el.letterSpacing}"` : ''} fill="${colourToHex(el.colour, doc)}">
+  return `  <text ${common} text-anchor="${anchor}" font-family="${escapeXml(fontStack(el.fontFamily))}" font-size="${el.fontSize}" font-weight="${el.fontWeight}" font-style="${el.fontStyle}"${el.letterSpacing ? ` letter-spacing="${el.letterSpacing}"` : ''} fill="${colourToHex(el.colour, doc)}">
 ${tspans}
   </text>`;
 }
