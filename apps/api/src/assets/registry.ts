@@ -59,10 +59,22 @@ export const PROVIDERS: Record<string, ProviderSpec> = {
   },
   // ---- Stock photos (tier 2: free commercial, keys required) ----
   openverse: {
-    id: 'openverse', label: 'Openverse', kinds: ['photo', 'illustration'], licence: 'CC/PD (varies)',
+    id: 'openverse', label: 'Openverse', kinds: ['photo', 'illustration'], licence: 'CC0 / Public Domain',
+    commercialUse: true, attributionRequired: false, modificationAllowed: true,
+    tier: 2, delivery: 'hotlink', needsKey: false,
+    notes: 'CC/PD aggregator, no key. We filter to CC0 + Public-Domain-Mark only, so no attribution and commercial-safe; still watch faces/trademarks per item.',
+  },
+  wikimedia: {
+    id: 'wikimedia', label: 'Wikimedia Commons', kinds: ['photo', 'illustration'], licence: 'PD / CC (varies)',
     commercialUse: true, attributionRequired: true, modificationAllowed: true,
     tier: 3, delivery: 'hotlink', needsKey: false,
-    notes: 'CC/public-domain aggregator. Licence VARIES PER ITEM — verify before publish; treat as review-only.',
+    notes: 'Public-domain and CC media, no key. Licence varies per file — review before use.',
+  },
+  pollinations: {
+    id: 'pollinations', label: 'Pollinations AI', kinds: ['ai', 'illustration', 'photo'], licence: 'AI-generated (open models)',
+    commercialUse: true, attributionRequired: false, modificationAllowed: true,
+    tier: 2, delivery: 'generated', needsKey: false,
+    notes: 'Free no-key AI image generation (open Flux/SD models). Store the prompt. Provenance for public figures/brands is the users responsibility.',
   },
   unsplash: {
     id: 'unsplash', label: 'Unsplash', kinds: ['photo'], licence: 'Unsplash',

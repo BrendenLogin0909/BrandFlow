@@ -8,7 +8,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { clientApi } from '../lib/api';
 
-type Kind = 'icon' | 'illustration' | 'photo';
+type Kind = 'icon' | 'illustration' | 'photo' | 'ai';
 
 interface SearchResult {
   provider: string;
@@ -96,7 +96,7 @@ export function AssetLibraryPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['assets'] }),
   });
 
-  const anyPhotoKeyed = (providers ?? []).some((p) => p.kinds.includes('photo'));
+  const keyedPhotoProviders = (providers ?? []).filter((p) => p.kinds.includes('photo') && p.needsKey);
 
   return (
     <div className="p-8">
@@ -109,21 +109,21 @@ export function AssetLibraryPage() {
       {/* search */}
       <div className="mt-5 flex flex-wrap items-end gap-2 rounded-xl border border-slate-200 bg-white p-4">
         <div className="flex gap-1">
-          {(['icon', 'illustration', 'photo'] as Kind[]).map((k) => (
+          {(['icon', 'illustration', 'photo', 'ai'] as Kind[]).map((k) => (
             <button key={k}
               className={`rounded-md px-3 py-1.5 text-sm font-medium ${kind === k ? 'bg-indigo-600 text-white' : 'border border-slate-300 text-slate-600 hover:bg-slate-50'}`}
               onClick={() => setKind(k)}>
-              {k === 'illustration' ? 'figures' : `${k}s`}
+              {k === 'illustration' ? 'figures' : k === 'ai' ? '✨ generate' : `${k}s`}
             </button>
           ))}
         </div>
         <input className="min-w-64 flex-1 rounded border border-slate-300 px-3 py-1.5 text-sm"
-          placeholder={kind === 'photo' ? 'e.g. team celebrating' : kind === 'illustration' ? 'e.g. developer working' : 'e.g. trophy, rocket, target'}
+          placeholder={kind === 'photo' ? 'e.g. team celebrating' : kind === 'ai' ? 'describe the image to generate…' : kind === 'illustration' ? 'e.g. developer working' : 'e.g. trophy, rocket, target'}
           value={q} onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && search()} />
         <button className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
           disabled={searching} onClick={search}>
-          {searching ? 'Searching…' : 'Search'}
+          {searching ? (kind === 'ai' ? 'Generating…' : 'Searching…') : kind === 'ai' ? 'Generate' : 'Search'}
         </button>
         <label className="flex items-center gap-1.5 text-xs text-slate-500">
           <input type="checkbox" checked={shareNext} onChange={(e) => setShareNext(e.target.checked)} />
@@ -131,10 +131,16 @@ export function AssetLibraryPage() {
         </label>
       </div>
 
-      {kind === 'photo' && !anyPhotoKeyed && (
-        <div className="mt-3 rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
-          No stock-photo key configured. Add a free UNSPLASH_ACCESS_KEY, PEXELS_API_KEY or
-          PIXABAY_API_KEY to the API to enable photo search. Icons and figures work without keys.
+      {kind === 'photo' && keyedPhotoProviders.length === 0 && (
+        <div className="mt-3 rounded border border-slate-200 bg-slate-50 p-2 text-xs text-slate-500">
+          Photos come from Openverse + Wikimedia (free, no key, CC0/public-domain). Add a free
+          UNSPLASH_ACCESS_KEY, PEXELS_API_KEY or PIXABAY_API_KEY to also pull premium stock.
+        </div>
+      )}
+      {kind === 'ai' && (
+        <div className="mt-3 rounded border border-slate-200 bg-slate-50 p-2 text-xs text-slate-500">
+          Free, no-key AI generation (Pollinations, open models). Describe any image; save the ones
+          you like to reuse across designs — and, if you tick “shared”, across clients.
         </div>
       )}
 

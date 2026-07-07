@@ -191,12 +191,13 @@ export async function resolveImages(doc: InternalDesignDocument): Promise<string
       try {
         const wantsFigure = HUMAN.test(query);
         // primary search; for human subjects prefer illustrations (DiceBear
-        // is always available), otherwise photos
+        // always available), otherwise real photos (Openverse/Wikimedia are
+        // no-key, so scenes resolve even without stock API keys)
         let results = await searchAssets({ kind: wantsFigure ? 'illustration' : 'photo', query, limit: 6 });
-        // fallback: if photo providers are dry (no keys) but the subject is
-        // a person, an illustration figure beats an empty grey box
-        if (results.length === 0 && wantsFigure)
-          results = await searchAssets({ kind: 'illustration', query, limit: 6 });
+        if (results.length === 0)
+          results = await searchAssets({ kind: wantsFigure ? 'photo' : 'illustration', query, limit: 6 });
+        // final fallback: free no-key AI generation — never leave a grey box
+        if (results.length === 0) results = await searchAssets({ kind: 'ai', query, limit: 1 });
         const pick = results.find((r) => r.usageTier <= 2 && !seen.has(r.contentUrl));
         if (!pick) return; // no licensed asset available → leave editable placeholder
         seen.add(pick.contentUrl);

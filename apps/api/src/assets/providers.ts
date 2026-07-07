@@ -160,6 +160,87 @@ async function searchPixabay(q: string, limit: number): Promise<AssetSearchResul
   );
 }
 
+// ---------- Openverse (CC0/PD photos + illustrations, no key, live) ----------
+// https://api.openverse.org/ — filtered to cc0 + public-domain-mark so results
+// are commercial-safe with no attribution.
+async function searchOpenverse(q: string, limit: number): Promise<AssetSearchResult[]> {
+  const res = await fetch(
+    `https://api.openverse.org/v1/images/?q=${encodeURIComponent(q)}&license=cc0,pdm&page_size=${limit}&mature=false`,
+    { headers: { 'User-Agent': 'BrandFlow/1.0 (asset-library)' } },
+  );
+  if (!res.ok) return [];
+  const data = (await res.json()) as {
+    results?: { id: string; url: string; thumbnail: string; creator?: string; foreign_landing_url?: string; license: string; width?: number; height?: number }[];
+  };
+  return (data.results ?? []).map((p) =>
+    tag(PROVIDERS.openverse!, {
+      providerId: p.id,
+      kind: 'photo',
+      contentUrl: p.url,
+      thumbUrl: p.thumbnail ?? p.url,
+      sourceUrl: p.foreign_landing_url,
+      creator: p.creator,
+      licence: p.license?.toUpperCase() ?? 'CC0',
+      attributionRequired: false, // cc0/pdm only
+      mimeType: 'image/jpeg',
+      width: p.width,
+      height: p.height,
+      label: p.creator ? `by ${p.creator}` : 'CC0 image',
+    }),
+  );
+}
+
+// ---------- Wikimedia Commons (PD/CC, no key, live) ----------
+async function searchWikimedia(q: string, limit: number): Promise<AssetSearchResult[]> {
+  const url =
+    `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrnamespace=6` +
+    `&gsrsearch=${encodeURIComponent(q)}&gsrlimit=${limit}&prop=imageinfo&iiprop=url|extmetadata` +
+    `&iiurlwidth=400&format=json&origin=*`;
+  const res = await fetch(url, { headers: { 'User-Agent': 'BrandFlow/1.0 (asset-library)' } });
+  if (!res.ok) return [];
+  const data = (await res.json()) as {
+    query?: { pages?: Record<string, { title: string; imageinfo?: { url: string; thumburl?: string; descriptionurl?: string; extmetadata?: { Artist?: { value?: string } } }[] }> };
+  };
+  const pages = Object.values(data.query?.pages ?? {});
+  return pages
+    .map((pg) => {
+      const info = pg.imageinfo?.[0];
+      if (!info || !/\.(jpe?g|png|svg)$/i.test(info.url)) return null;
+      return tag(PROVIDERS.wikimedia!, {
+        providerId: pg.title,
+        kind: 'photo',
+        contentUrl: info.url,
+        thumbUrl: info.thumburl ?? info.url,
+        sourceUrl: info.descriptionurl,
+        creator: info.extmetadata?.Artist?.value?.replace(/<[^>]+>/g, '').slice(0, 80),
+        mimeType: 'image/jpeg',
+        label: pg.title.replace(/^File:/, '').slice(0, 40),
+      });
+    })
+    .filter((x): x is AssetSearchResult => x !== null)
+    .slice(0, limit);
+}
+
+// ---------- Pollinations (free no-key AI image generation) ----------
+export function pollinationsUrl(prompt: string, w = 1024, h = 1024, seed?: number): string {
+  const s = seed ?? Math.abs([...prompt].reduce((a, c) => (a * 31 + c.charCodeAt(0)) | 0, 7));
+  return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=${w}&height=${h}&nologo=true&seed=${s}`;
+}
+function generatePollinations(q: string, limit: number): AssetSearchResult[] {
+  // a few seeded variations so the user can pick
+  return Array.from({ length: Math.min(limit, 4) }, (_, i) => {
+    const url = pollinationsUrl(q, 1024, 1024, i + 1);
+    return tag(PROVIDERS.pollinations!, {
+      providerId: `${q}#${i + 1}`,
+      kind: 'ai',
+      contentUrl: url,
+      thumbUrl: pollinationsUrl(q, 384, 384, i + 1),
+      mimeType: 'image/jpeg',
+      label: `AI: ${q.slice(0, 30)}`,
+    });
+  });
+}
+
 export interface SearchOptions {
   kind: AssetKind;
   query: string;
@@ -181,10 +262,14 @@ export async function searchAssets(opts: SearchOptions): Promise<AssetSearchResu
     jobs.push(searchPixabay(`${q} illustration`, limit).catch(() => []));
   }
   if (opts.kind === 'photo') {
+    // free no-key sources first, then key-gated if configured
+    jobs.push(searchOpenverse(q, limit).catch(() => []));
+    jobs.push(searchWikimedia(q, Math.min(limit, 6)).catch(() => []));
     jobs.push(searchPexels(q, limit).catch(() => []));
     jobs.push(searchUnsplash(q, limit).catch(() => []));
     jobs.push(searchPixabay(q, limit).catch(() => []));
   }
+  if (opts.kind === 'ai') jobs.push(Promise.resolve(generatePollinations(q, limit)));
 
   const results = (await Promise.all(jobs)).flat();
   return results.slice(0, limit * 2);
