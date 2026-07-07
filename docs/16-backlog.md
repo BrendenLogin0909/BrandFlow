@@ -13,5 +13,5 @@ Items explicitly parked by the product owner — revisit before launch.
 | 4d | **Asset upload + object storage** — customer logo/photo upload via multipart to MinIO/S3 (StoragePort); brand-kit logo then feeds logo-top-left motif | 2026-07-06 | search+save+library live; upload still stubbed |
 | 4e | **Manual asset insert in playground** — drag a library/searched asset onto a design; compose auto-fill works, manual insert does not yet | 2026-07-06 | |
 | 5 | **Icon bundle size** — lucide-static is imported wholesale into the web bundle; switch to per-icon dynamic loading or a server-side icon endpoint | Loop 1 of creativity work | Optimisation only |
-| 6 | **Polotno editor mounting** — needs the free trial key (VITE_POLOTNO_KEY) from polotno.com/sdk/pricing | earlier session | In-app element-level editing |
+| 6 | ~~Polotno editor mounting~~ → **superseded by [17-design-editing-plan.md](17-design-editing-plan.md)** — native Konva Design Studio; Polotno stub kept as placeholder only | 2026-07-07 | Was: trial key + embed |
 | 7 | **Queue workers (BullMQ)** — long AI pipelines still run synchronously; move batch generation to the queue | architecture doc | Needed before multi-user load |

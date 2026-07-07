@@ -7,7 +7,8 @@ to the real documentation.
 ## Start here, in order
 1. **[docs/00-project-status.md](docs/00-project-status.md)** — current state, what's built vs stubbed, gotchas, next steps. **Read this before doing anything.** Update it at the end of your session.
 2. **[docs/16-backlog.md](docs/16-backlog.md)** — the parked-work list.
-3. **[README.md](README.md)** — the design-doc index (docs/01–15: PRD, architecture, data model, AI workflow, layout recipes, validation, etc.).
+3. **[docs/17-design-editing-plan.md](docs/17-design-editing-plan.md)** — native Design Studio plan; prompts in [17a](docs/17a-design-editing-agent-prompts.md).
+4. **[README.md](README.md)** — the design-doc index (docs/01–15: PRD, architecture, data model, AI workflow, layout recipes, validation, etc.).
 
 ## What this project is
 Idea → AI-written copy → editable **layered** visual (recipes or AI freeform compose) → human review + approval gates → export to PPTX/SVG (Canva-editable). Multi-tenant, brand-governed, licence-aware free assets. NOT a ChatGPT wrapper and NOT a flat-image generator.

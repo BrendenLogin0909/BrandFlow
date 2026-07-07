@@ -93,6 +93,8 @@ pool reusable across clients.
 
 ## 8. Backlog / next steps
 
+**Active plan:** **[docs/17-design-editing-plan.md](17-design-editing-plan.md)** — native Design Studio (direct edit + AI patches + SVG re-import). Copy-paste agent prompts: **[docs/17a-design-editing-agent-prompts.md](17a-design-editing-agent-prompts.md)**. Polotno placeholder code stays; not in design direction.
+
 See **[docs/16-backlog.md](16-backlog.md)** for the full parked list. Highest-value next:
 1. ✅ **Google Fonts** in the playground — DONE. 30-family curated catalog in `packages/design-schema/src/fonts.ts` (shared source of truth), grouped picker (system + sans/serif/display/mono), selected families live-loaded via an injected `<link>`, and the SVG exporter embeds a portable `@import` so standalone `.svg` files render in-font. Free, no key. **PPTX caveat:** PowerPoint substitutes the family name if the font isn't installed locally (webfonts can't embed into PPTX without the binary).
 2. ✅ **Flat illustration pack** — DONE (backlog item 4). 22 bundled recolourable flat scene illustrations in `apps/api/src/assets/undraw-manifest.ts`, served by the `searchUndraw` adapter (tier 1, no key, `#6c63ff`→brand-hue recolour, data-URI delivery). **Honest caveat:** the agent could NOT fetch real unDraw art (its CDN URLs are hashed/unstable), so these are **original hand-authored** scenes in the unDraw style — unencumbered, no attribution. Registry `undraw` entry relabelled "Flat illustrations" to reflect this; real unDraw SVGs can be dropped into the same manifest later.

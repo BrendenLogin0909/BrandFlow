@@ -31,6 +31,7 @@ The core differentiator: **AI never produces static images.** Every visual is a 
 | 13 | [Testing strategy](docs/13-testing-strategy.md) |
 | 14 | [Risks & mitigations](docs/14-risks-and-mitigations.md) |
 | 15 | [Acceptance criteria](docs/15-acceptance-criteria.md) |
+| 17 | [Design editing plan](docs/17-design-editing-plan.md) · [Agent prompts](docs/17a-design-editing-agent-prompts.md) |
 
 ## Repository layout
 
