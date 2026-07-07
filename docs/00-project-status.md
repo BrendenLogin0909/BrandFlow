@@ -112,6 +112,12 @@ pool reusable across clients.
 - `ValidationPanel.tsx` — debounced (300ms) client-side `validateDesignDocument`; errors vs warnings; element-id links call `onSelectElement` → canvas selection on `/playground` when signed in.
 - Playground wired: `DesignCanvas` when authed, `ValidationPanel` in generation panel; canvas edits flow through `displayDoc` + hybrid save mode.
 
+**Property inspector & layers (Agent 5, `feat/design-inspector`) — DONE (P2-A/B/F/G):**
+- `PropertyInspector` — text, font, size, weight, align, opacity, corner radius, brand token colours; duplicate/group/ungroup/delete.
+- `LayersPanel` — z-order list (front-first), drag reorder, visibility + lock toggles, click to select.
+- `BrandColourPicker`, `document-mutations.ts`, `element-tree.ts`, `studio-props.ts` — shared bindings contract.
+- Right sidebar on `/playground` when signed in.
+
 See **[docs/16-backlog.md](16-backlog.md)** for the full parked list. Highest-value next:
 1. ✅ **Google Fonts** in the playground — DONE. 30-family curated catalog in `packages/design-schema/src/fonts.ts` (shared source of truth), grouped picker (system + sans/serif/display/mono), selected families live-loaded via an injected `<link>`, and the SVG exporter embeds a portable `@import` so standalone `.svg` files render in-font. Free, no key. **PPTX caveat:** PowerPoint substitutes the family name if the font isn't installed locally (webfonts can't embed into PPTX without the binary).
 2. ✅ **Flat illustration pack** — DONE (backlog item 4). 22 bundled recolourable flat scene illustrations in `apps/api/src/assets/undraw-manifest.ts`, served by the `searchUndraw` adapter (tier 1, no key, `#6c63ff`→brand-hue recolour, data-URI delivery). **Honest caveat:** the agent could NOT fetch real unDraw art (its CDN URLs are hashed/unstable), so these are **original hand-authored** scenes in the unDraw style — unencumbered, no attribution. Registry `undraw` entry relabelled "Flat illustrations" to reflect this; real unDraw SVGs can be dropped into the same manifest later.

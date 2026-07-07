@@ -24,3 +24,10 @@ export { computeSnap, DEFAULT_SNAP_THRESHOLD, type Box, type SnapGuide } from '.
 export { colourHex, fillProps } from './paint';
 export { ValidationPanel } from './ValidationPanel';
 export type { ValidationPanelProps } from './ValidationPanel';
+export type { DesignStudioBindings } from './studio-props';
+export { activePageFromBindings } from './studio-props';
+export { PropertyInspector } from './PropertyInspector';
+export type { PropertyInspectorProps } from './PropertyInspector';
+export { LayersPanel } from './LayersPanel';
+export { BrandColourPicker } from './BrandColourPicker';
+export type { BrandColourPickerProps } from './BrandColourPicker';

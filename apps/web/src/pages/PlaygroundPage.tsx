@@ -14,7 +14,7 @@ import { GOOGLE_FONTS, WEB_SAFE_FONTS, googleFontsCssUrl, fontStack } from '@bra
 import { exportPptxBlob } from '@brandflow/exporters/pptx';
 import { exportPageSvg } from '@brandflow/exporters/svg';
 import JSZip from 'jszip';
-import { DesignCanvas, DesignCanvasPlaceholder, DesignPageTabs, ValidationPanel } from '../components/design-studio';
+import { DesignCanvas, DesignCanvasPlaceholder, DesignPageTabs, LayersPanel, PropertyInspector, ValidationPanel } from '../components/design-studio';
 import { clientApi, getAccessToken, getActiveClientId } from '../lib/api';
 import { buildRecipeDocument } from '../lib/buildRecipeDocument';
 import { RECIPES, HEADLINE_TREATMENTS, MOTIFS } from '@brandflow/layout-recipes';
@@ -295,6 +295,16 @@ export function PlaygroundPage() {
     : 0;
   const activeSvg = activePageIndex >= 0 ? result.svgs[activePageIndex] ?? null : null;
   const canDirectEdit = Boolean(getAccessToken() && getActiveClientId());
+
+  const studioBindings = displayDoc
+    ? {
+        document: displayDoc,
+        activePageId: resolvedActivePageId,
+        selectedIds,
+        onDocumentChange: (doc: InternalDesignDocument) => setEditedDoc(doc),
+        onSelectionChange: setSelectedIds,
+      }
+    : null;
 
   // Load the selected Google Fonts so the live preview renders in the real
   // typeface (the same @import the exported SVG embeds). No key, no cost;
@@ -783,6 +793,13 @@ export function PlaygroundPage() {
           />
         )}
       </div>
+
+      {canDirectEdit && studioBindings && (
+        <div className="flex w-72 shrink-0 flex-col gap-4 overflow-auto border-l border-slate-200 bg-white p-4">
+          <PropertyInspector {...studioBindings} allowRawColourOverride={false} />
+          <LayersPanel {...studioBindings} />
+        </div>
+      )}
     </div>
   );
 }
