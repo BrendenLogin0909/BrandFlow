@@ -38,13 +38,22 @@ export function exportPageSvg(doc: InternalDesignDocument, pageIndex: number): s
   <title>${escapeXml(page.name)}</title>
 ${defs.length ? `  <defs>\n${defs.join('\n')}\n  </defs>` : ''}
   <rect id="page-background" width="${width}" height="${height}" fill="${fillToSvg(page.background, doc, defs)}"/>
-${body}
+${body}${creditsToSvg(doc, width, height)}
 </svg>`;
 }
 
 /** All pages of a carousel as individual SVG strings. */
 export function exportAllPagesSvg(doc: InternalDesignDocument): string[] {
   return doc.pages.map((_, i) => exportPageSvg(doc, i));
+}
+
+/** Small credits line for licence attributions, pinned to the bottom margin. */
+function creditsToSvg(doc: InternalDesignDocument, width: number, height: number): string {
+  const credits = doc.attributions;
+  if (!credits?.length) return '';
+  const text = `Credits: ${credits.join(' · ')}`;
+  const size = Math.max(9, Math.round(height * 0.014));
+  return `\n  <text id="asset-credits" x="${Math.round(width * 0.03)}" y="${height - size}" font-family="Arial, sans-serif" font-size="${size}" fill="#9ca3af" opacity="0.85">${escapeXml(text)}</text>`;
 }
 
 /** Every font family referenced by text elements, recursing into groups. */

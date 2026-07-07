@@ -55,8 +55,8 @@ vendor-neutral internal design schema, and a licence-aware free-asset stack.
 | Review & planned | ✅ Assign date (next-available / specific), Approve (Gate 3), both-set → Approved column |
 | Design library | ✅ saved designs, filmstrip thumbnails, reopen exact |
 | Export | ✅ PPTX (Canva-friendly) + SVG (zip for carousels), in-browser |
-| Asset library | ✅ licence-aware search (icons/figures/photos/AI-gen), save to library/shared pool, approve/tier gate |
-| Assets used by AI tool | ✅ compose auto-fills image placeholders from licensed providers + returns attributions |
+| Asset library | ✅ licence-aware search (icons/figures/photos/**flat illustrations**/AI-gen), save to library/shared pool, approve/tier gate |
+| Assets used by AI tool | ✅ compose auto-fills image placeholders from licensed providers; attributions travel on the document and **render as a credits line on SVG + PPTX export** (and in the playground) |
 | Dashboard, Calendar, Brand-profile UI, Review-queue page | ⏳ nav placeholders (data model + APIs mostly exist) |
 | Object storage / customer upload (logos, photos) | ⏳ stubbed (StoragePort not wired to MinIO) |
 | Polotno embedded editor | ⏳ needs free trial key `VITE_POLOTNO_KEY`; adapter + round-trip already built |
@@ -67,8 +67,9 @@ vendor-neutral internal design schema, and a licence-aware free-asset stack.
 
 `apps/api/src/assets/registry.ts` (`PROVIDERS`, tiers 1/2/3, `AVOID_BY_DEFAULT`)
 + `providers.ts` (adapters). **Live with no keys:** Lucide (bundled icons),
-Iconify (icon search), DiceBear (figures), **Openverse** (CC0/PDM photos),
-Wikimedia (PD, review-tier), **Pollinations** (free AI image gen).
+Iconify (icon search), DiceBear (figures), **flat illustration pack**
+(22 bundled recolourable scenes, `undraw-manifest.ts`), **Openverse** (CC0/PDM
+photos), Wikimedia (PD, review-tier), **Pollinations** (free AI image gen).
 **Key-gated (light up when env key set):** Unsplash/Pexels/Pixabay stock,
 OpenAI images. Every asset stores full provenance; tier-1 auto-usable,
 tier 2–3 need a human tick. `AssetLibraryItem.clientCompanyId = null` = shared
@@ -94,9 +95,9 @@ pool reusable across clients.
 
 See **[docs/16-backlog.md](16-backlog.md)** for the full parked list. Highest-value next:
 1. ✅ **Google Fonts** in the playground — DONE. 30-family curated catalog in `packages/design-schema/src/fonts.ts` (shared source of truth), grouped picker (system + sans/serif/display/mono), selected families live-loaded via an injected `<link>`, and the SVG exporter embeds a portable `@import` so standalone `.svg` files render in-font. Free, no key. **PPTX caveat:** PowerPoint substitutes the family name if the font isn't installed locally (webfonts can't embed into PPTX without the binary).
-2. **unDraw** scene-illustration pack (bundle a manifest; hashed CDN URLs are unstable).
-3. **Customer logo/photo upload** → StoragePort/MinIO → feeds logo-top-left motif.
-4. **Attribution rendering** on export (compose already returns `attributions[]`).
+2. ✅ **Flat illustration pack** — DONE (backlog item 4). 22 bundled recolourable flat scene illustrations in `apps/api/src/assets/undraw-manifest.ts`, served by the `searchUndraw` adapter (tier 1, no key, `#6c63ff`→brand-hue recolour, data-URI delivery). **Honest caveat:** the agent could NOT fetch real unDraw art (its CDN URLs are hashed/unstable), so these are **original hand-authored** scenes in the unDraw style — unencumbered, no attribution. Registry `undraw` entry relabelled "Flat illustrations" to reflect this; real unDraw SVGs can be dropped into the same manifest later.
+3. ✅ **Attribution rendering on export** — DONE (backlog item 4c). `attributions` is now an optional field on `InternalDesignDocument`; `resolveImages` attaches credits to the doc so they persist through save/reopen/export; SVG + PPTX exporters render a credits line, and the playground shows an "Asset credits" panel.
+4. **Customer logo/photo upload** → StoragePort/MinIO → feeds logo-top-left motif.
 5. **Manual asset insert** into a design in the playground (compose auto-fill works; manual drag does not yet).
 6. Calendar page, Brand-profile editor UI, publish integration, queue workers.
 

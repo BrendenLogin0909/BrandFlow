@@ -46,10 +46,10 @@ export const PROVIDERS: Record<string, ProviderSpec> = {
   },
   // ---- Illustrations (tier 1) ----
   undraw: {
-    id: 'undraw', label: 'unDraw', kinds: ['illustration'], licence: 'unDraw (MIT-like, no attribution)',
+    id: 'undraw', label: 'Flat illustrations', kinds: ['illustration'], licence: 'BrandFlow original (CC0-equivalent, no attribution)',
     commercialUse: true, attributionRequired: false, modificationAllowed: true,
     tier: 1, delivery: 'bundled', needsKey: false,
-    notes: 'Free SVG illustrations, no attribution. Recolourable to a single brand hue.',
+    notes: 'Bundled flat single-accent scene illustrations (undraw-manifest.ts), recolourable to a brand hue. Currently ORIGINAL art authored in the unDraw style — not unDraw\'s library — so they are unencumbered and need no attribution. Real unDraw SVGs can be bundled into the same manifest later (its CDN URLs are hashed/unstable, so hotlinking is not an option).',
   },
   dicebear: {
     id: 'dicebear', label: 'DiceBear', kinds: ['illustration'], licence: 'CC0 / per-style',

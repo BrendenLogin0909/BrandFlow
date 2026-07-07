@@ -74,6 +74,25 @@ describe('SVG exporter', () => {
     });
   }
 
+  it('embeds a Google Fonts @import + fallback stack for webfont families', () => {
+    const recipe = RECIPES.find((r) => r.id === 'quote-card')!;
+    const doc = recipe.layout(fill(recipe), ctx(recipe)); // brand fonts = Inter
+    const svg = exportPageSvg(doc, 0);
+    expect(svg).toContain('fonts.googleapis.com/css2?family=Inter');
+    expect(svg).toContain('@import');
+    expect(svg).toContain("font-family=\"'Inter', sans-serif\"");
+  });
+
+  it('renders an asset-credits line only when attributions are present', () => {
+    const recipe = RECIPES.find((r) => r.id === 'quote-card')!;
+    const doc = recipe.layout(fill(recipe), ctx(recipe));
+    expect(exportPageSvg(doc, 0)).not.toContain('asset-credits');
+    doc.attributions = ['Jane Doe / openverse', 'Acme / wikimedia'];
+    const svg = exportPageSvg(doc, 0);
+    expect(svg).toContain('id="asset-credits"');
+    expect(svg).toContain('Credits: Jane Doe / openverse · Acme / wikimedia');
+  });
+
   it('escapes XML in text content', () => {
     const recipe = RECIPES.find((r) => r.id === 'quote-card')!;
     const f = fill(recipe);

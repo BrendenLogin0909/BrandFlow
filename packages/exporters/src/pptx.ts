@@ -42,6 +42,23 @@ function buildPptx(doc: InternalDesignDocument): PptxGenJS {
 
     for (const el of flatten(page.elements).sort((a, b) => a.zIndex - b.zIndex))
       addElement(pptx, slide, el, doc);
+
+    // licence credits from auto-filled assets, as an editable footer text box
+    if (doc.attributions?.length) {
+      const h = 0.22;
+      slide.addText(`Credits: ${doc.attributions.join(' · ')}`, {
+        x: px(doc.canvas.width * 0.03),
+        y: px(doc.canvas.height) - h - 0.05,
+        w: px(doc.canvas.width * 0.94),
+        h,
+        fontFace: 'Arial',
+        fontSize: 7,
+        color: '9CA3AF',
+        align: 'left',
+        valign: 'middle',
+        wrap: true,
+      });
+    }
   }
 
   return pptx;

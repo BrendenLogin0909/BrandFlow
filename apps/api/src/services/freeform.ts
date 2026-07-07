@@ -242,6 +242,8 @@ export async function composeFreeform(
       );
       const document = autoFixFreeform(normaliseFreeform(data, ctx));
       const attributions = await resolveImages(document); // fill placeholders from licensed providers
+      // travel with the document so credits persist through save/reopen/export
+      if (attributions.length) document.attributions = attributions;
       const report = validateDesignDocument(document, {
         bannedPhrases: opts.bannedPhrases,
         contrastMode: opts.contrastMode ?? 'enforce',

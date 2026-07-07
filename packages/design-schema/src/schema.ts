@@ -239,6 +239,12 @@ export const InternalDesignDocument = z.object({
   }),
   brandTokens: BrandTokensSnapshot,
   pages: z.array(Page).min(1).max(20),
+  /**
+   * Licence credits required by auto-filled assets (e.g. CC-BY photos). Set by
+   * the asset pipeline; rendered as a small credits line on export. Optional
+   * so recipe designs and pre-existing documents parse unchanged.
+   */
+  attributions: z.array(z.string()).optional(),
 });
 export type InternalDesignDocument = z.infer<typeof InternalDesignDocument>;
 

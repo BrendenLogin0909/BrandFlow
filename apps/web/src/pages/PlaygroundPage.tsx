@@ -748,6 +748,12 @@ export function PlaygroundPage() {
             ))}
           </div>
         )}
+        {result.doc?.attributions?.length ? (
+          <div className="mb-4 rounded border border-slate-200 bg-slate-50 p-3 text-xs text-slate-500">
+            <strong className="text-slate-600">Asset credits</strong> — rendered onto every exported slide:
+            <div className="mt-1">{result.doc.attributions.join(' · ')}</div>
+          </div>
+        ) : null}
         <div className="flex flex-wrap gap-4">
           {result.svgs.map((svg, i) => (
             <div key={i} className="w-64">

@@ -5,6 +5,7 @@
  * like the AI provider.
  */
 import { PROVIDERS, type AssetKind, type ProviderSpec } from './registry.js';
+import { UNDRAW_MANIFEST } from './undraw-manifest.js';
 
 export interface AssetSearchResult {
   provider: string;
@@ -75,6 +76,37 @@ function searchDicebear(q: string, limit: number): AssetSearchResult[] {
       thumbUrl: url,
       sourceUrl: 'https://www.dicebear.com/',
       label: `${style} figure`,
+    });
+  });
+}
+
+// ---------- unDraw (flat scene illustrations, no key, bundled) ----------
+// unDraw's per-illustration CDN URLs are hashed/unstable, so we bundle the SVG
+// markup (undraw-manifest.ts) and serve it locally — no network at serve time.
+// Each illustration carries the signature accent `#6c63ff`, which we recolour
+// to a brand hue on the way out and deliver as a data URI.
+const UNDRAW_ACCENT = /#6c63ff/gi; // unDraw's single signature colour
+function searchUndraw(q: string, limit: number, brandHue = '#4f46e5'): AssetSearchResult[] {
+  const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
+  const scored = UNDRAW_MANIFEST.map((e) => {
+    const hay = `${e.title} ${e.keywords.join(' ')}`.toLowerCase();
+    const score = terms.reduce((n, t) => (hay.includes(t) ? n + 1 : n), 0);
+    return { e, score };
+  });
+  const matched = scored.filter((s) => s.score > 0).sort((a, b) => b.score - a.score);
+  // Fall back to the first N when nothing matches, so a search never comes back empty.
+  const chosen = (matched.length ? matched.map((s) => s.e) : UNDRAW_MANIFEST).slice(0, limit);
+  return chosen.map((e) => {
+    const recoloured = e.svg.replace(UNDRAW_ACCENT, brandHue);
+    const dataUri = 'data:image/svg+xml;utf8,' + encodeURIComponent(recoloured);
+    return tag(PROVIDERS.undraw!, {
+      providerId: e.slug,
+      kind: 'illustration',
+      contentUrl: dataUri,
+      thumbUrl: dataUri,
+      attributionRequired: false,
+      mimeType: 'image/svg+xml',
+      label: e.title,
     });
   });
 }
@@ -258,6 +290,7 @@ export async function searchAssets(opts: SearchOptions): Promise<AssetSearchResu
 
   if (opts.kind === 'icon') jobs.push(searchIconify(q, limit).catch(() => []));
   if (opts.kind === 'illustration') {
+    jobs.push(Promise.resolve(searchUndraw(q, limit)).catch(() => []));
     jobs.push(Promise.resolve(searchDicebear(q, Math.min(limit, 5))));
     jobs.push(searchPixabay(`${q} illustration`, limit).catch(() => []));
   }
