@@ -12,8 +12,9 @@ import type { InternalDesignDocument } from '@brandflow/design-schema';
 import { parseDesignDocument } from '@brandflow/design-schema';
 import { GOOGLE_FONTS, WEB_SAFE_FONTS, googleFontsCssUrl, fontStack } from '@brandflow/design-schema';
 import { exportPptxBlob } from '@brandflow/exporters/pptx';
+import { exportPageSvg } from '@brandflow/exporters/svg';
 import JSZip from 'jszip';
-import { DesignCanvasPlaceholder, DesignPageTabs } from '../components/design-studio';
+import { DesignCanvas, DesignCanvasPlaceholder, DesignPageTabs, ValidationPanel } from '../components/design-studio';
 import { clientApi, getAccessToken, getActiveClientId } from '../lib/api';
 import { buildRecipeDocument } from '../lib/buildRecipeDocument';
 import { RECIPES, HEADLINE_TREATMENTS, MOTIFS } from '@brandflow/layout-recipes';
@@ -138,7 +139,7 @@ interface PlaygroundSource {
   idea?: LinkedIdea | null;
   fonts?: typeof DEFAULT_FONTS;
   /** 'freeform' = the saved internalDoc IS the design (AI-composed). */
-  mode?: 'recipe' | 'freeform';
+  mode?: 'recipe' | 'freeform' | 'hybrid';
 }
 
 /** Put the idea's title into the recipe's primary required text slot. */
@@ -192,6 +193,9 @@ export function PlaygroundPage() {
   const [draftPkg, setDraftPkg] = useState<DraftPackage | null>(null);
   const [ideaPopup, setIdeaPopup] = useState(false);
   const [activePageId, setActivePageId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [editedDoc, setEditedDoc] = useState<InternalDesignDocument | null>(null);
+  const [saveTrigger, setSaveTrigger] = useState(0);
   const navigate = useNavigate();
   const ideaTitle = idea?.title ?? null;
 
@@ -275,7 +279,13 @@ export function PlaygroundPage() {
     [recipe, activeVariant, brand, fonts, fill, treatment, motif, bestPractices, composedDoc],
   );
 
-  const pages = result.doc?.pages ?? [];
+  useEffect(() => {
+    setEditedDoc(null);
+    setSelectedIds([]);
+  }, [recipeId, activeVariant, fill, treatment, motif, composedDoc]);
+
+  const displayDoc = editedDoc ?? result.doc;
+  const pages = displayDoc?.pages ?? [];
   const resolvedActivePageId =
     activePageId && pages.some((p) => p.id === activePageId)
       ? activePageId
@@ -347,7 +357,8 @@ export function PlaygroundPage() {
   }
 
   async function saveDraft() {
-    if (!result.doc) return;
+    if (!displayDoc) return;
+    setSaveTrigger((n) => n + 1);
     if (!getAccessToken() || !getActiveClientId()) {
       setSaveState('Sign in and select a client to save drafts');
       return;
@@ -361,13 +372,13 @@ export function PlaygroundPage() {
     try {
       const source: PlaygroundSource = {
         recipeId, variant: activeVariant, treatment, motif, brand, fonts, fill, bestPractices, idea,
-        mode: composedDoc ? 'freeform' : 'recipe',
+        mode: composedDoc ? 'freeform' : editedDoc ? 'hybrid' : 'recipe',
       };
       const saved = await clientApi<{ id: string }>('/design-drafts', {
         method: 'POST',
         body: JSON.stringify({
           name,
-          internalDoc: result.doc,
+          internalDoc: displayDoc,
           playgroundSource: source,
           ideaId: idea?.id, // one design per idea — resaving updates it
         }),
@@ -407,18 +418,19 @@ export function PlaygroundPage() {
   }
 
   async function downloadPptx() {
-    if (!result.doc) return;
-    downloadBlob(await exportPptxBlob(result.doc), `${recipe.id}.pptx`);
+    if (!displayDoc) return;
+    downloadBlob(await exportPptxBlob(displayDoc), `${recipe.id}.pptx`);
   }
 
   async function downloadSvgs() {
-    if (!result.svgs.length) return;
-    if (result.svgs.length === 1) {
-      downloadBlob(new Blob([result.svgs[0]!], { type: 'image/svg+xml' }), `${recipe.id}.svg`);
+    if (!displayDoc) return;
+    const svgs = displayDoc.pages.map((_, i) => exportPageSvg(displayDoc, i));
+    if (svgs.length === 1) {
+      downloadBlob(new Blob([svgs[0]!], { type: 'image/svg+xml' }), `${recipe.id}.svg`);
       return;
     }
     const zip = new JSZip();
-    result.svgs.forEach((svg, i) => zip.file(`${recipe.id}-slide-${i + 1}.svg`, svg));
+    svgs.forEach((svg, i) => zip.file(`${recipe.id}-slide-${i + 1}.svg`, svg));
     downloadBlob(await zip.generateAsync({ type: 'blob' }), `${recipe.id}-svgs.zip`);
   }
 
@@ -567,7 +579,17 @@ export function PlaygroundPage() {
           </div>
         </fieldset>
 
-        {recipe.slots.map((slot) => {
+        <ValidationPanel
+          document={displayDoc}
+          validationContext={{ contrastMode: bestPractices ? 'enforce' : 'warn' }}
+          saveTrigger={saveTrigger}
+          onSelectElement={(elementId, pageId) => {
+            if (pageId) setActivePageId(pageId);
+            setSelectedIds([elementId]);
+          }}
+        />
+
+        {!composedDoc && recipe.slots.map((slot) => {
           const value = fill.slots[slot.id];
           if (slot.kind === 'text')
             return (
@@ -721,24 +743,10 @@ export function PlaygroundPage() {
         {result.error && (
           <div className="rounded border border-red-300 bg-red-50 p-3 text-sm text-red-800">{result.error}</div>
         )}
-        {result.report && (
-          <div className={`mb-4 rounded border p-3 text-sm ${result.report.passed ? 'border-green-300 bg-green-50 text-green-800' : 'border-amber-300 bg-amber-50 text-amber-900'}`}>
-            <strong>Validation:</strong>{' '}
-            {result.report.passed
-              ? 'passed — on-brand, readable, inside safe areas'
-              : `${result.report.errors.length} error(s)`}
-            {result.report.errors.map((e, i) => (
-              <div key={i} className="mt-1 text-xs">✕ [{e.ruleId}] {e.message}</div>
-            ))}
-            {result.report.warnings.map((w, i) => (
-              <div key={i} className="mt-1 text-xs opacity-70">⚠ [{w.ruleId}] {w.message}</div>
-            ))}
-          </div>
-        )}
-        {result.doc?.attributions?.length ? (
+        {displayDoc?.attributions?.length ? (
           <div className="mb-4 rounded border border-slate-200 bg-slate-50 p-3 text-xs text-slate-500">
             <strong className="text-slate-600">Asset credits</strong> — rendered onto every exported slide:
-            <div className="mt-1">{result.doc.attributions.join(' · ')}</div>
+            <div className="mt-1">{displayDoc.attributions.join(' · ')}</div>
           </div>
         ) : null}
         </div>
@@ -749,17 +757,31 @@ export function PlaygroundPage() {
             onSelect={setActivePageId}
           />
         )}
-        <DesignCanvasPlaceholder
-          svg={activeSvg}
-          pageLabel={
-            pages.length > 1 && activePageIndex >= 0
-              ? pages[activePageIndex]?.name || `Slide ${activePageIndex + 1}`
-              : undefined
-          }
-          canDirectEdit={canDirectEdit}
-          canvasWidth={result.doc?.canvas.width}
-          canvasHeight={result.doc?.canvas.height}
-        />
+        {canDirectEdit && displayDoc ? (
+          <DesignCanvas
+            className="min-h-0 flex-1"
+            document={displayDoc}
+            activePageId={resolvedActivePageId}
+            selectedIds={selectedIds}
+            onDocumentChange={setEditedDoc}
+            onSelectionChange={setSelectedIds}
+            onFirstManualEdit={() => {
+              /* hybrid mode — persisted on save via playgroundSource.mode */
+            }}
+          />
+        ) : (
+          <DesignCanvasPlaceholder
+            svg={activeSvg}
+            pageLabel={
+              pages.length > 1 && activePageIndex >= 0
+                ? pages[activePageIndex]?.name || `Slide ${activePageIndex + 1}`
+                : undefined
+            }
+            canDirectEdit={canDirectEdit}
+            canvasWidth={displayDoc?.canvas.width}
+            canvasHeight={displayDoc?.canvas.height}
+          />
+        )}
       </div>
     </div>
   );

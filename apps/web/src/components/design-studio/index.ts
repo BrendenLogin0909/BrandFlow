@@ -22,3 +22,5 @@ export {
 } from './frame';
 export { computeSnap, DEFAULT_SNAP_THRESHOLD, type Box, type SnapGuide } from './snapping';
 export { colourHex, fillProps } from './paint';
+export { ValidationPanel } from './ValidationPanel';
+export type { ValidationPanelProps } from './ValidationPanel';

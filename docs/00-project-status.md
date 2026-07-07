@@ -106,7 +106,11 @@ pool reusable across clients.
 - **hybrid-mode contract:** first manual geometry edit fires `onFirstManualEdit`; the Studio shell must then set `playgroundSource.mode = 'hybrid'` (plan §4.3). Documented in `DesignCanvas.tsx`.
 - **Deps:** `konva` + `react-konva`, pinned to konva **^10.3.0** to share the single hoisted copy polotno already pulls in (a `^9` pin created a duplicate install → TS type-identity errors). `vitest` added to `apps/web`.
 - **Verify:** `npm run dev:web` → **`/studio-canvas-demo`** (works logged-out). Verified in-browser: renders the recipe doc, select→transform, drag flips mode to `hybrid`, lock detaches the transformer, zero console errors.
-- **Not in this slice:** in-place text editing (double-click emits `onRequestTextEdit` for the Phase-2 inspector), page tabs (P1-C, Agent 1), save/load wiring (P1-D, Agent 2), layers/property panels (Phase 2). Group *resize* is intentionally disabled (rotate/move only) — the schema doesn't scale group children by the group frame.
+- **Not in this slice:** in-place text editing (double-click emits `onRequestTextEdit` for the Phase-2 inspector), save/load wiring (P1-D, Agent 2), layers/property panels (Phase 2). Group *resize* is intentionally disabled (rotate/move only) — the schema doesn't scale group children by the group frame. **Approved** — merged into `feat/design-validation-ui` via `feat/design-studio-shell`.
+
+**ValidationPanel (Agent 4, `feat/design-validation-ui`) — DONE (P1-F):**
+- `ValidationPanel.tsx` — debounced (300ms) client-side `validateDesignDocument`; errors vs warnings; element-id links call `onSelectElement` → canvas selection on `/playground` when signed in.
+- Playground wired: `DesignCanvas` when authed, `ValidationPanel` in generation panel; canvas edits flow through `displayDoc` + hybrid save mode.
 
 See **[docs/16-backlog.md](16-backlog.md)** for the full parked list. Highest-value next:
 1. ✅ **Google Fonts** in the playground — DONE. 30-family curated catalog in `packages/design-schema/src/fonts.ts` (shared source of truth), grouped picker (system + sans/serif/display/mono), selected families live-loaded via an injected `<link>`, and the SVG exporter embeds a portable `@import` so standalone `.svg` files render in-font. Free, no key. **PPTX caveat:** PowerPoint substitutes the family name if the font isn't installed locally (webfonts can't embed into PPTX without the binary).
