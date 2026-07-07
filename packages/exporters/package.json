@@ -8,7 +8,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./svg": "./src/svg.ts",
-    "./pptx": "./src/pptx.ts"
+    "./pptx": "./src/pptx.ts",
+    "./icons": "./src/icons.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
