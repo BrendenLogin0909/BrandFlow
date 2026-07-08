@@ -30,6 +30,7 @@ import {
   replaceImageWithAsset,
   ValidationPanel,
   AiEditPanel,
+  ImportPanel,
   RevisionHistoryPanel,
   ReviewCommentsPanel,
 } from '../components/design-studio';
@@ -928,6 +929,14 @@ export function PlaygroundPage() {
             />
           )}
           <LayersPanel {...studioBindings} />
+          <ImportPanel
+            document={studioBindings.document}
+            designDocumentId={linkedDesignDocumentId}
+            onApply={(doc) => {
+              setEditedDoc(doc);
+              setSaveTrigger((n) => n + 1);
+            }}
+          />
           <RevisionHistoryPanel
             designDocumentId={linkedDesignDocumentId}
             onReverted={(doc) => {

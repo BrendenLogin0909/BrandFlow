@@ -24,6 +24,7 @@ const REASON_LABELS: Record<string, string> = {
   AI_REGENERATED: 'AI regenerated',
   AI_PATCH: 'AI edit',
   HUMAN_EDIT: 'Manual save',
+  EXTERNAL_IMPORT: 'External import',
   REVERT: 'Reverted',
 };
 

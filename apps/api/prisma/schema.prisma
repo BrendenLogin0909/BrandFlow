@@ -336,6 +336,7 @@ enum RevisionReason {
   AI_REGENERATED
   AI_PATCH
   HUMAN_EDIT
+  EXTERNAL_IMPORT
   REVERT
 }
 

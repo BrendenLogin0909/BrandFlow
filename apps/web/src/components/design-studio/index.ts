@@ -43,6 +43,8 @@ export {
 } from './assetDocumentOps';
 export { AiEditPanel } from './AiEditPanel';
 export type { AiEditPanelProps } from './AiEditPanel';
+export { ImportPanel } from './ImportPanel';
+export type { ImportPanelProps } from './ImportPanel';
 export { derivePatchScope } from './patchScope';
 export { summarizePatchDiff } from './patchDiffSummary';
 export { VisualDirectionEditor, emptyVisualDirection } from './VisualDirectionEditor';

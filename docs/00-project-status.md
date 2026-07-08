@@ -1,7 +1,7 @@
 # BrandFlow — Project Status & Handoff
 
 **Living document. Update this at the end of every work session.**
-Last updated: 2026-07-07
+Last updated: 2026-07-08
 
 This is the single source of truth for *current state*. The numbered docs
 (01–16) are the *design/spec*; this file records what is actually built,
@@ -29,6 +29,7 @@ vendor-neutral internal design schema, and a licence-aware free-asset stack.
   - `packages/design-schema` — InternalDesignDocument (Zod) + validation engine + text measurement
   - `packages/layout-recipes` — 8 recipes + variants + style directives + variety guard
   - `packages/exporters` — SVG + PPTX exporters, real Lucide icon artwork, charts
+  - `packages/importers` — SVG + PPTX (beta) importers back into InternalDesignDocument
   - `packages/shared` — roles/capabilities, workflow state machine, LinkedIn presets
 - **Dev stack:** Docker `postgres` (host port **5433**, not 5432) + `redis`; MinIO defined but storage not wired.
 - **Run:** `docker compose up -d postgres redis` → `npm run dev:api` (:3001) → `npm run dev:web` (:5173).
@@ -60,6 +61,7 @@ vendor-neutral internal design schema, and a licence-aware free-asset stack.
 | Design library | ✅ saved designs, filmstrip thumbnails, reopen exact in **Design Studio** |
 | Pipeline ↔ Studio (P5-A/B/C) | ✅ Content Manager + Design Library **Open in studio**; `RevisionHistoryPanel` (list + revert); `ReviewCommentsPanel` (element-anchored comments, highlight on canvas); `GET/POST /design-documents/:id/revisions|revert`; `GET/POST/PATCH /comments` |
 | Export | ✅ PPTX (Canva-friendly) + SVG (zip for carousels), in-browser |
+| SVG / PPTX re-import (Design Studio, P4) | ✅ `packages/importers` — SVG round-trip + PPTX beta; `POST /design-documents/:id/import` preview + `/import/apply` persist (`EXTERNAL_IMPORT` revision); `ImportPanel` in studio sidebar |
 | Asset library | ✅ licence-aware search (icons/figures/photos/**flat illustrations**/AI-gen), save to library/shared pool, approve/tier gate |
 | Assets used by AI tool | ✅ compose auto-fills image placeholders from licensed providers; attributions travel on the document and **render as a credits line on SVG + PPTX export** (and in the playground) |
 | Dashboard, Calendar, Brand-profile UI, Review-queue page | ⏳ nav placeholders (data model + APIs mostly exist) |
@@ -143,7 +145,18 @@ pool reusable across clients.
 - `linkedDesignDocumentId` wired from package-linked draft save + draft reopen (`GET /design-drafts/:id` → `designDocument.id`).
 - Tests: `patchDiffSummary.test.ts` (2).
 
-**Next:** SVG import (Agent 10), PPTX import (Agent 11), publish integration.
+**SVG import (Agent 10, `feat/design-svg-import`) — DONE (P4-A/B/C/D/F):**
+- `packages/importers/` — `svg.ts` parses BrandFlow-layered SVG (text, rect/ellipse, image, groups, icons); `colours.ts` re-tokenises exact hex → brand tokens.
+- `POST /design-documents/:id/import` — multipart `.svg` or `.pptx`, returns `{ document, importReport, validationReport }` (preview only).
+- `POST /design-documents/:id/import/apply` — user-confirmed persist + `DesignRevision` reason **`EXTERNAL_IMPORT`**.
+- `ImportPanel` in Design Studio right sidebar — matched/skipped counts, warnings, lostEditability list, beta banner for PPTX, Accept/Reject.
+- Round-trip test: `packages/importers/src/importers.test.ts` (export recipe SVG → import → text preserved).
+
+**PPTX import beta (Agent 11) — DONE (P4-E):**
+- `packages/importers/src/pptx.ts` — text boxes, shapes, image placeholders from BrandFlow-exported decks; arbitrary PPTX best-effort.
+- Same import routes accept `.pptx`; `ImportReport.beta` + UI messaging for limitations.
+
+**Next:** publish integration, customer upload, calendar UI.
 
 **Draft visual direction (Agent 9, `feat/design-pipeline`) — DONE (P3-G / backlog #1):**
 - `packages/shared/src/visual-direction.ts` — `VisualDirection` Zod schema + `formatVisualDirectionBrief()`.

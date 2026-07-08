@@ -8,6 +8,7 @@ import {
   type LockableElement,
 } from '@brandflow/design-schema';
 import { exportPageSvg, exportPptx } from '@brandflow/exporters';
+import { importSvgString, importPptxBuffer } from '@brandflow/importers';
 import { PolotnoAdapter } from '../adapters/polotno-adapter.js';
 import { getAiProvider, activeProviderName } from '../ai/provider.js';
 import { buildBrandContext } from '../ai/build-brand-context.js';
@@ -30,6 +31,21 @@ const PatchBody = z.object({
 });
 
 const RevertBody = z.object({ version: z.number().int().min(1) });
+
+const ImportApplyBody = z.object({ document: z.unknown() });
+
+function isSvgUpload(filename: string, mimetype: string | undefined): boolean {
+  const lower = filename.toLowerCase();
+  return lower.endsWith('.svg') || mimetype === 'image/svg+xml' || mimetype === 'text/xml';
+}
+
+function isPptxUpload(filename: string, mimetype: string | undefined): boolean {
+  const lower = filename.toLowerCase();
+  return (
+    lower.endsWith('.pptx') ||
+    mimetype === 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+  );
+}
 
 /** A compact, tenant-scoped brand view for the patch prompt. */
 function brandPromptView(brand: Awaited<ReturnType<typeof buildBrandContext>>) {
@@ -319,6 +335,108 @@ export async function designDocumentRoutes(app: FastifyInstance) {
           internalDoc: reverted as object,
           createdById: req.tenant!.userId,
           reason: 'REVERT',
+        },
+      }),
+    ]);
+
+    return { version: nextVersion, validationReport: report };
+  });
+
+  /**
+   * Preview an external SVG or PPTX import — parses and validates but does not persist.
+   * User confirms via POST /import/apply.
+   */
+  app.post('/:id/import', edit, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const existing = await loadDoc(req, id);
+    if (!existing) return reply.code(404).send({ error: { code: 'NOT_FOUND' } });
+
+    const file = await req.file();
+    if (!file) return reply.code(400).send({ error: { code: 'NO_FILE', message: 'Upload a .svg or .pptx file' } });
+
+    const buffer = await file.toBuffer();
+    const filename = file.filename ?? 'upload';
+    const base = parseDesignDocument(existing.internalDoc);
+
+    try {
+      let imported;
+      if (isSvgUpload(filename, file.mimetype)) {
+        imported = importSvgString(buffer.toString('utf8'), { base });
+      } else if (isPptxUpload(filename, file.mimetype)) {
+        imported = await importPptxBuffer(buffer, { base });
+      } else {
+        return reply.code(400).send({
+          error: { code: 'UNSUPPORTED_FORMAT', message: 'Only .svg and .pptx imports are supported' },
+        });
+      }
+
+      const next = parseDesignDocument({
+        ...imported.document,
+        id: base.id,
+        brandProfileId: base.brandProfileId,
+        clientCompanyId: base.clientCompanyId,
+        layoutRecipeRef: base.layoutRecipeRef,
+        format: base.format,
+        brandTokens: base.brandTokens,
+        version: base.version,
+      });
+      const validationReport = validateDesignDocument(next);
+      return { document: next, importReport: imported.report, validationReport };
+    } catch (err) {
+      return reply.code(422).send({ error: { code: 'IMPORT_FAILED', message: String(err) } });
+    }
+  });
+
+  /** Persist a confirmed import — writes DesignRevision reason EXTERNAL_IMPORT. */
+  app.post('/:id/import/apply', edit, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const existing = await loadDoc(req, id);
+    if (!existing) return reply.code(404).send({ error: { code: 'NOT_FOUND' } });
+
+    let body;
+    try {
+      body = ImportApplyBody.parse(req.body);
+    } catch (err) {
+      return reply.code(400).send({ error: { code: 'INVALID_REQUEST', details: String(err) } });
+    }
+
+    const base = parseDesignDocument(existing.internalDoc);
+    let incoming;
+    try {
+      incoming = parseDesignDocument(body.document);
+    } catch (err) {
+      return reply.code(400).send({ error: { code: 'INVALID_DOCUMENT', details: String(err) } });
+    }
+
+    incoming.id = base.id;
+    incoming.brandProfileId = base.brandProfileId;
+    incoming.clientCompanyId = base.clientCompanyId;
+
+    const violation = findLockedElementViolation(base, incoming);
+    if (violation)
+      return reply.code(409).send({ error: { code: 'LOCKED_ELEMENT_MODIFIED', elementId: violation } });
+
+    const report = validateDesignDocument(incoming);
+    const nextVersion = existing.version + 1;
+    incoming.version = nextVersion;
+
+    await app.prisma.$transaction([
+      app.prisma.designDocument.update({
+        where: { id },
+        data: {
+          internalDoc: incoming as object,
+          engineDocCache: engine.toEngineFormat(incoming) as object,
+          validationReport: report as unknown as object,
+          version: nextVersion,
+        },
+      }),
+      app.prisma.designRevision.create({
+        data: {
+          designDocumentId: id,
+          version: nextVersion,
+          internalDoc: incoming as object,
+          createdById: req.tenant!.userId,
+          reason: 'EXTERNAL_IMPORT',
         },
       }),
     ]);
