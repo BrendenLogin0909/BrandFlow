@@ -54,6 +54,7 @@ vendor-neutral internal design schema, and a licence-aware free-asset stack.
 | Freeform compose | ✅ AI invents full layout (icons/scenes/charts/arrows/colour-blocks); `autoFixFreeform` guarantees contrast+overflow; validation-gated with repair loop |
 | Native DesignCanvas (Design Studio, P1-A/B/G) | ✅ `apps/web/src/components/design-studio/DesignCanvas.tsx` — Konva render of every element type (text/shape/icon/image/group/chart), click/shift-click selection + move/resize/rotate transform handles, snap guides (canvas centre/edges + neighbour edges/centres), zoom/pan, controlled React API. Reuses `resolveColour`/`fontStack`/icon resolver (no exporter duplication). First manual edit fires the `hybrid`-mode contract. Demo route `/studio-canvas-demo`. Studio-shell wiring + property/layers panels (Phase 2) pending. |
 | Review & planned | ✅ Assign date (next-available / specific), Approve (Gate 3), both-set → Approved column |
+| Design persistence (studio ↔ pipeline) | ✅ unified save: a linked studio save materialises the authoritative DesignDocument on the package's VisualPackage, writes a HUMAN_EDIT revision, enforces locked-element byte-identity, and hydrates the full session on load (`playgroundSource.mode` recipe/freeform/hybrid). Gate 3 now genuinely blocks approval while that design has validation errors (P5-D). Integration-tested. |
 | Design library | ✅ saved designs, filmstrip thumbnails, reopen exact |
 | Export | ✅ PPTX (Canva-friendly) + SVG (zip for carousels), in-browser |
 | Asset library | ✅ licence-aware search (icons/figures/photos/**flat illustrations**/AI-gen), save to library/shared pool, approve/tier gate |
@@ -91,6 +92,7 @@ pool reusable across clients.
 - JWT access token defaults to 15 min; dev `.env` sets `JWT_EXPIRY=12h`.
 - Lucide-static roots carry the stroke/fill their paths inherit — icon paint attrs must live on the wrapper `<svg>`, or icons render invisible.
 - tsx-watch restarts kill in-flight AI requests — check the pid in the API log when debugging a hang.
+- `DesignDraft` now carries `postPackageId` + `visualPackageId` (migration `20260707131152_design_draft_pipeline_link`). A studio save with a `postPackageId` (or an `ideaId` whose package exists) syncs the authoritative `DesignDocument`; a standalone save (no package) only writes the draft. Locked-element enforcement runs on every resave path (POST-by-idea and PUT), not just PUT.
 
 ## 8. Backlog / next steps
 

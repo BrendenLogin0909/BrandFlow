@@ -1,6 +1,12 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { parseDesignDocument, validateDesignDocument } from '@brandflow/design-schema';
+import {
+  findLockedElementViolation,
+  parseDesignDocument,
+  validateDesignDocument,
+  walkElements,
+  type LockableElement,
+} from '@brandflow/design-schema';
 import { exportPageSvg, exportPptx } from '@brandflow/exporters';
 import { PolotnoAdapter } from '../adapters/polotno-adapter.js';
 
@@ -48,12 +54,9 @@ export async function designDocumentRoutes(app: FastifyInstance) {
     }
 
     // Locked-element integrity: locked elements must be byte-identical to base.
-    const lockedBase = collectLocked(base);
-    for (const [elId, baseJson] of lockedBase) {
-      const incomingEl = findById(incoming, elId);
-      if (!incomingEl || JSON.stringify(incomingEl) !== baseJson)
-        return reply.code(409).send({ error: { code: 'LOCKED_ELEMENT_MODIFIED', elementId: elId } });
-    }
+    const violation = findLockedElementViolation(base, incoming);
+    if (violation)
+      return reply.code(409).send({ error: { code: 'LOCKED_ELEMENT_MODIFIED', elementId: violation } });
 
     const report = validateDesignDocument(incoming);
     // Human saves may carry rule errors (fixed later in-editor); approval/export block on them.
@@ -122,7 +125,7 @@ export async function designDocumentRoutes(app: FastifyInstance) {
 
     const doc = parseDesignDocument(existing.internalDoc);
     for (const page of doc.pages)
-      for (const el of walk(page.elements))
+      for (const el of walkElements(page.elements as LockableElement[]))
         if (body.elementIds.includes(el.id)) el.locked = body.locked;
 
     await app.prisma.designDocument.update({
@@ -131,25 +134,4 @@ export async function designDocumentRoutes(app: FastifyInstance) {
     });
     return { updated: body.elementIds.length, locked: body.locked };
   });
-}
-
-type AnyElement = { id: string; locked?: boolean; type: string; children?: AnyElement[] };
-
-function* walk(elements: AnyElement[]): Generator<AnyElement> {
-  for (const el of elements) {
-    yield el;
-    if (el.type === 'group' && el.children) yield* walk(el.children);
-  }
-}
-
-function collectLocked(doc: { pages: { elements: AnyElement[] }[] }): Map<string, string> {
-  const out = new Map<string, string>();
-  for (const page of doc.pages)
-    for (const el of walk(page.elements)) if (el.locked) out.set(el.id, JSON.stringify(el));
-  return out;
-}
-
-function findById(doc: { pages: { elements: AnyElement[] }[] }, id: string): AnyElement | undefined {
-  for (const page of doc.pages) for (const el of walk(page.elements)) if (el.id === id) return el;
-  return undefined;
 }
