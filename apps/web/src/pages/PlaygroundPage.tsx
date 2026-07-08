@@ -28,6 +28,7 @@ import {
   replaceIconWithName,
   replaceImageWithAsset,
   ValidationPanel,
+  AiEditPanel,
 } from '../components/design-studio';
 import type { AssetPick } from '../components/design-studio';
 import { clientApi, getAccessToken, getActiveClientId } from '../lib/api';
@@ -200,6 +201,8 @@ export function PlaygroundPage() {
   // The linked PostPackage id — kept across reopen so a resave stays linked
   // even when the draft has no idea (arrived directly via ?package=).
   const [linkedPackageId, setLinkedPackageId] = useState<string | null>(null);
+  /** Authoritative DesignDocument id for AI patch (materialised on package-linked save). */
+  const [linkedDesignDocumentId, setLinkedDesignDocumentId] = useState<string | null>(null);
   const [searchParams] = useSearchParams();
 
   // AI-composed mode: the AI invents the full layout; recipes step aside
@@ -266,10 +269,18 @@ export function PlaygroundPage() {
   useEffect(() => {
     const draftId = searchParams.get('draft');
     if (!draftId || !getAccessToken()) return;
-    clientApi<{ id: string; name: string; internalDoc: unknown; playgroundSource: PlaygroundSource | null; postPackageId: string | null }>(
+    clientApi<{
+      id: string;
+      name: string;
+      internalDoc: unknown;
+      playgroundSource: PlaygroundSource | null;
+      postPackageId: string | null;
+      designDocument: { id: string } | null;
+    }>(
       `/design-drafts/${draftId}`,
     ).then((draft) => {
-      if (draft.postPackageId) setLinkedPackageId(draft.postPackageId); // keep the pipeline link on resave
+      if (draft.postPackageId) setLinkedPackageId(draft.postPackageId);
+      if (draft.designDocument?.id) setLinkedDesignDocumentId(draft.designDocument.id);
       const src = draft.playgroundSource;
       if (!src) return;
       setRecipeId(src.recipeId);
@@ -450,6 +461,16 @@ export function PlaygroundPage() {
         }),
       });
       setSavedDraftId(saved.id);
+      if (draftPkg?.id ?? linkedPackageId) {
+        try {
+          const hydrated = await clientApi<{ designDocument: { id: string } | null }>(
+            `/design-drafts/${saved.id}`,
+          );
+          if (hydrated.designDocument?.id) setLinkedDesignDocumentId(hydrated.designDocument.id);
+        } catch {
+          /* AI edit unlock is best-effort */
+        }
+      }
 
       // Saving the design advances the pipeline: the draft moves from
       // Drafts to Review & planned (no save = it stays a draft).
@@ -644,6 +665,20 @@ export function PlaygroundPage() {
             ))}
           </div>
         </fieldset>
+
+        {canDirectEdit && displayDoc && (
+          <AiEditPanel
+            document={displayDoc}
+            activePageId={resolvedActivePageId}
+            selectedIds={selectedIds}
+            designDocumentId={linkedDesignDocumentId}
+            contrastMode={bestPractices ? 'enforce' : 'warn'}
+            onApply={(doc) => {
+              setEditedDoc(doc);
+              setSaveTrigger((n) => n + 1);
+            }}
+          />
+        )}
 
         <ValidationPanel
           document={displayDoc}

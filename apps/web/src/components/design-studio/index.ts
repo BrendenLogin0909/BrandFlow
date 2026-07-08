@@ -41,3 +41,7 @@ export {
   replaceImageWithAsset,
   replaceIconWithName,
 } from './assetDocumentOps';
+export { AiEditPanel } from './AiEditPanel';
+export type { AiEditPanelProps } from './AiEditPanel';
+export { derivePatchScope } from './patchScope';
+export { summarizePatchDiff } from './patchDiffSummary';
