@@ -284,6 +284,7 @@ model PostPackage {
   onImageText           Json?
   slideTexts            Json?
   altText               String?
+  visualDirection       Json? // VisualDirection — scene, metaphor, mood, composition hints
   complianceNotes       String?
   qualityScore          Float?
   lockedFields          String[]

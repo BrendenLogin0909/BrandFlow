@@ -2,11 +2,13 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { composeFreeform } from '../services/freeform.js';
 import { activeProviderName } from '../ai/provider.js';
+import { VisualDirectionSchema, formatVisualDirectionBrief } from '@brandflow/shared';
 
 const ComposeBody = z.object({
   /** What to design: idea/draft text, on-image copy, style notes. */
   brief: z.string().min(1).max(4000),
   format: z.string().max(40).optional(),
+  visualDirection: VisualDirectionSchema.optional(),
   /** The playground's current brand tokens (validated hex + fonts). */
   brandTokens: z.object({
     colours: z.record(z.string().regex(/^#[0-9a-fA-F]{6}$/)),
@@ -26,10 +28,13 @@ export async function composeRoutes(app: FastifyInstance) {
    */
   app.post('/compose-sync', generate, async (req, reply) => {
     const body = ComposeBody.parse(req.body);
+    const vdBrief = formatVisualDirectionBrief(body.visualDirection);
+    const brief = vdBrief ? `${body.brief}\n\nVisual direction:\n${vdBrief}` : body.brief;
     const result = await composeFreeform(
       {
-        brief: body.brief,
+        brief,
         format: body.format,
+        visualDirection: body.visualDirection,
         brandTokens: Object.keys(body.brandTokens.colours),
         fonts: body.brandTokens.fonts,
       },

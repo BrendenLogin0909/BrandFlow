@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { InternalDesignDocument, RejectedOp, ValidationReport } from '@brandflow/design-schema';
+import type { VisualDirection } from '@brandflow/shared';
 import { parseDesignDocument, walkElements, type LockableElement } from '@brandflow/design-schema';
 import { clientApi } from '../../lib/api';
 import { derivePatchScope } from './patchScope';
@@ -36,6 +37,7 @@ export interface AiEditPanelProps {
   /** Authoritative DesignDocument id — required for server patch. */
   designDocumentId: string | null;
   contrastMode: 'enforce' | 'warn';
+  visualDirection?: VisualDirection | null;
   onApply: (doc: InternalDesignDocument) => void;
   className?: string;
 }
@@ -60,6 +62,7 @@ export function AiEditPanel({
   selectedIds,
   designDocumentId,
   contrastMode,
+  visualDirection,
   onApply,
   className = '',
 }: AiEditPanelProps) {
@@ -123,6 +126,7 @@ export function AiEditPanel({
           targetIds: scopeInfo.targetIds,
           lockedElementIds,
           contrastMode,
+          visualDirection: visualDirection ?? undefined,
         }),
       });
 

@@ -24,6 +24,7 @@ import {
   reimposeLocked,
   validateDesignDocument,
 } from '@brandflow/design-schema';
+import { formatVisualDirectionBrief } from '@brandflow/shared';
 import type { AiProviderPort } from '../ports/index.js';
 
 export type PatchScope = 'element' | 'page' | 'document';
@@ -37,6 +38,8 @@ export interface PatchRequest {
   lockedElementIds: string[];
   /** Brand context (from buildBrandContext) shown to the model. */
   brand: unknown;
+  /** Draft-stage visual direction (PostPackage.visualDirection). */
+  visualDirection?: Record<string, unknown> | null;
 }
 
 export interface PatchServiceResult {
@@ -125,6 +128,9 @@ export async function patchDesign(
           lockedElementIds: request.lockedElementIds,
           excerpt,
           brand: request.brand,
+          ...(formatVisualDirectionBrief(request.visualDirection ?? undefined)
+            ? { visualDirection: formatVisualDirectionBrief(request.visualDirection ?? undefined) }
+            : {}),
           ...(attempt > 0 ? { violations } : {}),
         },
         AiPatchOutput,

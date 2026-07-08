@@ -126,7 +126,7 @@ export function DesignLibraryPage() {
                   to={`/playground?draft=${draft.id}`}
                   className="flex-1 rounded border border-slate-300 py-1 text-center hover:bg-slate-50"
                 >
-                  Open
+                  Open in studio
                 </Link>
                 <button
                   className="flex-1 rounded border border-slate-300 py-1 hover:bg-slate-50"

@@ -10,7 +10,9 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CONTENT_OBJECTIVES, type ContentObjective } from '@brandflow/shared';
+import type { VisualDirection } from '@brandflow/shared';
 import { clientApi } from '../lib/api';
+import { VisualDirectionEditor, emptyVisualDirection } from '../components/design-studio';
 
 interface Idea {
   id: string;
@@ -50,6 +52,7 @@ interface Draft {
   onImageText: { headline: string; support?: string; badge?: string } | null;
   slideTexts: { title: string; body: string; iconName?: string }[] | null;
   plannedFor: string | null;
+  visualDirection?: VisualDirection | null;
 }
 
 type Slide = { title: string; body: string; iconName?: string };
@@ -66,6 +69,7 @@ interface DirectionCopy {
   slides?: { title: string; body: string; iconName?: string }[];
   altText: string;
   shortVersion?: string;
+  visualDirection?: VisualDirection;
 }
 
 const COLUMNS: { key: string; title: string; hint: string; statuses: Idea['status'][] }[] = [
@@ -218,12 +222,19 @@ export function ContentManagerPage() {
   }
 
   // storyboard editor (per-slide text before design)
-  const [storyboard, setStoryboard] = useState<{ pkgId: string; slides: Slide[] } | null>(null);
+  const [storyboard, setStoryboard] = useState<{
+    pkgId: string;
+    slides: Slide[];
+    visualDirection: VisualDirection;
+  } | null>(null);
   async function saveStoryboard() {
     if (!storyboard) return;
     await clientApi(`/post-packages/${storyboard.pkgId}`, {
       method: 'PATCH',
-      body: JSON.stringify({ slideTexts: storyboard.slides }),
+      body: JSON.stringify({
+        slideTexts: storyboard.slides,
+        visualDirection: storyboard.visualDirection,
+      }),
     });
     setStoryboard(null);
     queryClient.invalidateQueries({ queryKey: ['post-packages'] });
@@ -249,7 +260,13 @@ export function ContentManagerPage() {
 
   // inline draft editing modal
   const [editDraft, setEditDraft] = useState<{
-    id: string; hook: string; mainText: string; cta: string; hashtags: string; firstComment: string;
+    id: string;
+    hook: string;
+    mainText: string;
+    cta: string;
+    hashtags: string;
+    firstComment: string;
+    visualDirection: VisualDirection;
   } | null>(null);
   async function saveDraftEdit() {
     if (!editDraft) return;
@@ -261,6 +278,7 @@ export function ContentManagerPage() {
         cta: editDraft.cta,
         hashtags: editDraft.hashtags.split(/[,\s]+/).filter(Boolean),
         firstComment: editDraft.firstComment,
+        visualDirection: editDraft.visualDirection,
       }),
     });
     setEditDraft(null);
@@ -719,6 +737,11 @@ export function ContentManagerPage() {
               <textarea className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5" rows={2}
                 value={editDraft.firstComment} onChange={(e) => setEditDraft({ ...editDraft, firstComment: e.target.value })} />
             </label>
+            <VisualDirectionEditor
+              className="mt-3"
+              value={editDraft.visualDirection}
+              onChange={(visualDirection) => setEditDraft({ ...editDraft, visualDirection })}
+            />
             <div className="mt-5 flex justify-end gap-2">
               <button className="rounded-md border border-slate-300 px-4 py-2 text-sm" onClick={() => setEditDraft(null)}>
                 Cancel
@@ -799,6 +822,11 @@ export function ContentManagerPage() {
                 </div>
               ))}
             </div>
+            <VisualDirectionEditor
+              className="mt-4"
+              value={storyboard.visualDirection}
+              onChange={(visualDirection) => setStoryboard((sb) => sb && ({ ...sb, visualDirection }))}
+            />
             <div className="mt-4 flex items-center justify-between">
               <button className="rounded-md border border-slate-300 px-3 py-1.5 text-sm disabled:opacity-40"
                 disabled={storyboard.slides.length >= 7}
@@ -1014,6 +1042,7 @@ export function ContentManagerPage() {
                               cta: pkg.cta ?? '',
                               hashtags: (pkg.hashtags ?? []).join(' '),
                               firstComment: pkg.firstComment ?? '',
+                              visualDirection: pkg.visualDirection ?? emptyVisualDirection(),
                             })
                           }>
                           ✎ Edit
@@ -1021,7 +1050,13 @@ export function ContentManagerPage() {
                         {pkg.slideTexts && pkg.slideTexts.length > 0 && (
                           <button className="rounded border border-slate-300 px-2 py-1 hover:bg-slate-50"
                             title="Edit the carousel slide by slide"
-                            onClick={() => setStoryboard({ pkgId: pkg.id, slides: pkg.slideTexts!.map((s) => ({ ...s })) })}>
+                            onClick={() =>
+                              setStoryboard({
+                                pkgId: pkg.id,
+                                slides: pkg.slideTexts!.map((s) => ({ ...s })),
+                                visualDirection: pkg.visualDirection ?? emptyVisualDirection(),
+                              })
+                            }>
                             🎬 Storyboard
                           </button>
                         )}
@@ -1033,12 +1068,12 @@ export function ContentManagerPage() {
                           <button className="rounded border border-indigo-300 bg-indigo-50 px-2 py-1 font-semibold text-indigo-700 hover:bg-indigo-100"
                             title="Reopen the saved design"
                             onClick={() => navigate(`/playground?draft=${draftByIdea.get(pkg.ideaId!)}`)}>
-                            🎨 Open design
+                            🎨 Open in studio
                           </button>
                         ) : (
                           <button className="rounded bg-indigo-600 px-2 py-1 font-semibold text-white hover:bg-indigo-700"
                             onClick={() => navigate(`/playground?package=${pkg.id}`)}>
-                            🎨 Design
+                            🎨 Open in studio
                           </button>
                         )}
                         <button className="ml-auto rounded border border-red-200 px-2 py-1 text-red-600 hover:bg-red-50"
@@ -1099,10 +1134,15 @@ export function ContentManagerPage() {
                             </button>
                           </>
                         )}
-                        {pkg.ideaId && draftByIdea.has(pkg.ideaId) && (
+                        {pkg.ideaId && draftByIdea.has(pkg.ideaId) ? (
                           <button className="rounded border border-indigo-300 bg-indigo-50 px-2 py-1 font-semibold text-indigo-700 hover:bg-indigo-100"
                             onClick={() => navigate(`/playground?draft=${draftByIdea.get(pkg.ideaId!)}`)}>
-                            🎨 Design
+                            🎨 Open in studio
+                          </button>
+                        ) : (
+                          <button className="rounded border border-indigo-300 px-2 py-1 text-indigo-700 hover:bg-indigo-50"
+                            onClick={() => navigate(`/playground?package=${pkg.id}`)}>
+                            🎨 Open in studio
                           </button>
                         )}
                       </div>

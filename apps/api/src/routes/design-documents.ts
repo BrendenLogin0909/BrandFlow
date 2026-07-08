@@ -12,6 +12,7 @@ import { PolotnoAdapter } from '../adapters/polotno-adapter.js';
 import { getAiProvider, activeProviderName } from '../ai/provider.js';
 import { buildBrandContext } from '../ai/build-brand-context.js';
 import { patchDesign } from '../services/design-patch.js';
+import { VisualDirectionSchema } from '@brandflow/shared';
 
 const engine = new PolotnoAdapter();
 
@@ -25,7 +26,10 @@ const PatchBody = z.object({
   /** Extra ids to protect for this edit (doc-locked elements are always protected). */
   lockedElementIds: z.array(z.string()).default([]),
   contrastMode: z.enum(['enforce', 'warn']).default('enforce'),
+  visualDirection: VisualDirectionSchema.optional(),
 });
+
+const RevertBody = z.object({ version: z.number().int().min(1) });
 
 /** A compact, tenant-scoped brand view for the patch prompt. */
 function brandPromptView(brand: Awaited<ReturnType<typeof buildBrandContext>>) {
@@ -182,6 +186,7 @@ export async function designDocumentRoutes(app: FastifyInstance) {
         targetIds: body.targetIds,
         lockedElementIds: body.lockedElementIds,
         brand: brandPromptView(brand),
+        visualDirection: body.visualDirection as Record<string, unknown> | undefined,
       },
       { bannedPhrases: brand.styleGuide.bannedPhrases, contrastMode: body.contrastMode },
     );
@@ -248,5 +253,76 @@ export async function designDocumentRoutes(app: FastifyInstance) {
       data: { internalDoc: doc as object, engineDocCache: engine.toEngineFormat(doc) as object },
     });
     return { updated: body.elementIds.length, locked: body.locked };
+  });
+
+  /** List design revisions newest-first (Agent 12 — revision history). */
+  app.get('/:id/revisions', read, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const existing = await loadDoc(req, id);
+    if (!existing) return reply.code(404).send({ error: { code: 'NOT_FOUND' } });
+
+    const rows = await app.prisma.designRevision.findMany({
+      where: { designDocumentId: id },
+      orderBy: { version: 'desc' },
+      take: 30,
+      select: {
+        id: true,
+        version: true,
+        reason: true,
+        createdAt: true,
+        createdById: true,
+        internalDoc: true,
+      },
+    });
+    return rows.map((r) => ({
+      id: r.id,
+      version: r.version,
+      reason: r.reason,
+      createdAt: r.createdAt,
+      createdById: r.createdById,
+      pageCount: (r.internalDoc as { pages?: unknown[] })?.pages?.length ?? 0,
+      internalDoc: r.internalDoc,
+    }));
+  });
+
+  /** Revert to a prior revision version — writes a new REVERT revision. */
+  app.post('/:id/revert', edit, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const body = RevertBody.parse(req.body);
+    const existing = await loadDoc(req, id);
+    if (!existing) return reply.code(404).send({ error: { code: 'NOT_FOUND' } });
+
+    const target = await app.prisma.designRevision.findFirst({
+      where: { designDocumentId: id, version: body.version },
+    });
+    if (!target) return reply.code(404).send({ error: { code: 'REVISION_NOT_FOUND' } });
+
+    const reverted = parseDesignDocument(target.internalDoc);
+    const nextVersion = existing.version + 1;
+    reverted.version = nextVersion;
+    const report = validateDesignDocument(reverted);
+
+    await app.prisma.$transaction([
+      app.prisma.designDocument.update({
+        where: { id },
+        data: {
+          internalDoc: reverted as object,
+          engineDocCache: engine.toEngineFormat(reverted) as object,
+          validationReport: report as unknown as object,
+          version: nextVersion,
+        },
+      }),
+      app.prisma.designRevision.create({
+        data: {
+          designDocumentId: id,
+          version: nextVersion,
+          internalDoc: reverted as object,
+          createdById: req.tenant!.userId,
+          reason: 'REVERT',
+        },
+      }),
+    ]);
+
+    return { version: nextVersion, validationReport: report };
   });
 }

@@ -4,7 +4,7 @@ Items explicitly parked by the product owner — revisit before launch.
 
 | # | Item | Origin | Notes |
 |---|---|---|---|
-| 1 | **Better crafting of image-look drafting** — the draft stage should describe how the visuals should LOOK (scene, metaphor, mood, composition hints) with much more craft, feeding the design stage | 2026-07-06 review | Extend `post_copy` with a visual-direction section; wire into freeform compose prompts |
+| 1 | ✅ **DONE** — **Visual-direction drafting** — draft stage includes `visualDirection` (scene, metaphor, mood, composition hints, colour mood, illustration style); `post_copy@3`; editable in Content Manager; feeds compose + AI patch | 2026-07-06 review | Agent 9 on `feat/design-pipeline` |
 | 2 | **Post-approval management** — delete / change date / edit an approved+planned post and keep integrations in sync | 2026-07-06 board spec | Change-date exists locally; rest lands with the publish integration |
 | 3 | **Buffer / LinkedIn publish integration** — approved+dated posts flow to the scheduling platform (TBC which) | 2026-07-06 board spec | Buffer MCP/API or LinkedIn API; decide after pipeline stabilises |
 | 4 | ✅ **DONE** — **Flat illustration pack** — 22 bundled recolourable flat scene illustrations (`apps/api/src/assets/undraw-manifest.ts`) via `searchUndraw`. Real unDraw art was un-fetchable (hashed/unstable CDN URLs), so these are original hand-authored scenes in the unDraw style — unencumbered, no attribution. Registry `undraw` relabelled "Flat illustrations". Real unDraw SVGs can be dropped into the same manifest later. | 2026-07-06 asset build | DiceBear figures already live (no key); this adds scene variety |

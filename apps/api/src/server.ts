@@ -17,6 +17,7 @@ import { designDraftRoutes } from './routes/design-drafts.js';
 import { ideaRoutes } from './routes/ideas.js';
 import { composeRoutes } from './routes/compose.js';
 import { assetRoutes } from './routes/assets.js';
+import { commentRoutes } from './routes/comments.js';
 
 export async function buildServer() {
   const app = Fastify({ logger: true });
@@ -52,6 +53,7 @@ export async function buildServer() {
   await app.register(ideaRoutes, { prefix: '/api/clients/:clientId/ideas' });
   await app.register(composeRoutes, { prefix: '/api/clients/:clientId' });
   await app.register(assetRoutes, { prefix: '/api/clients/:clientId/assets' });
+  await app.register(commentRoutes, { prefix: '/api/clients/:clientId/comments' });
 
   app.get('/api/health', async () => ({ ok: true }));
   return app;

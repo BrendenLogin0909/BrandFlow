@@ -106,6 +106,14 @@ export class MockAiAdapter implements AiProviderPort {
           { title: 'Review weekly', body: 'Small consistent corrections outperform big resets.', iconName: 'calendar-check' },
         ],
         altText: `Carousel about ${title}: three practical steps with icons.`,
+        visualDirection: {
+          scene: `Flat illustration of a team reviewing a simple dashboard beside ${title.toLowerCase()}`,
+          metaphor: 'Clarity emerging from chaos — one metric cutting through noise',
+          mood: 'Bold, confident, approachable',
+          compositionHints: 'Two-tone headline upper-left; hero illustration centre-right; accent pill badge; numbered chips bottom-left with arrow to hero',
+          colourMood: 'Primary headline + accent highlights on soft background',
+          illustrationStyle: 'Flat vector characters, minimal scene, LinkedIn carousel craft',
+        },
       };
     }
 

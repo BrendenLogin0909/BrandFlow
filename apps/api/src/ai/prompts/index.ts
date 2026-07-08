@@ -95,7 +95,7 @@ export const PROMPT_TEMPLATES: Record<PipelineStep, PromptTemplate> = {
     },
   }),
   post_copy: template({
-    version: 'post_copy@2',
+    version: 'post_copy@3',
     jsonSchema: {
       type: 'object',
       properties: {
@@ -133,8 +133,20 @@ export const PROMPT_TEMPLATES: Record<PipelineStep, PromptTemplate> = {
           },
         },
         altText: { type: 'string', maxLength: 300 },
+        visualDirection: {
+          type: 'object',
+          description: 'How the on-image / carousel visuals should LOOK — craft-level art direction',
+          properties: {
+            scene: { type: 'string', maxLength: 200, description: 'What is depicted — characters, objects, setting' },
+            metaphor: { type: 'string', maxLength: 200, description: 'Central visual metaphor tying copy to image' },
+            mood: { type: 'string', maxLength: 120, description: 'Emotional tone — bold, calm, urgent, playful…' },
+            compositionHints: { type: 'string', maxLength: 400, description: 'Layout notes — two-tone headline, hero left, badge top-right, whitespace…' },
+            colourMood: { type: 'string', maxLength: 120, description: 'Colour emphasis — primary headline, accent highlights, dark band…' },
+            illustrationStyle: { type: 'string', maxLength: 120, description: 'Flat illustration, minimal icons, photo-led, chart-forward…' },
+          },
+        },
       },
-      required: ['hooks', 'mainText', 'cta', 'hashtags', 'firstComment', 'suggestedVisualFormat', 'onImageText', 'altText'],
+      required: ['hooks', 'mainText', 'cta', 'hashtags', 'firstComment', 'suggestedVisualFormat', 'onImageText', 'altText', 'visualDirection'],
     },
     render: (input) => {
       const req = input as { directions?: boolean };
@@ -143,7 +155,9 @@ export const PROMPT_TEMPLATES: Record<PipelineStep, PromptTemplate> = {
         : `Write a complete LinkedIn post draft for the idea below, in the brand voice.`;
       return `${task}
 Rules: hook-first writing, short paragraphs, no hashtags inside mainText, concrete and specific over generic.
-Include: exactly 3 hook options (first = best), main post text, a shorter alternative, CTA, hashtags, a value-adding first comment, the best visual format, on-image text (headline max 90 chars + optional support line + optional short badge), 3-7 carousel slides (title+body+lucide icon) when the content suits a carousel, and accessibility alt text for the visual.
+Include: exactly 3 hook options (first = best), main post text, a shorter alternative, CTA, hashtags, a value-adding first comment, the best visual format, on-image text (headline max 90 chars + optional support line + optional short badge), 3-7 carousel slides (title+body+lucide icon) when the content suits a carousel, accessibility alt text for the visual, AND a visualDirection block.
+
+visualDirection is critical — describe how the graphic should LOOK with craft (benchmark: bold LinkedIn carousels like 29FORWARD Australia: two-tone headlines, flat character illustrations, layered composition, accent colour blocks). Be specific about scene, metaphor, mood, composition, colour mood, and illustration style. This feeds the design composer and AI edit tools.
 
 ${JSON.stringify(input)}`;
     },

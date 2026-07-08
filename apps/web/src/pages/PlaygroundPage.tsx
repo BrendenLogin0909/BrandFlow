@@ -9,6 +9,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { InternalDesignDocument, PlaygroundMode } from '@brandflow/design-schema';
+import type { VisualDirection } from '@brandflow/shared';
 import { parseDesignDocument } from '@brandflow/design-schema';
 import { GOOGLE_FONTS, WEB_SAFE_FONTS, googleFontsCssUrl, fontStack } from '@brandflow/design-schema';
 import { exportPptxBlob } from '@brandflow/exporters/pptx';
@@ -29,6 +30,8 @@ import {
   replaceImageWithAsset,
   ValidationPanel,
   AiEditPanel,
+  RevisionHistoryPanel,
+  ReviewCommentsPanel,
 } from '../components/design-studio';
 import type { AssetPick } from '../components/design-studio';
 import { clientApi, getAccessToken, getActiveClientId } from '../lib/api';
@@ -115,6 +118,7 @@ interface DraftPackage {
   suggestedVisualFormat: string | null;
   onImageText: { headline: string; support?: string; badge?: string } | null;
   slideTexts: { title: string; body: string; iconName?: string }[] | null;
+  visualDirection?: VisualDirection | null;
 }
 
 /** Populate every matching slot from the draft's copy — the design shows
@@ -228,6 +232,7 @@ export function PlaygroundPage() {
   const [replaceImageId, setReplaceImageId] = useState<string | null>(null);
   const [pendingInsert, setPendingInsert] = useState<AssetPick | null>(null);
   const [insertMode, setInsertMode] = useState(false);
+  const [commentHighlightId, setCommentHighlightId] = useState<string | null>(null);
   const navigate = useNavigate();
   const ideaTitle = idea?.title ?? null;
 
@@ -416,6 +421,7 @@ export function PlaygroundPage() {
           body: JSON.stringify({
             brief: composeBrief,
             format: draftPkg?.suggestedVisualFormat ?? undefined,
+            visualDirection: draftPkg?.visualDirection ?? undefined,
             brandTokens: { colours: brand, fonts },
             contrastMode: bestPractices ? 'enforce' : 'warn',
           }),
@@ -673,6 +679,7 @@ export function PlaygroundPage() {
             selectedIds={selectedIds}
             designDocumentId={linkedDesignDocumentId}
             contrastMode={bestPractices ? 'enforce' : 'warn'}
+            visualDirection={draftPkg?.visualDirection}
             onApply={(doc) => {
               setEditedDoc(doc);
               setSaveTrigger((n) => n + 1);
@@ -921,6 +928,23 @@ export function PlaygroundPage() {
             />
           )}
           <LayersPanel {...studioBindings} />
+          <RevisionHistoryPanel
+            designDocumentId={linkedDesignDocumentId}
+            onReverted={(doc) => {
+              setEditedDoc(doc);
+              setSaveTrigger((n) => n + 1);
+            }}
+          />
+          <ReviewCommentsPanel
+            designDocumentId={linkedDesignDocumentId}
+            selectedElementId={selectedIds[0] ?? null}
+            highlightedElementId={commentHighlightId}
+            onHighlightElement={setCommentHighlightId}
+            onSelectElement={(id) => {
+              setSelectedIds([id]);
+              setCommentHighlightId(id);
+            }}
+          />
         </div>
       )}
 

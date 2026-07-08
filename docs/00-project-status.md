@@ -49,7 +49,7 @@ vendor-neutral internal design schema, and a licence-aware free-asset stack.
 | Auth, multi-tenant routing, capability guard, audit | ✅ built, verified |
 | Content-manager board (Buffer-style) | ✅ Ideas → Drafts → Review&planned → Approved → Rejected; items MOVE between columns; collapsible columns |
 | Idea stage | ✅ AI batch suggest (tick-to-keep), expand-into-2-directions (grouped modal), inline edit, delete, brand-topic chips |
-| Draft stage | ✅ one AI draft per idea; edit modal; directions (radio); **Storyboard** slide editor; original idea preserved as reference |
+| Draft stage | ✅ one AI draft per idea; edit modal; directions (radio); **Storyboard** slide editor; **Visual direction** fields (scene, metaphor, mood, composition, colour, illustration style) feed compose + AI patch; original idea preserved as reference |
 | Design stage (Recipe Playground) | ✅ 8 recipes×variants + style directives; brand colour/font pickers; Surprise-me; Save draft; **✨ Compose with AI**; **Design Studio shell** (split layout, page tabs, canvas placeholder — Agent 1 on `feat/design-studio-shell`) |
 | Freeform compose | ✅ AI invents full layout (icons/scenes/charts/arrows/colour-blocks); `autoFixFreeform` guarantees contrast+overflow; validation-gated with repair loop |
 | Native DesignCanvas (Design Studio, P1-A/B/G) | ✅ `apps/web/src/components/design-studio/DesignCanvas.tsx` — Konva render of every element type (text/shape/icon/image/group/chart), click/shift-click selection + move/resize/rotate transform handles, snap guides (canvas centre/edges + neighbour edges/centres), zoom/pan, controlled React API. Reuses `resolveColour`/`fontStack`/icon resolver (no exporter duplication). First manual edit fires the `hybrid`-mode contract. Demo route `/studio-canvas-demo`. Studio-shell wiring + property/layers panels (Phase 2) pending. |
@@ -57,7 +57,8 @@ vendor-neutral internal design schema, and a licence-aware free-asset stack.
 | "Edit with AI" Studio UI (P3-E) | ✅ `AiEditPanel` in Design Studio generation panel — selection-aware scope (element/page/document), preset chips, locked elements always protected, calls patch endpoint, diff summary + Accept/Reject preview (`feat/design-ai-patch-ui`). Requires package-linked save for `DesignDocument` id. |
 | Review & planned | ✅ Assign date (next-available / specific), Approve (Gate 3), both-set → Approved column |
 | Design persistence (studio ↔ pipeline) | ✅ unified save: a linked studio save materialises the authoritative DesignDocument on the package's VisualPackage, writes a HUMAN_EDIT revision, enforces locked-element byte-identity, and hydrates the full session on load (`playgroundSource.mode` recipe/freeform/hybrid). Gate 3 now genuinely blocks approval while that design has validation errors (P5-D). Integration-tested. |
-| Design library | ✅ saved designs, filmstrip thumbnails, reopen exact |
+| Design library | ✅ saved designs, filmstrip thumbnails, reopen exact in **Design Studio** |
+| Pipeline ↔ Studio (P5-A/B/C) | ✅ Content Manager + Design Library **Open in studio**; `RevisionHistoryPanel` (list + revert); `ReviewCommentsPanel` (element-anchored comments, highlight on canvas); `GET/POST /design-documents/:id/revisions|revert`; `GET/POST/PATCH /comments` |
 | Export | ✅ PPTX (Canva-friendly) + SVG (zip for carousels), in-browser |
 | Asset library | ✅ licence-aware search (icons/figures/photos/**flat illustrations**/AI-gen), save to library/shared pool, approve/tier gate |
 | Assets used by AI tool | ✅ compose auto-fills image placeholders from licensed providers; attributions travel on the document and **render as a credits line on SVG + PPTX export** (and in the playground) |
@@ -142,7 +143,19 @@ pool reusable across clients.
 - `linkedDesignDocumentId` wired from package-linked draft save + draft reopen (`GET /design-drafts/:id` → `designDocument.id`).
 - Tests: `patchDiffSummary.test.ts` (2).
 
-**Next:** P3-G draft-stage visual direction (Agent 9); pipeline integration (Agent 12).
+**Next:** SVG import (Agent 10), PPTX import (Agent 11), publish integration.
+
+**Draft visual direction (Agent 9, `feat/design-pipeline`) — DONE (P3-G / backlog #1):**
+- `packages/shared/src/visual-direction.ts` — `VisualDirection` Zod schema + `formatVisualDirectionBrief()`.
+- `PostPackage.visualDirection` JSON column; `post_copy@3` prompt populates it; mock adapter includes sample direction.
+- `VisualDirectionEditor` in Content Manager edit modal + storyboard modal (editable before compose).
+- Wired into `POST /compose-sync` (brief enrichment) and `POST /design-documents/:id/patch` (AI edit context).
+
+**Pipeline integration (Agent 12, `feat/design-pipeline`) — DONE (P5-A/B/C/F):**
+- Content Manager + Design Library: **Open in studio** (`?package=` / `?draft=`).
+- `RevisionHistoryPanel` — lists `DesignRevision` rows, hover SVG thumb, revert → new `REVERT` revision.
+- `ReviewCommentsPanel` — `Comment` model routes; element-anchored comments; click selects + highlights on canvas.
+- API: `GET /design-documents/:id/revisions`, `POST /design-documents/:id/revert`, `/comments` CRUD.
 
 See **[docs/16-backlog.md](16-backlog.md)** for the full parked list. Highest-value next:
 1. ✅ **Google Fonts** in the playground — DONE. 30-family curated catalog in `packages/design-schema/src/fonts.ts` (shared source of truth), grouped picker (system + sans/serif/display/mono), selected families live-loaded via an injected `<link>`, and the SVG exporter embeds a portable `@import` so standalone `.svg` files render in-font. Free, no key. **PPTX caveat:** PowerPoint substitutes the family name if the font isn't installed locally (webfonts can't embed into PPTX without the binary).

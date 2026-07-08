@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { canTransition, type WorkflowStatus } from '@brandflow/shared';
+import { VisualDirectionSchema } from '@brandflow/shared';
 import { activeProviderName, getAiProvider } from '../ai/provider.js';
 
 /**
@@ -31,6 +32,7 @@ const DraftCopy = z.object({
     .max(7)
     .optional(),
   altText: clamp(300),
+  visualDirection: VisualDirectionSchema.optional(),
 });
 type DraftCopyT = z.infer<typeof DraftCopy>;
 
@@ -63,6 +65,7 @@ const PatchBody = z
       .array(z.object({ title: z.string().max(60), body: z.string().max(180), iconName: z.string().max(40).optional() }))
       .max(7)
       .optional(),
+    visualDirection: VisualDirectionSchema.optional(),
   })
   .strict();
 
@@ -92,6 +95,7 @@ function draftToFields(copy: DraftCopyT) {
     onImageText: copy.onImageText as unknown as object,
     slideTexts: (copy.slides ?? undefined) as unknown as object | undefined,
     altText: copy.altText,
+    visualDirection: (copy.visualDirection ?? undefined) as unknown as object | undefined,
   };
 }
 
