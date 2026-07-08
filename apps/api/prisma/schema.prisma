@@ -507,15 +507,22 @@ model DesignDraft {
   organisationId   String
   clientCompanyId  String
   ideaId           String? // one design per idea: saving again for the same idea updates it
+  // Pipeline linkage: when a draft is designed for a drafted post (arrived via
+  // ?package=), studio saves also materialise the authoritative DesignDocument
+  // on a VisualPackage of this PostPackage, so Gate 3 approval can gate on its
+  // validationReport. Null for standalone playground drafts.
+  postPackageId    String?
+  visualPackageId  String? // the VisualPackage the DesignDocument was synced into
   name             String
   internalDoc      Json
-  playgroundSource Json? // recipe/variant/directives/fill so the playground can restore controls
+  playgroundSource Json? // recipe/variant/directives/fill + mode so the studio restores controls
   createdById      String
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
   @@index([clientCompanyId, updatedAt])
   @@index([ideaId])
+  @@index([postPackageId])
 }
 
 model GenerationJob {

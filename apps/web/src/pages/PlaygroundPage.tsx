@@ -8,7 +8,7 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import type { BrandTokensSnapshot, InternalDesignDocument, ValidationReport } from '@brandflow/design-schema';
+import type { BrandTokensSnapshot, InternalDesignDocument, PlaygroundMode, ValidationReport } from '@brandflow/design-schema';
 import { parseDesignDocument, validateDesignDocument } from '@brandflow/design-schema';
 import { GOOGLE_FONTS, WEB_SAFE_FONTS, googleFontsCssUrl, fontStack } from '@brandflow/design-schema';
 import { exportPptxBlob } from '@brandflow/exporters/pptx';
@@ -137,8 +137,13 @@ interface PlaygroundSource {
   bestPractices?: boolean;
   idea?: LinkedIdea | null;
   fonts?: typeof DEFAULT_FONTS;
-  /** 'freeform' = the saved internalDoc IS the design (AI-composed). */
-  mode?: 'recipe' | 'freeform';
+  /**
+   * Mode shared with the server (packages/design-schema PlaygroundMode):
+   * 'recipe' = slots regenerate layout; 'freeform' = the saved internalDoc IS
+   * the design (AI-composed); 'hybrid' = a recipe doc with manual geometry
+   * (set by the Design Studio canvas on first manual move).
+   */
+  mode?: PlaygroundMode;
 }
 
 /** Put the idea's title into the recipe's primary required text slot. */
@@ -176,6 +181,9 @@ export function PlaygroundPage() {
   const [bestPractices, setBestPractices] = useState(true);
   const [saveState, setSaveState] = useState<string | null>(null);
   const [savedDraftId, setSavedDraftId] = useState<string | null>(null);
+  // The linked PostPackage id — kept across reopen so a resave stays linked
+  // even when the draft has no idea (arrived directly via ?package=).
+  const [linkedPackageId, setLinkedPackageId] = useState<string | null>(null);
   const [searchParams] = useSearchParams();
 
   // AI-composed mode: the AI invents the full layout; recipes step aside
@@ -203,6 +211,7 @@ export function PlaygroundPage() {
       // slot with the AI-written copy
       clientApi<DraftPackage>(`/post-packages/${packageId}`).then((pkg) => {
         setDraftPkg(pkg);
+        setLinkedPackageId(pkg.id);
         setIdea({
           id: pkg.ideaId ?? undefined,
           title: pkg.internalTitle,
@@ -231,9 +240,10 @@ export function PlaygroundPage() {
   useEffect(() => {
     const draftId = searchParams.get('draft');
     if (!draftId || !getAccessToken()) return;
-    clientApi<{ id: string; name: string; internalDoc: unknown; playgroundSource: PlaygroundSource | null }>(
+    clientApi<{ id: string; name: string; internalDoc: unknown; playgroundSource: PlaygroundSource | null; postPackageId: string | null }>(
       `/design-drafts/${draftId}`,
     ).then((draft) => {
+      if (draft.postPackageId) setLinkedPackageId(draft.postPackageId); // keep the pipeline link on resave
       const src = draft.playgroundSource;
       if (!src) return;
       setRecipeId(src.recipeId);
@@ -384,6 +394,9 @@ export function PlaygroundPage() {
           internalDoc: result.doc,
           playgroundSource: source,
           ideaId: idea?.id, // one design per idea — resaving updates it
+          // Link to the drafted post so the save materialises the authoritative
+          // DesignDocument (Gate 3 gates approval on its validation report).
+          postPackageId: draftPkg?.id ?? linkedPackageId ?? undefined,
         }),
       });
       setSavedDraftId(saved.id);
