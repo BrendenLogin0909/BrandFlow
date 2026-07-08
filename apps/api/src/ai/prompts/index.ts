@@ -235,6 +235,139 @@ Page "Data": diagonal primary band behind the top; headline; bar chart Before/Af
 Now design for:
 ${JSON.stringify(input)}`,
   }),
+  design_patch: template({
+    version: 'design_patch@1',
+    system: `${BASE_SYSTEM}
+You are a precise design editor. You NEVER redesign a whole document — you emit
+the SMALLEST set of operations that satisfies the instruction. You only ever
+touch the elements/pages the instruction is scoped to, and you NEVER modify a
+locked element. Preserve everything the instruction does not ask you to change.`,
+    jsonSchema: {
+      type: 'object',
+      properties: {
+        rationale: { type: 'string', description: 'One sentence on what you changed and why' },
+        operations: {
+          type: 'array',
+          minItems: 1,
+          maxItems: 40,
+          description: 'The scoped edits to apply, in order',
+          items: {
+            type: 'object',
+            properties: {
+              op: {
+                type: 'string',
+                enum: [
+                  'updateText', 'updateFrame', 'updateColour', 'replaceIcon', 'replaceImage',
+                  'addElement', 'removeElement', 'reorderZ', 'updateBackground', 'updateOpacity',
+                ],
+              },
+              elementId: { type: 'string', description: 'Target element id (element ops)' },
+              pageId: { type: 'string', description: 'Target page id (addElement, updateBackground)' },
+              // updateText
+              text: { type: 'string' },
+              fontFamily: { type: 'string' },
+              fontSize: { type: 'number' },
+              fontWeight: { type: 'integer' },
+              fontStyle: { type: 'string', enum: ['normal', 'italic'] },
+              lineHeight: { type: 'number' },
+              letterSpacing: { type: 'number' },
+              align: { type: 'string', enum: ['left', 'center', 'right'] },
+              verticalAlign: { type: 'string', enum: ['top', 'middle', 'bottom'] },
+              // updateFrame
+              frame: {
+                type: 'object',
+                properties: {
+                  x: { type: 'number' }, y: { type: 'number' },
+                  width: { type: 'number' }, height: { type: 'number' },
+                  rotation: { type: 'number' },
+                },
+              },
+              // updateColour
+              colour: {
+                type: 'object',
+                description: 'Brand token colour, e.g. {"kind":"token","token":"accent"}',
+                properties: { kind: { type: 'string' }, token: { type: 'string' } },
+              },
+              on: { type: 'string', enum: ['auto', 'fill', 'stroke', 'border', 'text'] },
+              // replaceIcon
+              iconRef: {
+                type: 'object',
+                properties: {
+                  provider: { type: 'string', enum: ['lucide', 'tabler', 'internal', 'custom'] },
+                  name: { type: 'string' },
+                },
+              },
+              // replaceImage
+              assetId: { type: 'string' },
+              src: { type: 'string' },
+              imageQuery: { type: 'string', description: '2-4 word subject; leaves a placeholder for the asset pipeline' },
+              // addElement
+              element: { type: 'object', description: 'A full element (no id needed); same shapes as design_freeform' },
+              // reorderZ
+              zIndex: { type: 'integer' },
+              // updateBackground
+              background: {
+                type: 'object',
+                description: 'Page background fill (token colour or gradient)',
+              },
+              // updateOpacity
+              opacity: { type: 'number' },
+            },
+            required: ['op'],
+          },
+        },
+      },
+      required: ['operations', 'rationale'],
+    },
+    render: (input) => {
+      const req = input as {
+        instruction?: string;
+        scope?: string;
+        targetIds?: string[];
+        lockedElementIds?: string[];
+        excerpt?: unknown;
+        brand?: unknown;
+        violations?: string[];
+      };
+      const retry = req.violations?.length
+        ? `\n\n## Your previous attempt was rejected. Fix these validation errors and resubmit ONLY corrected operations:\n- ${req.violations.join('\n- ')}`
+        : '';
+      return `Apply this instruction as a SCOPED PATCH — a short list of operations — to the design below.
+
+## Instruction
+${req.instruction ?? ''}
+
+## Scope
+scope: ${req.scope ?? 'document'} (element = only edit the target ids; page = only edit elements on the target page(s); document = whole design)
+targetIds (the ONLY ${req.scope === 'page' ? 'pages' : 'elements'} you may change): ${JSON.stringify(req.targetIds ?? [])}
+lockedElementIds (NEVER modify or remove these): ${JSON.stringify(req.lockedElementIds ?? [])}
+
+## Operation vocabulary
+- updateText {elementId, text?, fontFamily?, fontSize?, fontWeight?, align?, lineHeight?, letterSpacing?} — text elements only
+- updateFrame {elementId, frame:{x?,y?,width?,height?,rotation?}} — move/resize; keep inside 90px safe margins
+- updateColour {elementId, colour:{kind:"token",token:"primary|secondary|accent|neutral|background|text"}, on?:"auto|fill|stroke|border|text"} — auto picks the right slot by element type
+- replaceIcon {elementId, iconRef:{provider:"lucide",name:"<real lucide name>"}}
+- replaceImage {elementId, imageQuery?:"2-4 word subject" | assetId? | src?}
+- addElement {pageId, element:{...full element, same JSON shapes as a freeform compose...}}
+- removeElement {elementId}
+- reorderZ {elementId, zIndex}
+- updateBackground {pageId, background:{kind:"token",token:"..."}}
+- updateOpacity {elementId, opacity:0..1}
+
+## Hard rules
+- Emit the FEWEST operations that satisfy the instruction. Do not restyle things you were not asked to.
+- Colours ONLY as brand tokens (never raw hex). Fonts only the brand heading/body fonts.
+- Two-tone headline = TWO text elements stacked without overlap (line 2 y = line 1 y + line 1 height).
+- Respect min sizes (headline >=24px, body >=14px, caption >=12px) and keep readable text inside safe margins.
+- Never target a lockedElementId. Never target an element/page outside targetIds when scope is element/page.
+
+## Design excerpt (ids, types, current values — the target of your edits)
+${JSON.stringify(req.excerpt, null, 2)}
+
+## Brand context
+${JSON.stringify(req.brand)}${retry}`;
+    },
+  }),
   compliance_review: template({
     version: 'compliance_review@1',
     jsonSchema: { type: 'object' },

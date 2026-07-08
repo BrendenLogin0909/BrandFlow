@@ -4,3 +4,4 @@ export * from './measure.js';
 export * from './fonts.js';
 export * from './playground-source.js';
 export * from './locking.js';
+export * from './patch.js';

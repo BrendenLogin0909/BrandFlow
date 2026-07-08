@@ -333,6 +333,7 @@ model DesignDocument {
 enum RevisionReason {
   AI_GENERATED
   AI_REGENERATED
+  AI_PATCH
   HUMAN_EDIT
   REVERT
 }

@@ -27,6 +27,7 @@ export const STEP_STAGE: Record<PipelineStep, ModelStage> = {
   visual_concept: 'draft',
   design_fill: 'draft',
   design_freeform: 'final',
+  design_patch: 'final',
   compliance_review: 'review',
   accessibility_review: 'review',
 };

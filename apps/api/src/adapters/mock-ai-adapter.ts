@@ -109,6 +109,40 @@ export class MockAiAdapter implements AiProviderPort {
       };
     }
 
+    if (step === 'design_patch') {
+      const r = (input ?? {}) as {
+        instruction?: string;
+        targetIds?: string[];
+        excerpt?: { elements?: { id: string; type: string }[] };
+        violations?: string[];
+      };
+      const instruction = (r.instruction ?? '').toLowerCase();
+      // pick a target: first requested id, else first element in the excerpt
+      const firstText = r.excerpt?.elements?.find((e) => e.type === 'text');
+      const targetId = r.targetIds?.[0] ?? firstText?.id ?? r.excerpt?.elements?.[0]?.id;
+      const operations: Record<string, unknown>[] = [];
+      if (targetId) {
+        if (/colou?r|accent|primary|secondary/.test(instruction)) {
+          const token = instruction.includes('primary')
+            ? 'primary'
+            : instruction.includes('secondary')
+              ? 'secondary'
+              : 'accent';
+          operations.push({ op: 'updateColour', elementId: targetId, colour: { kind: 'token', token }, on: 'auto' });
+        } else {
+          // default: rewrite the target's text (sample edit)
+          operations.push({
+            op: 'updateText',
+            elementId: targetId,
+            text: (r.instruction ?? 'Updated by AI').slice(0, 80) || 'Updated by AI',
+          });
+        }
+      } else {
+        operations.push({ op: 'updateOpacity', elementId: 'none', opacity: 1 });
+      }
+      return { operations, rationale: `Sample scoped edit for: ${r.instruction ?? 'instruction'}` };
+    }
+
     throw new Error(`MockAiAdapter has no canned output for step "${step}"`);
   }
 }

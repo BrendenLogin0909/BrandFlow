@@ -9,10 +9,37 @@ import {
 } from '@brandflow/design-schema';
 import { exportPageSvg, exportPptx } from '@brandflow/exporters';
 import { PolotnoAdapter } from '../adapters/polotno-adapter.js';
+import { getAiProvider, activeProviderName } from '../ai/provider.js';
+import { buildBrandContext } from '../ai/build-brand-context.js';
+import { patchDesign } from '../services/design-patch.js';
 
 const engine = new PolotnoAdapter();
 
 const LockBody = z.object({ elementIds: z.array(z.string()).min(1), locked: z.boolean() });
+
+const PatchBody = z.object({
+  instruction: z.string().min(1).max(2000),
+  scope: z.enum(['element', 'page', 'document']).default('document'),
+  /** Element ids (element scope) or page ids (page scope). */
+  targetIds: z.array(z.string()).default([]),
+  /** Extra ids to protect for this edit (doc-locked elements are always protected). */
+  lockedElementIds: z.array(z.string()).default([]),
+  contrastMode: z.enum(['enforce', 'warn']).default('enforce'),
+});
+
+/** A compact, tenant-scoped brand view for the patch prompt. */
+function brandPromptView(brand: Awaited<ReturnType<typeof buildBrandContext>>) {
+  return {
+    companyName: brand.companyName,
+    voice: { toneDescriptors: brand.voice.toneDescriptors },
+    styleGuide: {
+      doRules: brand.styleGuide.doRules,
+      dontRules: brand.styleGuide.dontRules,
+      bannedPhrases: brand.styleGuide.bannedPhrases,
+    },
+    fonts: brand.kit.fonts,
+  };
+}
 
 export async function designDocumentRoutes(app: FastifyInstance) {
   const read = { preHandler: app.tenantGuard({ requires: ['content:read'] }) };
@@ -115,6 +142,94 @@ export async function designDocumentRoutes(app: FastifyInstance) {
       .type('application/vnd.openxmlformats-officedocument.presentationml.presentation')
       .header('Content-Disposition', `attachment; filename="design-${id}.pptx"`)
       .send(buf);
+  });
+
+  /**
+   * AI-directed scoped edit. The AI returns a small DesignPatch (operations
+   * only); the server applies it under locked-element + scope guarantees with
+   * up to 2 validation-guided repair rounds (services/design-patch.ts), then
+   * persists a DesignRevision (reason AI_PATCH). Locked elements — and any
+   * page not in scope for a page-scoped edit — are byte-identical afterwards.
+   */
+  app.post('/:id/patch', edit, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const existing = await loadDoc(req, id);
+    if (!existing) return reply.code(404).send({ error: { code: 'NOT_FOUND' } });
+
+    let body;
+    try {
+      body = PatchBody.parse(req.body);
+    } catch (err) {
+      return reply.code(400).send({ error: { code: 'INVALID_REQUEST', details: String(err) } });
+    }
+
+    const base = parseDesignDocument(existing.internalDoc);
+
+    // Brand context is assembled ONLY through buildBrandContext (tenant choke point).
+    let brand;
+    try {
+      brand = await buildBrandContext(app.prisma, req.tenant!.clientCompanyId, existing.brandProfileId);
+    } catch (err) {
+      return reply.code(422).send({ error: { code: 'BRAND_CONTEXT_UNAVAILABLE', message: String(err) } });
+    }
+
+    const result = await patchDesign(
+      getAiProvider(),
+      base,
+      {
+        instruction: body.instruction,
+        scope: body.scope,
+        targetIds: body.targetIds,
+        lockedElementIds: body.lockedElementIds,
+        brand: brandPromptView(brand),
+      },
+      { bannedPhrases: brand.styleGuide.bannedPhrases, contrastMode: body.contrastMode },
+    );
+
+    if (!result)
+      return reply.code(422).send({
+        error: { code: 'PATCH_FAILED', message: 'The AI could not produce a valid scoped edit — try rephrasing the instruction' },
+      });
+
+    const next = result.document;
+
+    // Server-side locked-element integrity: locked elements must be byte-identical to base.
+    const violation = findLockedElementViolation(base, next);
+    if (violation)
+      return reply.code(409).send({ error: { code: 'LOCKED_ELEMENT_MODIFIED', elementId: violation } });
+
+    next.version = existing.version + 1; // keep embedded + row versions in step
+    await app.prisma.$transaction([
+      app.prisma.designDocument.update({
+        where: { id },
+        data: {
+          internalDoc: next as object,
+          engineDocCache: engine.toEngineFormat(next) as object,
+          validationReport: result.report as unknown as object,
+          version: next.version,
+        },
+      }),
+      app.prisma.designRevision.create({
+        data: {
+          designDocumentId: id,
+          version: next.version,
+          internalDoc: next as object,
+          createdById: req.tenant!.userId,
+          reason: 'AI_PATCH',
+        },
+      }),
+    ]);
+
+    return {
+      version: next.version,
+      validationReport: result.report,
+      needsAttention: result.needsAttention,
+      rationale: result.rationale,
+      rejected: result.rejected,
+      reimposedLockedIds: result.reimposedLockedIds,
+      attempts: result.attempts,
+      provider: activeProviderName(),
+    };
   });
 
   app.post('/:id/lock-elements', edit, async (req, reply) => {
