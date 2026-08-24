@@ -119,10 +119,21 @@ export const TextElement = ElementBase.extend({
 });
 export type TextElement = z.infer<typeof TextElement>;
 
+// Absolute URL (any scheme incl. data:/blob:) OR an app-relative path
+// ("/api/clients/:id/assets/:assetId/content") — the established pattern
+// for authed, same-origin asset bytes (render/proxy/content endpoints; see
+// apps/web .../design-studio/useAssetImage.ts resolveLoadSrc). Plain
+// z.string().url() rejects relative paths outright, which would silently
+// fail parseDesignDocument() for any image element using that pattern.
+const ImageSrc = z.string().refine(
+  (v) => /^[a-z][a-z0-9+.-]*:/i.test(v) || v.startsWith('/'),
+  { message: 'src must be an absolute URL (incl. data:/blob:) or an app-relative path starting with "/"' },
+);
+
 export const ImageElement = ElementBase.extend({
   type: z.literal('image'),
   assetId: z.string().optional(),
-  src: z.string().url().optional(),
+  src: ImageSrc.optional(),
   fit: z.enum(['cover', 'contain', 'fill']).default('cover'),
   cropRect: z
     .object({ x: z.number(), y: z.number(), width: z.number(), height: z.number() })

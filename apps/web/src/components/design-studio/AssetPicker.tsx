@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { clientApi } from '../../lib/api';
+import { clientApi, getActiveClientId } from '../../lib/api';
 import type { AssetKind, AssetLibraryItem, AssetPick, AssetSearchResult } from './assetTypes';
 import { pickFromLibrary, pickFromSearch } from './assetTypes';
+import { useAuthedImageSrc } from './useAssetImage';
 
 export type AssetPickerMode = 'image' | 'icon';
 
@@ -97,7 +98,9 @@ export function AssetPicker({ open, mode, title, onClose, onPick }: AssetPickerP
 
   const libraryItems = (library ?? []).filter((item) => {
     if (mode === 'icon') return item.type === 'ICON';
-    return item.type === 'PHOTO' || item.type === 'ILLUSTRATION';
+    // LOGO included here too — uploaded brand logos are manually insertable
+    // like any other image (fit:contain via pickFromLibrary's kind mapping).
+    return item.type === 'PHOTO' || item.type === 'ILLUSTRATION' || item.type === 'LOGO';
   });
 
   const flatCount = catalog?.pools?.find((p) => p.id === 'undraw')?.approx;
@@ -272,7 +275,7 @@ export function AssetPicker({ open, mode, title, onClose, onPick }: AssetPickerP
               </p>
               <div className="grid grid-cols-2 gap-2">
                 {libraryItems.map((item) => {
-                  const pick = pickFromLibrary(item);
+                  const pick = pickFromLibrary(item, getActiveClientId());
                   if (!pick) return null;
                   return (
                     <AssetThumb
@@ -315,6 +318,10 @@ function AssetThumb({
   onClick: () => void;
   onPlace?: () => void;
 }) {
+  // Uploaded assets have no public thumb URL — resolve /api/ paths to an
+  // authed blob URL (same mechanism the canvas uses); everything else
+  // (data:/http(s) from the free providers) passes through unchanged.
+  const resolvedThumb = useAuthedImageSrc(thumb);
   return (
     <div
       className={`rounded border border-slate-200 p-2 text-left hover:border-indigo-400 ${
@@ -323,7 +330,9 @@ function AssetThumb({
     >
       <button type="button" className="w-full" onClick={onClick}>
         <div className="flex h-20 items-center justify-center overflow-hidden rounded bg-slate-50">
-          <img src={thumb} alt="" className="max-h-full max-w-full object-contain" loading="lazy" />
+          {resolvedThumb && (
+            <img src={resolvedThumb} alt="" className="max-h-full max-w-full object-contain" loading="lazy" />
+          )}
         </div>
         <div className="mt-1 truncate text-xs font-medium">{label}</div>
         <div className="truncate text-[10px] text-slate-400">{sub}</div>

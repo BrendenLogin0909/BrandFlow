@@ -16,6 +16,8 @@ export interface BrandContext {
     fonts: { heading: string; body: string; accent?: string };
     iconStyle: string;
     designDensity: string;
+    /** [{assetId, kind, clearspace?, minSizePx?}] — see BrandKit.logos (Json). */
+    logos: { assetId: string; kind: string }[];
   };
   voice: {
     toneDescriptors: string[];
@@ -64,6 +66,7 @@ export async function buildBrandContext(
   const kit = profile.brandKit;
   const colours = (kit?.colours ?? {}) as Record<string, string>;
   const fonts = (kit?.fonts ?? { heading: 'Inter', body: 'Inter' }) as BrandContext['kit']['fonts'];
+  const logos = (kit?.logos ?? []) as BrandContext['kit']['logos'];
 
   return {
     clientCompanyId,
@@ -74,6 +77,7 @@ export async function buildBrandContext(
       fonts,
       iconStyle: kit?.iconStyle ?? 'outline',
       designDensity: kit?.designDensity ?? 'balanced',
+      logos,
     },
     voice: {
       toneDescriptors: profile.voiceProfile?.toneDescriptors ?? [],

@@ -31,6 +31,8 @@ export interface AssetLibraryItem {
   creator: string | null;
   filename: string;
   tags: string[];
+  /** Present for customer uploads (bytes live in object storage, not at a public URL). */
+  storageKey?: string | null;
 }
 
 /** Normalised pick applied onto a design element. */
@@ -61,13 +63,29 @@ export function pickFromSearch(r: AssetSearchResult): AssetPick {
   };
 }
 
-export function pickFromLibrary(item: AssetLibraryItem): AssetPick | null {
-  if (!item.contentUrl) return null;
+/**
+ * Uploaded assets (provider 'upload') have no public contentUrl — bytes are
+ * only reachable through the authed API. Derive the same URL the canvas
+ * already knows how to load (useAssetImage's authed-blob fetch handles any
+ * /api/ path) from the item id + active client scope.
+ */
+export function libraryItemContentUrl(item: AssetLibraryItem, clientId: string | null): string | null {
+  if (item.contentUrl) return item.contentUrl;
+  if (item.storageKey && clientId) return `/api/clients/${clientId}/assets/${item.id}/content`;
+  return null;
+}
+
+export function pickFromLibrary(item: AssetLibraryItem, clientId: string | null = null): AssetPick | null {
+  const contentUrl = libraryItemContentUrl(item, clientId);
+  if (!contentUrl) return null;
+  // LOGO (and anything else that isn't a plain photo/icon) maps to
+  // 'illustration' so it gets fit:'contain' downstream — right for logos,
+  // which must never be cropped.
   const kind: AssetKind =
     item.type === 'ICON' ? 'icon' : item.type === 'PHOTO' ? 'photo' : 'illustration';
   return {
-    contentUrl: item.contentUrl,
-    thumbUrl: item.thumbUrl ?? undefined,
+    contentUrl,
+    thumbUrl: item.thumbUrl ?? contentUrl,
     label: item.filename,
     provider: item.provider ?? 'library',
     providerId: item.providerId ?? undefined,

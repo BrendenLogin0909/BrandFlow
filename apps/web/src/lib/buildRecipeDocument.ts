@@ -16,6 +16,10 @@ export interface BuildDocumentInput {
   /** When set, recipe geometry is skipped and this doc is retinted to current brand tokens. */
   composedDoc?: InternalDesignDocument | null;
   newId?: () => string;
+  /** The active brand profile's primary uploaded logo (BrandKit.logos, kind:'primary'), if any. */
+  logoAssetId?: string | null;
+  /** Resolved, renderable URL for that same logo (typically /api/clients/:id/assets/:assetId/content). */
+  logoUrl?: string | null;
 }
 
 export interface BuildDocumentResult {
@@ -25,19 +29,44 @@ export interface BuildDocumentResult {
   error: string | null;
 }
 
+/**
+ * The logo-top-left directive only sets `assetId` + clears `isPlaceholder`
+ * (packages/layout-recipes has no HTTP/clientId concept, so it can't
+ * resolve bytes) — this fills in `src` so the canvas actually paints the
+ * real logo instead of the grey placeholder rect. No-ops when there's no
+ * matching element (e.g. no logo motif selected) or no resolved URL yet.
+ */
+function withResolvedLogo(doc: InternalDesignDocument, logoUrl: string | null | undefined): InternalDesignDocument {
+  if (!logoUrl) return doc;
+  return {
+    ...doc,
+    pages: doc.pages.map((page) => ({
+      ...page,
+      elements: page.elements.map((el) =>
+        el.type === 'image' && el.roleHint === 'logo' && !el.src
+          ? { ...el, src: logoUrl, isPlaceholder: false }
+          : el,
+      ),
+    })),
+  };
+}
+
 /** Shared recipe → InternalDesignDocument path used by the playground and AI pipeline. */
 export function buildRecipeDocument(input: BuildDocumentInput): BuildDocumentResult {
   const newId = input.newId ?? (() => crypto.randomUUID());
   const tokens: BrandTokensSnapshot = {
     colours: input.brand,
     fonts: input.fonts,
-    logoAssetIds: [],
+    logoAssetIds: input.logoAssetId ? [input.logoAssetId] : [],
   };
   const contrastMode = input.bestPractices ? 'enforce' : 'warn';
 
   if (input.composedDoc) {
     try {
-      const doc: InternalDesignDocument = { ...input.composedDoc, brandTokens: tokens };
+      const doc: InternalDesignDocument = withResolvedLogo(
+        { ...input.composedDoc, brandTokens: tokens },
+        input.logoUrl,
+      );
       const report = validateDesignDocument(doc, { contrastMode });
       const svgs = doc.pages.map((_, i) => exportPageSvg(doc, i));
       return { doc, report, svgs, error: null };
@@ -56,7 +85,7 @@ export function buildRecipeDocument(input: BuildDocumentInput): BuildDocumentRes
       seed: 7,
       newId,
     });
-    const doc = applyStyleDirectives(
+    const styled = applyStyleDirectives(
       base,
       {
         headlineTreatment: input.treatment,
@@ -66,6 +95,7 @@ export function buildRecipeDocument(input: BuildDocumentInput): BuildDocumentRes
       },
       newId,
     );
+    const doc = withResolvedLogo(styled, input.logoUrl);
     const report = validateDesignDocument(doc, { contrastMode });
     const svgs = doc.pages.map((_, i) => exportPageSvg(doc, i));
     return { doc, report, svgs, error: null };

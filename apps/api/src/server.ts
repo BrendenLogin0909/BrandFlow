@@ -18,6 +18,7 @@ import { ideaRoutes } from './routes/ideas.js';
 import { composeRoutes } from './routes/compose.js';
 import { assetRoutes } from './routes/assets.js';
 import { commentRoutes } from './routes/comments.js';
+import { initStorage } from './storage/index.js';
 
 export async function buildServer() {
   const app = Fastify({ logger: true });
@@ -56,6 +57,11 @@ export async function buildServer() {
   await app.register(commentRoutes, { prefix: '/api/clients/:clientId/comments' });
 
   app.get('/api/health', async () => ({ ok: true }));
+
+  // Best-effort — never blocks/fails server boot when MinIO isn't running
+  // (see storage/index.ts). Routes that need storage degrade to 503.
+  await initStorage(app.log);
+
   return app;
 }
 

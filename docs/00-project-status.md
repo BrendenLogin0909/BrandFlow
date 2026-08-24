@@ -1,9 +1,15 @@
 # BrandFlow — Project Status & Handoff
 
 **Living document. Update this at the end of every work session.**
-Last updated: 2026-08-24 (asset-expansion work from the July Cursor session
-reviewed, completed — typecheck fixes, library `providerId` fix — verified
-end-to-end in the browser, and committed by the coordinating agent)
+Last updated: 2026-08-24 (Agent 14, `feat/asset-upload`, branch not yet merged
+to main) — customer logo/photo upload end to end: MinIO-backed StoragePort,
+multipart upload route, tenant-scoped asset content serving, brand-profile
+primary logo, playground logo-top-left motif now renders the real uploaded
+logo. See §4/§8 and docs/16-backlog.md item 4d for exact scope and the one
+reported gap (SVG/PPTX export of the logo).
+Previously updated: 2026-08-24 (asset-expansion work from the July Cursor
+session reviewed, completed — typecheck fixes, library `providerId` fix —
+verified end-to-end in the browser, and committed by the coordinating agent)
 
 **Product decisions resolved 2026-08-24 (owner):**
 - **Accessibility = nudge, not gate.** Contrast issues surface as warnings with
@@ -46,10 +52,11 @@ vendor-neutral internal design schema, and a licence-aware free-asset stack.
   - `packages/exporters` — SVG + PPTX exporters, real Lucide icon artwork, charts
   - `packages/importers` — SVG + PPTX (beta) importers back into InternalDesignDocument
   - `packages/shared` — roles/capabilities, workflow state machine, LinkedIn presets
-- **Dev stack:** Docker `postgres` (host port **5433**, not 5432) + `redis`; MinIO defined but storage not wired.
-- **Run:** `docker compose up -d postgres redis` → `npm run dev:api` (:3001) → `npm run dev:web` (:5173).
+- **Dev stack:** Docker `postgres` (host port **5433**, not 5432) + `redis` + `minio` (S3-compatible object storage, wired to `StoragePort` — see §4).
+- **Run:** `docker compose up -d postgres redis minio` → `npm run dev:api` (:3001) → `npm run dev:web` (:5173).
   Test login: `alex@acme.test` / `supersecret123` (client "Acme Robotics", id `e3933542-…`).
 - **Zero-setup demo:** `/playground` runs the whole design engine in the browser, no backend/keys.
+- **Object storage (`apps/api/src/storage/`):** `MinioStorageAdapter` implements `StoragePort` (put/get/delete/signedUrl) against MinIO via the `minio` npm client. Env: `STORAGE_ENDPOINT` (default `http://localhost:9000`), `STORAGE_ACCESS_KEY`/`STORAGE_SECRET_KEY` (default `minioadmin`), `STORAGE_BUCKET` (default `brandflow-assets`) — all optional, dev defaults match docker-compose. Bucket auto-created at boot; boot never fails if MinIO is down (one warning log), and every storage-touching route (`POST /assets/upload`, `GET /assets/:id/content`) degrades to a clean `503 STORAGE_UNAVAILABLE` per-request rather than crashing or 500ing.
 
 ## 3. AI providers (see apps/api/src/ai/)
 
@@ -77,10 +84,11 @@ vendor-neutral internal design schema, and a licence-aware free-asset stack.
 | Pipeline ↔ Studio (P5-A/B/C) | ✅ Content Manager + Design Library **Open in studio**; `RevisionHistoryPanel` (list + revert); `ReviewCommentsPanel` (element-anchored comments, highlight on canvas); `GET/POST /design-documents/:id/revisions|revert`; `GET/POST/PATCH /comments` |
 | Export | ✅ PPTX (Canva-friendly) + SVG (zip for carousels), in-browser |
 | SVG / PPTX re-import (Design Studio, P4) | ✅ `packages/importers` — SVG round-trip + PPTX beta; `POST /design-documents/:id/import` preview + `/import/apply` persist (`EXTERNAL_IMPORT` revision); `ImportPanel` in studio sidebar |
-| Asset library | ✅ licence-aware search (icons/figures/photos/**flat illustrations**/AI-gen), save to library/shared pool, approve/tier gate |
+| Asset library | ✅ licence-aware search (icons/figures/photos/**flat illustrations**/AI-gen), save to library/shared pool, approve/tier gate; **customer upload** (logo/photo, own object storage) — Upload button + type selector, uploads visible in the grid |
 | Assets used by AI tool | ✅ compose auto-fills image placeholders from licensed providers; attributions travel on the document and **render as a credits line on SVG + PPTX export** (and in the playground) |
-| Dashboard, Calendar, Brand-profile UI, Review-queue page | ⏳ nav placeholders (data model + APIs mostly exist) |
-| Object storage / customer upload (logos, photos) | ⏳ stubbed (StoragePort not wired to MinIO) |
+| Dashboard, Calendar, Review-queue page | ⏳ nav placeholders (data model + APIs mostly exist) |
+| Brand-profile UI | ⏳ nav placeholder, **except** a minimal logo card (current primary logo + upload-and-set-primary) added 2026-08-24 — the full brand-kit editor (colours/fonts/style guide) is still not built |
+| Object storage / customer upload (logos, photos) | ✅ `MinioStorageAdapter` (StoragePort → MinIO), `POST /assets/upload` (png/jpeg/svg/webp, 5MB cap), `GET /assets/:id/content` (org-scoped, streamed), brand-profile primary logo, logo-top-left motif renders the real logo in the playground. **Gap:** SVG/PPTX export of the logo isn't self-contained yet — see docs/16-backlog.md 4d. |
 | Polotno embedded editor | ⏳ needs free trial key `VITE_POLOTNO_KEY`; adapter + round-trip already built |
 | Publish integration (LinkedIn/Buffer) | ⏳ not started (Approved cards say "integration TBC") |
 | BullMQ queue workers | ⏳ AI runs synchronously; fine for single-user |
@@ -97,6 +105,9 @@ vendor-neutral internal design schema, and a licence-aware free-asset stack.
 - **Openverse** (CC0/PDM photos + illustrations, millions)
 - Wikimedia (PD, review-tier), **Pollinations** (AI, secondary)
 **Key-gated:** Unsplash/Pexels/Pixabay when env keys set.
+**Customer's own:** `upload` provider (tier 1, `licence: 'customer-owned'`) — the
+one non-search-whitelist source, by design: bytes the customer owns, stored in
+MinIO/S3 via StoragePort rather than fetched from a third party.
 `GET /assets/catalog` exposes pool sizes to the UI. AssetPicker + Asset Library
 default to illustration search and return up to 48 hits. Compose
 (`design_freeform@4` + `resolveImages`) prefers flat scenes for people/charts.
@@ -179,7 +190,19 @@ photo API keys (4b).
 - `packages/importers/src/pptx.ts` — text boxes, shapes, image placeholders from BrandFlow-exported decks; arbitrary PPTX best-effort.
 - Same import routes accept `.pptx`; `ImportReport.beta` + UI messaging for limitations.
 
-**Next:** publish integration, customer upload, calendar UI.
+**Asset upload / object storage (Agent 14, `feat/asset-upload`) — DONE (backlog 4d):**
+- `apps/api/src/storage/` — `MinioStorageAdapter` implements `StoragePort` against MinIO (the `minio` npm client — smaller surface than `@aws-sdk/client-s3` for 4 methods, and MinIO is S3-wire-compatible so it'd work against real S3 too); `storage/index.ts` factory + boot-time bucket ensure (never blocks/fails server start) + `withStorage()` so every route degrades to a clean `503` instead of a crash when MinIO is down. Env: `STORAGE_ENDPOINT`/`STORAGE_ACCESS_KEY`/`STORAGE_SECRET_KEY`/`STORAGE_BUCKET`, all with dev defaults matching docker-compose.
+- `POST /clients/:clientId/assets/upload` (multipart, `assets:manage`) — png/jpeg/svg/webp, 5MB cap, `type`(LOGO\|PHOTO)/`shared` as query params (not multipart fields, so they're never subject to field-ordering); storage key `org/<organisationId>/client/<clientCompanyId-or-'shared'>/<uuid>.<ext>`; creates an `AssetLibraryItem` (`provider: 'upload'`, `licence: 'customer-owned'`, tier 1, auto-approved).
+- `GET /clients/:clientId/assets/:id/content` — streams bytes via `StoragePort.get`, org-scoped tenant where-clause (matches the pattern from commit 9ada6da — shared pool is org-wide), cross-org → 404 never 403.
+- `DELETE /:id` now also best-effort deletes the storage object (previously a no-op for the DB row only — dead code before uploads existed, a real orphan risk now).
+- Web: `AssetLibraryItem.storageKey` + `pickFromLibrary`/`libraryItemContentUrl` derive `/api/clients/:id/assets/:assetId/content` client-side when `contentUrl` is null (uploads have no public URL); new `useAuthedImageSrc` hook (reuses the canvas's authed-blob-fetch mechanism) renders upload thumbs in the Asset Library grid and AssetPicker (plain `<img>` can't send the JWT itself). Asset Library page: Upload button + LOGO/PHOTO type selector.
+- Brand profiles page: minimal per-profile logo card (current primary logo preview + upload-and-set-primary), backed by `POST /clients/:clientId/brand-profiles/:id/logo` — merges into `BrandKit.logos` by `kind` (default `'primary'`), never clobbers other entries; creates a placeholder-safe `BrandKit` if none exists yet (full brand-kit editor is separate, later work).
+- **logo-top-left motif:** `brandTokens.logoAssetIds` is now real (was always `[]`) everywhere it's constructed — `apps/web/src/lib/buildRecipeDocument.ts` (playground) and `apps/api/src/services/design-generation.ts` + `ai/build-brand-context.ts` (server pipeline, via the brand kit's primary logo). The `logo-top-left` layout-recipes directive already turned `logoAssetIds[0]` into an image element's `assetId`, but never set `src` (it has no HTTP/clientId concept) — `buildRecipeDocument`'s new `withResolvedLogo()` fills in `src` after `applyStyleDirectives` runs, so the playground canvas paints the real logo instead of the grey placeholder. **Caveat:** `applyStyleDirectives`/motifs are not invoked anywhere server-side today (confirmed by grep — this predates this ticket), so making `logoAssetIds` real in the server pipeline is honest data but does not by itself make an AI-generated client post render the logo motif; that needs `design-generation.ts` to call `applyStyleDirectives`, a separate, larger pre-existing gap.
+- Fixed in passing: `ImageElement.src` was `z.string().url()`, which rejects the app's own established `/api/...` relative-path convention (used by the pre-existing `undraw` render URL and asset proxy too) — any document saved with one of those would fail `parseDesignDocument()`. Widened to accept absolute URLs (incl. `data:`/`blob:`) OR an app-relative path.
+- **Reported gap, not hacked (per instructions):** SVG/PPTX export of a design with an uploaded logo is not self-contained — both exporters just do `href`/`path: el.src`. A downloaded `.svg` references `/api/.../content` with no origin (broken outside an authed same-origin session); PPTX likely fails to embed it at all (`pptxgenjs`'s internal fetch for `path:` doesn't carry the app's `Authorization` header — untested empirically, reasoned from the exporter code). Real fix: pre-resolve any `/api/` image `src` to a `data:` URI before handing the document to the exporters — bigger than this ticket.
+- Tests: `apps/api/src/routes/assets-upload.test.ts` (7 — upload/201, content round-trip byte-for-byte, cross-org 404, oversized 400, wrong-type 400, not-multipart 400, storage-reachable canary) + `brand-profile-logo.test.ts` (6 — set/merge/replace, cross-tenant asset + profile 404s). Both run against real MinIO (`docker compose up -d minio`), not mocked.
+
+**Next:** publish integration, calendar UI.
 
 **Draft visual direction (Agent 9, `feat/design-pipeline`) — DONE (P3-G / backlog #1):**
 - `packages/shared/src/visual-direction.ts` — `VisualDirection` Zod schema + `formatVisualDirectionBrief()`.
@@ -197,9 +220,9 @@ See **[docs/16-backlog.md](16-backlog.md)** for the full parked list. Highest-va
 1. ✅ **Google Fonts** in the playground — DONE. 30-family curated catalog in `packages/design-schema/src/fonts.ts` (shared source of truth), grouped picker (system + sans/serif/display/mono), selected families live-loaded via an injected `<link>`, and the SVG exporter embeds a portable `@import` so standalone `.svg` files render in-font. Free, no key. **PPTX caveat:** PowerPoint substitutes the family name if the font isn't installed locally (webfonts can't embed into PPTX without the binary).
 2. ✅ **Flat illustration pack** — DONE + expanded (backlog item 4). 307 bundled recolourable flat scenes (56 core in `apps/api/src/assets/undraw-manifest.ts` + generated extras in `undraw-manifest-extra*.ts`, regenerable via `generate-undraw-extra*.mjs`), `searchUndraw` + `design_freeform@4` illustration-first compose, covered by `undraw-manifest.test.ts`. Original art only — do not scrape unDraw/Storyset. Optional richer CC0 character packs: backlog 4f.
 3. ✅ **Attribution rendering on export** — DONE (backlog item 4c). `attributions` is now an optional field on `InternalDesignDocument`; `resolveImages` attaches credits to the doc so they persist through save/reopen/export; SVG + PPTX exporters render a credits line, and the playground shows an "Asset credits" panel.
-4. **Customer logo/photo upload** → StoragePort/MinIO → feeds logo-top-left motif.
+4. ✅ **Customer logo/photo upload** → StoragePort/MinIO → feeds logo-top-left motif — DONE (backlog 4d, Agent 14). See the dedicated block above for the full breakdown and the one reported gap (SVG/PPTX export).
 5. ✅ **Manual asset insert in playground** — DONE (Agent 6). AssetPicker + insert/replace + icon swap on `/playground` when signed in.
-6. Calendar page, Brand-profile editor UI, publish integration, queue workers.
+6. Calendar page, full brand-kit editor (colours/fonts/style guide — the logo card is minimal and done), publish integration, queue workers.
 
 ## 9. Product-owner working style (important)
 
