@@ -201,7 +201,9 @@ export function PlaygroundPage() {
   const [fill, setFill] = useState<RecipeFill>(() => defaultFill(RECIPES[0]!));
   const [treatment, setTreatment] = useState<HeadlineTreatment>('plain');
   const [motif, setMotif] = useState<Motif>('none');
-  const [bestPractices, setBestPractices] = useState(true);
+  // Nudge, don't force (owner decision 2026-08-24): accessibility issues are
+  // surfaced as warnings by default; strict mode is an explicit opt-in.
+  const [bestPractices, setBestPractices] = useState(false);
   const [saveState, setSaveState] = useState<string | null>(null);
   const [savedDraftId, setSavedDraftId] = useState<string | null>(null);
   // The linked PostPackage id — kept across reopen so a resave stays linked
@@ -296,7 +298,7 @@ export function PlaygroundPage() {
       setMotif(src.motif);
       setBrand(src.brand);
       setFill(src.fill);
-      setBestPractices(src.bestPractices ?? true);
+      setBestPractices(src.bestPractices ?? false);
       if (src.fonts) setFonts(src.fonts);
       if (src.idea) setIdea(src.idea); // the saved design stays linked to its idea
       // an AI-composed design reopens as the exact saved document
@@ -648,9 +650,9 @@ export function PlaygroundPage() {
           <input type="checkbox" className="mt-0.5" checked={bestPractices}
             onChange={(e) => setBestPractices(e.target.checked)} />
           <span>
-            <strong>Enforce design best practices</strong> (recommended) — readability contrast is
-            required. Untick to allow low-contrast display colours; issues are still reported as
-            warnings.
+            <strong>Strict accessibility mode</strong> — contrast failures become blocking errors.
+            Off by default: BrandFlow nudges with warnings and suggested fixes, but deliberate
+            brand choices (e.g. gold-on-white display text) can still ship.
           </span>
         </label>
 

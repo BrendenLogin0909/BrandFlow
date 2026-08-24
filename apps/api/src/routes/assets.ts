@@ -59,6 +59,7 @@ export async function assetRoutes(app: FastifyInstance) {
       const needle = (q ?? '').trim().toLowerCase();
       const items = await app.prisma.assetLibraryItem.findMany({
         where: {
+          organisationId: req.tenant!.organisationId,
           OR: [{ clientCompanyId: req.tenant!.clientCompanyId }, { shared: true }],
           provider: { in: ['ai', 'pollinations'] },
         },
@@ -270,6 +271,9 @@ export async function assetRoutes(app: FastifyInstance) {
     const { type, approved } = req.query as { type?: string; approved?: string };
     return app.prisma.assetLibraryItem.findMany({
       where: {
+        // Shared pool is org-wide, never platform-wide: an agency shares assets
+        // across ITS clients, not with other organisations.
+        organisationId: req.tenant!.organisationId,
         OR: [{ clientCompanyId: req.tenant!.clientCompanyId }, { shared: true }],
         ...(type ? { type: type as never } : {}),
         ...(approved != null ? { approved: approved === 'true' } : {}),
@@ -325,7 +329,11 @@ export async function assetRoutes(app: FastifyInstance) {
       .object({ approved: z.boolean().optional(), allowInPrompts: z.boolean().optional(), tags: z.array(z.string()).optional(), restrictedFlags: z.array(z.string()).optional() })
       .parse(req.body);
     const updated = await app.prisma.assetLibraryItem.updateMany({
-      where: { id, OR: [{ clientCompanyId: req.tenant!.clientCompanyId }, { shared: true }] },
+      where: {
+        id,
+        organisationId: req.tenant!.organisationId,
+        OR: [{ clientCompanyId: req.tenant!.clientCompanyId }, { shared: true }],
+      },
       data: body,
     });
     if (updated.count === 0) return reply.code(404).send({ error: { code: 'NOT_FOUND' } });
@@ -335,7 +343,7 @@ export async function assetRoutes(app: FastifyInstance) {
   app.delete('/:id', manage, async (req, reply) => {
     const { id } = req.params as { id: string };
     const deleted = await app.prisma.assetLibraryItem.deleteMany({
-      where: { id, clientCompanyId: req.tenant!.clientCompanyId },
+      where: { id, organisationId: req.tenant!.organisationId, clientCompanyId: req.tenant!.clientCompanyId },
     });
     if (deleted.count === 0) return reply.code(404).send({ error: { code: 'NOT_FOUND' } });
     return { ok: true };

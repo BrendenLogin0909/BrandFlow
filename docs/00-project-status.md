@@ -5,6 +5,19 @@ Last updated: 2026-08-24 (asset-expansion work from the July Cursor session
 reviewed, completed — typecheck fixes, library `providerId` fix — verified
 end-to-end in the browser, and committed by the coordinating agent)
 
+**Product decisions resolved 2026-08-24 (owner):**
+- **Accessibility = nudge, not gate.** Contrast issues surface as warnings with
+  suggested fixes by default; strict blocking mode is an explicit opt-in
+  (playground toggle, later a brand-profile setting). Deliberate brand choices
+  like 29FORWARD's gold-on-white display text can ship.
+- **Two-tone headlines are ONE treatment among many**, never a fixed directive —
+  `design_freeform@5` offers solid / two-tone / kicker / panel treatments and
+  demands per-post variety.
+- **Publish: Buffer as MVP behind a vendor-neutral PublishPort**; long-term
+  BrandFlow replaces Buffer with native LinkedIn publishing to own the revenue.
+- **Shared asset pool is org-wide, never platform-wide** — all asset-library
+  queries now scope by organisationId (see assets-tenancy.test.ts).
+
 This is the single source of truth for *current state*. The numbered docs
 (01–16) are the *design/spec*; this file records what is actually built,
 what is stubbed, the known gotchas, and what to do next.

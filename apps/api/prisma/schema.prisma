@@ -381,8 +381,10 @@ enum AssetType {
 model AssetLibraryItem {
   id              String    @id @default(uuid())
   organisationId  String
-  // null clientCompanyId = shared pool (platform-wide, e.g. open-licensed
-  // stock or reusable AI imagery available to every client).
+  // null clientCompanyId = shared pool. Shared is ORG-WIDE, never platform-wide:
+  // every query must also scope by organisationId (an agency shares assets
+  // across its own clients only — AI generations carry prompt text in
+  // allowedUseNotes and must never leak to another organisation).
   clientCompanyId String?
   brandProfileId  String?
   type            AssetType

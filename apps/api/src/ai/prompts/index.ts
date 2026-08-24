@@ -186,7 +186,7 @@ ${JSON.stringify(input)}`;
     },
   }),
   design_freeform: template({
-    version: 'design_freeform@4',
+    version: 'design_freeform@5',
     jsonSchema: {
       type: 'object',
       properties: {
@@ -215,7 +215,7 @@ ${JSON.stringify(input)}`;
       `You are an award-winning social media art director. Design an ORIGINAL, visually rich LinkedIn graphic for the content below. You control the entire composition: placement, sizes, layering, colour blocking, decorative motifs.
 
 ## Visual benchmark (memorise)
-Match the craft of bold B2B LinkedIn carousels like 29FORWARD Australia: TWO-TONE headlines, FLAT CARTOON CHARACTER illustrations as the hero visual, layered colour blocks, and charts when numbers matter. Do NOT default to a lonely Lucide icon as the hero — that looks sparse and template-y.
+Match the craft of bold B2B LinkedIn carousels like 29FORWARD Australia: strong headline treatments that VARY from post to post, FLAT CARTOON CHARACTER illustrations as the hero visual, layered colour blocks, and charts when numbers matter. Do NOT default to a lonely Lucide icon as the hero — that looks sparse and template-y. No two posts should share the same composition or headline treatment.
 
 ## Element types (exact JSON shapes)
 - TEXT: {"type":"text","text":"...","frame":{"x":0,"y":0,"width":0,"height":0,"rotation":0},"fontFamily":"<heading-or-body font>","fontSize":48,"fontWeight":800,"lineHeight":1.15,"align":"left|center|right","colour":{"kind":"token","token":"text"},"zIndex":5,"roleHint":"headline|subheadline|body|caption|cta|badge|data|decoration"}
@@ -233,14 +233,14 @@ You may combine 2-4 words (e.g. "team celebrating win", "qa root cause"). Prefer
 
 ## Composition craft
 - HERO = IMAGE: every cover/key page should place ONE large illustration image (420-560px wide, fit contain) as the visual anchor — usually a flat character or scene. Soft accent ellipse or colour panel behind it. Support with 1-3 small Lucide icons (48-96px) and accent dots — icons are garnish, not the main art.
-- TWO-TONE HEADLINES: two text elements STACKED WITHOUT OVERLAP — element 2's frame.y MUST equal element 1's frame.y + element 1's frame.height (they share x and width; line 1 token text, line 2 token primary).
+- HEADLINE TREATMENT — choose ONE per page and vary across the carousel (two-tone is one option, never a rule): (a) solid single-colour headline; (b) TWO-TONE stacked — two text elements WITHOUT OVERLAP, element 2's frame.y MUST equal element 1's frame.y + element 1's frame.height, shared x and width, line 1 token text, line 2 token primary; (c) small uppercase kicker line in accent above a solid headline; (d) headline sitting on a filled colour panel or band.
 - NO TEXT OVERLAPS ANYTHING: every text frame must be at least 16px clear of every other text/icon/image frame; when text sits on a busy area, put an opaque rect panel (zIndex below the text) behind it.
 - Use ARROWS and LINES to connect ideas (before -> after, problem -> fix); rotate arrows via frame.rotation.
 - Use CHART elements whenever concrete numbers appear — bar for before/after, donut for a share, progress for a percentage, stat for one big number. You may ALSO place an IMAGE with a chart-themed imageQuery as a decorative metaphor beside real chart data.
 - COLOUR-BLOCK the canvas: full-width bands, corner panels or diagonal rects (rotation ±6) in primary/accent behind sections; put text ON these blocks with contrasting token colours.
 - Numbered chips (small accent circles + white numeral) for list points; badge pills (rounded rect + short uppercase text) for labels like "GUIDE" or "NEW".
 - Aim for 14-30 elements per page with deliberate zIndex layering (background blobs 0-1, panels 2, illustration/image 3-5, text 6+). Vary alignment per page: left-anchored, centred hero, split halves, diagonal flow.
-- Carousel variety: cover = character illustration + two-tone headline; middle pages = chart/process or list; closing = CTA + metaphor illustration.
+- Carousel variety: cover = character illustration + a bold headline treatment of your choice; middle pages = chart/process or list; closing = CTA + metaphor illustration. Vary the headline treatment and alignment across pages.
 
 ## Hard rules (violations are rejected and cost a retry)
 - Colours ONLY as {"kind":"token","token":"primary|secondary|accent|neutral|background|text"}. Raw hex is forbidden.
