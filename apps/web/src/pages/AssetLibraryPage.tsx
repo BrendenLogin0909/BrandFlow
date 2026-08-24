@@ -4,9 +4,10 @@
  * save the keepers into this client's library (or the shared pool). Saved
  * assets feed the AI compose tool.
  */
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { clientApi } from '../lib/api';
+import { clientApi, getActiveClientId, uploadClientAsset } from '../lib/api';
+import { libraryItemContentUrl, useAuthedImageSrc } from '../components/design-studio';
 
 type Kind = 'icon' | 'illustration' | 'photo' | 'ai';
 
@@ -28,6 +29,7 @@ interface LibraryItem {
   id: string;
   type: string;
   provider: string | null;
+  providerId: string | null;
   licence: string | null;
   usageTier: number;
   approved: boolean;
@@ -38,7 +40,11 @@ interface LibraryItem {
   creator: string | null;
   filename: string;
   tags: string[];
+  /** Present for customer uploads (bytes live in object storage). */
+  storageKey?: string | null;
 }
+
+const UPLOAD_ACCEPT = 'image/png,image/jpeg,image/svg+xml,image/webp';
 
 const TIER_LABEL: Record<number, { text: string; cls: string }> = {
   1: { text: 'auto-safe', cls: 'bg-green-100 text-green-700' },
@@ -56,6 +62,9 @@ export function AssetLibraryPage() {
   const [generating, setGenerating] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [shareNext, setShareNext] = useState(false);
+  const [uploadType, setUploadType] = useState<'LOGO' | 'PHOTO'>('LOGO');
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: providers } = useQuery({
     queryKey: ['asset-providers'],
@@ -129,6 +138,21 @@ export function AssetLibraryPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['assets'] }),
   });
 
+  const upload = useMutation({
+    mutationFn: (file: File) => uploadClientAsset(file, { type: uploadType, shared: shareNext }),
+    onSuccess: () => {
+      setUploadError(null);
+      void queryClient.invalidateQueries({ queryKey: ['assets'] });
+    },
+    onError: (e) => setUploadError(e instanceof Error ? e.message : 'Upload failed'),
+  });
+
+  function handleFileChosen(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-picking the same file
+    if (file) upload.mutate(file);
+  }
+
   const keyedPhotoProviders = (providers ?? []).filter((p) => p.kinds.includes('photo') && p.needsKey);
 
   return (
@@ -178,6 +202,36 @@ export function AssetLibraryPage() {
           <input type="checkbox" checked={shareNext} onChange={(e) => setShareNext(e.target.checked)} />
           save to shared pool (all clients)
         </label>
+      </div>
+
+      {/* upload — the customer's own logo/photo, stored in object storage (not the search whitelist) */}
+      <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-dashed border-indigo-300 bg-indigo-50/40 p-3">
+        <span className="text-xs font-semibold text-indigo-900">Upload your own:</span>
+        <select
+          className="rounded border border-slate-300 px-2 py-1 text-xs"
+          value={uploadType}
+          onChange={(e) => setUploadType(e.target.value as 'LOGO' | 'PHOTO')}
+        >
+          <option value="LOGO">Logo</option>
+          <option value="PHOTO">Photo</option>
+        </select>
+        <button
+          type="button"
+          className="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+          disabled={upload.isPending}
+          onClick={() => fileInputRef.current?.click()}
+        >
+          {upload.isPending ? 'Uploading…' : 'Upload file'}
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept={UPLOAD_ACCEPT}
+          className="hidden"
+          onChange={handleFileChosen}
+        />
+        <span className="text-[10px] text-slate-500">PNG, JPEG, SVG or WEBP · up to 5MB</span>
+        {uploadError && <span className="text-[10px] font-medium text-red-600">{uploadError}</span>}
       </div>
 
       {kind === 'photo' && keyedPhotoProviders.length === 0 && (
@@ -261,14 +315,17 @@ export function AssetLibraryPage() {
           {(library ?? []).map((item) => (
             <div key={item.id} className="rounded-lg border border-slate-200 bg-white p-2">
               <div className="flex h-24 items-center justify-center overflow-hidden rounded bg-slate-50">
-                {(item.thumbUrl || item.contentUrl) && (
-                  <img src={item.thumbUrl ?? item.contentUrl ?? ''} alt={item.filename} className="max-h-24 max-w-full object-contain" loading="lazy" />
-                )}
+                <LibraryThumb item={item} />
               </div>
               <div className="mt-1 flex items-center gap-1">
                 <span className={`rounded px-1 py-0.5 text-[9px] font-semibold ${TIER_LABEL[item.usageTier]?.cls}`}>
                   {TIER_LABEL[item.usageTier]?.text}
                 </span>
+                {item.provider === 'upload' && (
+                  <span className="rounded bg-indigo-100 px-1 py-0.5 text-[9px] font-semibold text-indigo-700">
+                    {item.type === 'LOGO' ? 'your logo' : 'uploaded'}
+                  </span>
+                )}
                 {item.shared && <span className="rounded bg-purple-100 px-1 py-0.5 text-[9px] font-semibold text-purple-700">shared</span>}
               </div>
               <div className="mt-1 flex items-center justify-between text-[10px]">
@@ -285,4 +342,11 @@ export function AssetLibraryPage() {
       </div>
     </div>
   );
+}
+
+/** Renders a library item's thumb, resolving uploads (no public URL) through the authed /content route. */
+function LibraryThumb({ item }: { item: LibraryItem }) {
+  const src = useAuthedImageSrc(libraryItemContentUrl(item, getActiveClientId()));
+  if (!src) return null;
+  return <img src={src} alt={item.filename} className="max-h-24 max-w-full object-contain" loading="lazy" />;
 }

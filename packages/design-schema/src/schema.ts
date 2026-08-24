@@ -119,10 +119,28 @@ export const TextElement = ElementBase.extend({
 });
 export type TextElement = z.infer<typeof TextElement>;
 
+// An http(s)/data/blob URL OR an app-relative path
+// ("/api/clients/:id/assets/:assetId/content") — the established pattern for
+// authed, same-origin asset bytes (render/proxy/content endpoints; see
+// apps/web .../design-studio/useAssetImage.ts resolveLoadSrc). Plain
+// z.string().url() rejects relative paths outright, which would silently fail
+// parseDesignDocument() for any image element using that pattern.
+// The scheme allowlist is deliberate: image src flows into SVG/PPTX export
+// (href/path) and into the canvas, and it can originate from AI output, so
+// exotic schemes (javascript:, file:, …) are rejected at the schema boundary
+// rather than trusted downstream.
+// `//host/path` is protocol-relative — it starts with "/" but resolves to an
+// EXTERNAL origin, so it is not an app-relative path and must not pass.
+const IMAGE_SRC_SCHEME = /^(https?|data|blob):/i;
+const ImageSrc = z.string().refine(
+  (v) => IMAGE_SRC_SCHEME.test(v) || (v.startsWith('/') && !v.startsWith('//')),
+  { message: 'src must be an http(s)/data/blob URL or an app-relative path starting with "/"' },
+);
+
 export const ImageElement = ElementBase.extend({
   type: z.literal('image'),
   assetId: z.string().optional(),
-  src: z.string().url().optional(),
+  src: ImageSrc.optional(),
   fit: z.enum(['cover', 'contain', 'fill']).default('cover'),
   cropRect: z
     .object({ x: z.number(), y: z.number(), width: z.number(), height: z.number() })

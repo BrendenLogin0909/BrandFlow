@@ -240,6 +240,40 @@ export function PlaygroundPage() {
   const navigate = useNavigate();
   const ideaTitle = idea?.title ?? null;
 
+  // The active brand profile's primary uploaded logo, if any — feeds the
+  // logo-top-left motif so it renders the real logo instead of a
+  // placeholder. "Active" = the client's first brand profile with a
+  // primary logo set (the playground has no brand-profile selector; a
+  // client on this quick demo path typically has exactly one).
+  const [brandLogo, setBrandLogo] = useState<{ assetId: string; clientId: string } | null>(null);
+  useEffect(() => {
+    const clientId = getActiveClientId();
+    if (!getAccessToken() || !clientId) {
+      setBrandLogo(null);
+      return;
+    }
+    let live = true;
+    clientApi<{ id: string; brandKit?: { logos?: { assetId: string; kind: string }[] } | null }[]>(
+      '/brand-profiles',
+    )
+      .then((profiles) => {
+        if (!live) return;
+        for (const p of profiles) {
+          const primary = p.brandKit?.logos?.find((l) => l.kind === 'primary');
+          if (primary) {
+            setBrandLogo({ assetId: primary.assetId, clientId });
+            return;
+          }
+        }
+        setBrandLogo(null);
+      })
+      .catch(() => live && setBrandLogo(null));
+    return () => {
+      live = false;
+    };
+  }, []);
+  const logoUrl = brandLogo ? `/api/clients/${brandLogo.clientId}/assets/${brandLogo.assetId}/content` : null;
+
   useEffect(() => {
     const ideaId = searchParams.get('idea');
     const packageId = searchParams.get('package');
@@ -326,8 +360,10 @@ export function PlaygroundPage() {
         motif,
         bestPractices,
         composedDoc,
+        logoAssetId: brandLogo?.assetId ?? null,
+        logoUrl,
       }),
-    [recipe, activeVariant, brand, fonts, fill, treatment, motif, bestPractices, composedDoc],
+    [recipe, activeVariant, brand, fonts, fill, treatment, motif, bestPractices, composedDoc, brandLogo, logoUrl],
   );
 
   useEffect(() => {

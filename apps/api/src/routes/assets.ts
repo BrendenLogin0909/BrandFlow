@@ -1,15 +1,36 @@
+import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { generateAiImages, searchAssets } from '../assets/providers.js';
 import { availableProviders, providerSpec, PROVIDERS, type AssetKind } from '../assets/registry.js';
 import { UNDRAW_MANIFEST } from '../assets/undraw-manifest.js';
 import { OPENPEEPS_MANIFEST } from '../assets/openpeeps-manifest.js';
+import { getStorage, withStorage } from '../storage/index.js';
 
 const UNDRAW_ACCENT = /#6c63ff/gi;
 const HEX_COLOUR = /^#[0-9a-fA-F]{6}$/;
 
 const KIND_TO_TYPE = { icon: 'ICON', illustration: 'ILLUSTRATION', photo: 'PHOTO', texture: 'PHOTO', ai: 'ILLUSTRATION' } as const;
 const SEARCHABLE_KINDS: readonly AssetKind[] = ['icon', 'illustration', 'photo', 'texture', 'ai'];
+
+// ---------- Customer upload (logos/photos → MinIO via StoragePort) ----------
+
+/** png/jpeg/svg/webp only — mimetype → storage-key extension. */
+const UPLOAD_EXT_BY_MIME: Record<string, string> = {
+  'image/png': 'png',
+  'image/jpeg': 'jpg',
+  'image/svg+xml': 'svg',
+  'image/webp': 'webp',
+};
+const MAX_UPLOAD_BYTES = 5 * 1024 * 1024; // ~5MB cap
+const STORAGE_UNAVAILABLE = {
+  error: { code: 'STORAGE_UNAVAILABLE', message: 'Object storage is unreachable — try again shortly.' },
+} as const;
+
+const UploadQuery = z.object({
+  type: z.enum(['LOGO', 'PHOTO']).default('PHOTO'),
+  shared: z.coerce.boolean().default(false),
+});
 
 const SaveExternalBody = z.object({
   provider: z.string(),
@@ -51,8 +72,8 @@ export async function assetRoutes(app: FastifyInstance) {
    *  kind=ai does NOT spend credits — it lists previously generated/saved AI assets from the library. */
   app.get('/search', read, async (req) => {
     const { kind, q, limit } = req.query as { kind?: string; q?: string; limit?: string };
-    // (the `as 'icon'` cast this used to carry narrowed `k` to 'icon' | 'photo',
-    //  which made the `k === 'ai'` branch below a type error)
+    // The old `as 'icon'` cast narrowed k to 'icon' | 'photo', making the
+    // 'illustration'/'texture'/'ai' branches below type errors.
     const k: AssetKind = SEARCHABLE_KINDS.includes(kind as AssetKind) ? (kind as AssetKind) : 'photo';
     const take = limit ? Math.min(Number(limit), 64) : 32;
 
@@ -328,6 +349,131 @@ export async function assetRoutes(app: FastifyInstance) {
     return reply.code(201).send(item);
   });
 
+  /**
+   * Customer upload (multipart) — the actual bytes go to MinIO/S3 via
+   * StoragePort; only the storageKey is persisted on the AssetLibraryItem
+   * row (contentUrl stays null; bytes are served back via GET /:id/content).
+   * `type` (LOGO|PHOTO, default PHOTO) and `shared` (default false — a
+   * client logo belongs to that client) are query params rather than
+   * multipart fields, so they're always available before the file stream
+   * is read regardless of multipart field ordering.
+   */
+  app.post('/upload', manage, async (req, reply) => {
+    const query = UploadQuery.safeParse(req.query);
+    if (!query.success) {
+      return reply.code(400).send({ error: { code: 'BAD_QUERY', message: query.error.issues[0]?.message } });
+    }
+
+    let file;
+    try {
+      file = await req.file({ limits: { fileSize: MAX_UPLOAD_BYTES }, throwFileSizeLimit: true });
+    } catch (err) {
+      const code = (err as { code?: string }).code;
+      if (code === 'FST_REQ_FILE_TOO_LARGE') {
+        return reply.code(400).send({
+          error: { code: 'FILE_TOO_LARGE', message: `File exceeds the ${MAX_UPLOAD_BYTES / (1024 * 1024)}MB limit` },
+        });
+      }
+      if (code === 'FST_INVALID_MULTIPART_CONTENT_TYPE') {
+        return reply.code(400).send({ error: { code: 'NOT_MULTIPART', message: 'Send a multipart/form-data request with a "file" field' } });
+      }
+      throw err;
+    }
+    if (!file) return reply.code(400).send({ error: { code: 'NO_FILE', message: 'Attach a file under the "file" field' } });
+
+    const ext = UPLOAD_EXT_BY_MIME[file.mimetype];
+    if (!ext) {
+      return reply.code(400).send({
+        error: {
+          code: 'UNSUPPORTED_TYPE',
+          message: `Unsupported type "${file.mimetype}". Allowed: PNG, JPEG, SVG, WEBP.`,
+        },
+      });
+    }
+
+    let buffer: Buffer;
+    try {
+      buffer = await file.toBuffer();
+    } catch (err) {
+      if ((err as { code?: string }).code === 'FST_REQ_FILE_TOO_LARGE') {
+        return reply.code(400).send({
+          error: { code: 'FILE_TOO_LARGE', message: `File exceeds the ${MAX_UPLOAD_BYTES / (1024 * 1024)}MB limit` },
+        });
+      }
+      throw err;
+    }
+    if (buffer.length === 0) return reply.code(400).send({ error: { code: 'EMPTY_FILE' } });
+
+    const { type, shared } = query.data;
+    const spec = providerSpec('upload')!;
+    const scopeSegment = shared ? 'shared' : req.tenant!.clientCompanyId;
+    const key = `org/${req.tenant!.organisationId}/client/${scopeSegment}/${randomUUID()}.${ext}`;
+
+    const stored = await withStorage(() => getStorage().put(key, buffer, file!.mimetype));
+    if (!stored.ok) {
+      req.log.warn(`asset upload: storage.put failed — ${stored.error}`);
+      return reply.code(503).send(STORAGE_UNAVAILABLE);
+    }
+
+    const item = await app.prisma.assetLibraryItem.create({
+      data: {
+        organisationId: req.tenant!.organisationId,
+        clientCompanyId: shared ? null : req.tenant!.clientCompanyId,
+        type,
+        storageKey: key,
+        provider: 'upload',
+        licence: spec.licence,
+        commercialUse: spec.commercialUse,
+        attributionRequired: spec.attributionRequired,
+        modificationAllowed: spec.modificationAllowed,
+        usageTier: spec.tier,
+        shared,
+        filename: file.filename || `upload.${ext}`,
+        mimeType: file.mimetype,
+        sizeBytes: buffer.length,
+        tags: [],
+        restrictedFlags: [],
+        // customer's own property — auto-approved and immediately usable
+        approved: true,
+        allowInPrompts: true,
+        uploadedById: req.tenant!.userId,
+      },
+    });
+    return reply.code(201).send(item);
+  });
+
+  /**
+   * Stream uploaded bytes back through the API (org-scoped tenant check —
+   * same shape as the list/patch queries: organisationId + client-or-shared).
+   * Cross-org access is a 404, never a 403 (existence isn't revealed).
+   * Registered before /:id so it isn't shadowed by it (find-my-way already
+   * disambiguates by segment count/method, but keep them adjacent for
+   * readability — /:id only handles PATCH/DELETE, no GET, so there's no
+   * actual collision either way).
+   */
+  app.get('/:id/content', read, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const item = await app.prisma.assetLibraryItem.findFirst({
+      where: {
+        id,
+        organisationId: req.tenant!.organisationId,
+        OR: [{ clientCompanyId: req.tenant!.clientCompanyId }, { shared: true }],
+      },
+    });
+    if (!item || !item.storageKey) return reply.code(404).send({ error: { code: 'NOT_FOUND' } });
+
+    const fetched = await withStorage(() => getStorage().get(item.storageKey!));
+    if (!fetched.ok) {
+      req.log.warn(`asset content: storage.get failed — ${fetched.error}`);
+      return reply.code(503).send(STORAGE_UNAVAILABLE);
+    }
+
+    return reply
+      .header('Cache-Control', 'private, max-age=3600')
+      .type(item.mimeType)
+      .send(fetched.value);
+  });
+
   app.patch('/:id', manage, async (req, reply) => {
     const { id } = req.params as { id: string };
     const body = z
@@ -347,10 +493,24 @@ export async function assetRoutes(app: FastifyInstance) {
 
   app.delete('/:id', manage, async (req, reply) => {
     const { id } = req.params as { id: string };
-    const deleted = await app.prisma.assetLibraryItem.deleteMany({
+    // Look up storageKey first — uploads own real bytes in MinIO that would
+    // otherwise be orphaned once the DB row is gone.
+    const existing = await app.prisma.assetLibraryItem.findFirst({
+      where: { id, organisationId: req.tenant!.organisationId, clientCompanyId: req.tenant!.clientCompanyId },
+      select: { storageKey: true },
+    });
+    if (!existing) return reply.code(404).send({ error: { code: 'NOT_FOUND' } });
+
+    await app.prisma.assetLibraryItem.deleteMany({
       where: { id, organisationId: req.tenant!.organisationId, clientCompanyId: req.tenant!.clientCompanyId },
     });
-    if (deleted.count === 0) return reply.code(404).send({ error: { code: 'NOT_FOUND' } });
+
+    if (existing.storageKey) {
+      // Best-effort: the library row is already gone (the part the user
+      // sees); a storage hiccup here shouldn't turn into a failed delete.
+      const cleanup = await withStorage(() => getStorage().delete(existing.storageKey!));
+      if (!cleanup.ok) req.log.warn(`asset delete: storage.delete failed for ${existing.storageKey} — ${cleanup.error}`);
+    }
     return { ok: true };
   });
 }

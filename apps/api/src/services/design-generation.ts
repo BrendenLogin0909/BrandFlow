@@ -53,6 +53,20 @@ export interface GenerateVisualResult {
   needsAttention: boolean;
 }
 
+/**
+ * The brand's primary uploaded logo, if one is set (BrandKit.logos —
+ * see docs 00-project-status.md 2026-08-24 asset-upload work). Consumed by
+ * the layout-recipes `logo-top-left` directive (brandTokens.logoAssetIds[0]).
+ * NOTE: this directive layer (applyStyleDirectives) is not currently invoked
+ * anywhere in this server pipeline — only the web Playground calls it — so
+ * populating real ids here makes brandTokens honest but does not by itself
+ * make server-generated posts render the logo. See docs/16-backlog.md 4d.
+ */
+function primaryLogoAssetIds(brand: BrandContext): string[] {
+  const primary = brand.kit.logos.find((l) => l.kind === 'primary') ?? brand.kit.logos[0];
+  return primary ? [primary.assetId] : [];
+}
+
 export class DesignGenerationService {
   constructor(
     private prisma: PrismaClient,
@@ -152,7 +166,7 @@ export class DesignGenerationService {
     return composeFreeform(request, {
       brandProfileId: input.brandProfileId,
       clientCompanyId: input.clientCompanyId,
-      brandTokens: { colours: brand.kit.colours, fonts: brand.kit.fonts, logoAssetIds: [] },
+      brandTokens: { colours: brand.kit.colours, fonts: brand.kit.fonts, logoAssetIds: primaryLogoAssetIds(brand) },
     }, { bannedPhrases: brand.styleGuide.bannedPhrases });
   }
 
@@ -236,7 +250,7 @@ export class DesignGenerationService {
     const tokens: BrandTokensSnapshot = {
       colours: brand.kit.colours,
       fonts: brand.kit.fonts,
-      logoAssetIds: [],
+      logoAssetIds: primaryLogoAssetIds(brand),
     };
     return {
       documentId: randomUUID(),

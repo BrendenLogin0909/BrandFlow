@@ -115,6 +115,43 @@ export function useImageSrc(src: string | undefined): HTMLImageElement | null {
   return image;
 }
 
+/**
+ * Resolve any image src for a plain DOM <img src>: data:/http(s) URLs that
+ * don't need proxying pass through unchanged (no round trip); /api/ paths
+ * (uploaded assets served through GET /:id/content) and CORS-blocked
+ * hotlink CDNs are authed-fetched to a one-off blob URL, revoked on
+ * unmount/src change. Unlike useImageSrc/useIconImage (which load into an
+ * HTMLImageElement for Konva canvases), this is for ordinary DOM <img> tags
+ * — the asset library grid and AssetPicker thumbnails.
+ */
+export function useAuthedImageSrc(src: string | null | undefined): string | null {
+  const [resolved, setResolved] = useState<string | null>(null);
+  useEffect(() => {
+    if (!src) {
+      setResolved(null);
+      return;
+    }
+    if (!src.startsWith('/api/') && !needsProxyHost(src)) {
+      setResolved(src);
+      return;
+    }
+    let live = true;
+    let createdBlobUrl: string | null = null;
+    resolveLoadSrc(src)
+      .then((url) => {
+        if (!live) return;
+        if (url.startsWith('blob:')) createdBlobUrl = url;
+        setResolved(url);
+      })
+      .catch(() => live && setResolved(null));
+    return () => {
+      live = false;
+      if (createdBlobUrl) URL.revokeObjectURL(createdBlobUrl);
+    };
+  }, [src]);
+  return resolved;
+}
+
 export type ImageLoadStatus = 'idle' | 'loading' | 'ready' | 'error';
 
 /** Like useImageSrc but distinguishes loading vs failed (for canvas placeholders). */
