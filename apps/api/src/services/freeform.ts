@@ -189,9 +189,11 @@ export async function resolveImages(doc: InternalDesignDocument): Promise<string
   const ILLUSTRATION_FIRST =
     /\b(person|people|team|figure|man|woman|men|women|character|avatar|engineer|worker|founder|ceo|employee|customer|portrait|face|hero|professional|developer|designer|manager|leader|staff|colleague|human|tester|qa|analyst|mentor|coach|cartoon|illustration|scene|chart|graph|funnel|gauge|ladder|process|workflow|bug|rocket|shield|trophy|celebration|meeting|presentation|dashboard|metrics|kpi|growth|idea|checklist|network|handshake|megaphone|warning|alert|timeline|comparison|before.?after|maturity)\b/i;
   const seen = new Set<string>();
-  // Prefer bundled flat scenes (undraw) over avatar APIs / stock when both match.
+  // Prefer the bundled CC0 character scenes, then the flat geometric pack, then
+  // avatar APIs / stock. Hand-drawn characters are the 29FORWARD-grade hero art.
   const rank = (r: { provider: string; usageTier: number }) =>
-    (r.provider === 'undraw' ? 0 : r.provider === 'dicebear' ? 1 : 2) * 10 + r.usageTier;
+    (r.provider === 'openpeeps' ? 0 : r.provider === 'undraw' ? 1 : r.provider === 'dicebear' ? 2 : 3) * 10 +
+    r.usageTier;
 
   await Promise.all(
     placeholders.map(async ({ el, query }) => {

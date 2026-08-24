@@ -27,6 +27,11 @@ export interface ProviderSpec {
   needsKey: boolean;
   /** Env var holding the key, when needsKey. */
   keyEnv?: string;
+  /** Original artist, when the source art has a known creator (recorded even
+   *  for CC0, where attribution is not legally required). */
+  creator?: string;
+  /** Authoritative licence/provenance page for the source art. */
+  sourceUrl?: string;
   notes: string;
 }
 
@@ -50,6 +55,14 @@ export const PROVIDERS: Record<string, ProviderSpec> = {
     commercialUse: true, attributionRequired: false, modificationAllowed: true,
     tier: 1, delivery: 'bundled', needsKey: false,
     notes: 'Bundled flat single-accent scene illustrations (undraw-manifest.ts), recolourable to a brand hue. ORIGINAL art in the unDraw style (characters, charts, B2B metaphors) — not unDraw\'s library — so unencumbered, no attribution. Expanded for 29FORWARD-style LinkedIn carousels. Do NOT scrape real unDraw/Storyset into this pool (licence forbids competing redistribution).',
+  },
+  openpeeps: {
+    id: 'openpeeps', label: 'Open Peeps characters', kinds: ['illustration'], licence: 'CC0 1.0',
+    commercialUse: true, attributionRequired: false, modificationAllowed: true,
+    tier: 1, delivery: 'bundled', needsKey: false,
+    creator: 'Pablo Stanley',
+    sourceUrl: 'https://www.openpeeps.com/',
+    notes: 'Bundled B2B scenes built from the CC0 "Open Peeps" hand-drawn character library by Pablo Stanley (openpeeps.com). Licence verified 2026-08-24 against openpeeps.com ("Free for commercial and personal use under CC0 License") and the licence metadata inside @dicebear/collection v9.4.2 (openPeeps.meta → CC0 1.0). CC0 = public domain: no attribution required, commercial use and modification allowed, redistribution allowed. Creator recorded as provenance only. Scene layouts/props around the characters are original to this repo. Clothing recolours from #6c63ff to the brand hue; line art and skin tones are fixed.',
   },
   dicebear: {
     id: 'dicebear', label: 'DiceBear', kinds: ['illustration'], licence: 'CC0 / per-style',

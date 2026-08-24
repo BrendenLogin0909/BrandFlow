@@ -2,6 +2,18 @@
 
 export type AssetKind = 'icon' | 'illustration' | 'photo' | 'ai';
 
+/**
+ * Bundled scene packs served by `GET /assets/render/:provider/:id`. They accept
+ * a `hue` query param that recolours the pack accent (#6c63ff) to the brand
+ * colour, so the canvas must go through the render endpoint rather than the
+ * multi-KB data-URI returned by search.
+ */
+export const BUNDLED_SCENE_PROVIDERS = ['undraw', 'openpeeps'] as const;
+
+export function isBundledSceneProvider(provider: string | undefined | null): provider is string {
+  return (BUNDLED_SCENE_PROVIDERS as readonly string[]).includes(provider ?? '');
+}
+
 export interface AssetSearchResult {
   provider: string;
   providerId: string;
@@ -133,7 +145,7 @@ function needsProxy(url: string): boolean {
 
 /** Prefer render/proxy endpoints so Konva can always paint the asset. */
 export function resolveAssetContentUrl(pick: AssetPick, clientId: string | null, accentHue = '#4f46e5'): string {
-  if (clientId && pick.provider === 'undraw' && pick.providerId) {
+  if (clientId && isBundledSceneProvider(pick.provider) && pick.providerId) {
     return assetRenderUrl(clientId, pick.provider, pick.providerId, accentHue);
   }
   if (clientId && needsProxy(pick.contentUrl)) {

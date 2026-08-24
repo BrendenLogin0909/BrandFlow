@@ -1,13 +1,15 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { generateAiImages, searchAssets } from '../assets/providers.js';
-import { availableProviders, providerSpec, PROVIDERS } from '../assets/registry.js';
+import { availableProviders, providerSpec, PROVIDERS, type AssetKind } from '../assets/registry.js';
 import { UNDRAW_MANIFEST } from '../assets/undraw-manifest.js';
+import { OPENPEEPS_MANIFEST } from '../assets/openpeeps-manifest.js';
 
 const UNDRAW_ACCENT = /#6c63ff/gi;
 const HEX_COLOUR = /^#[0-9a-fA-F]{6}$/;
 
 const KIND_TO_TYPE = { icon: 'ICON', illustration: 'ILLUSTRATION', photo: 'PHOTO', texture: 'PHOTO', ai: 'ILLUSTRATION' } as const;
+const SEARCHABLE_KINDS: readonly AssetKind[] = ['icon', 'illustration', 'photo', 'texture', 'ai'];
 
 const SaveExternalBody = z.object({
   provider: z.string(),
@@ -49,9 +51,9 @@ export async function assetRoutes(app: FastifyInstance) {
    *  kind=ai does NOT spend credits — it lists previously generated/saved AI assets from the library. */
   app.get('/search', read, async (req) => {
     const { kind, q, limit } = req.query as { kind?: string; q?: string; limit?: string };
-    const k = (['icon', 'illustration', 'photo', 'texture', 'ai'] as const).includes(kind as never)
-      ? (kind as 'icon')
-      : 'photo';
+    // (the `as 'icon'` cast this used to carry narrowed `k` to 'icon' | 'photo',
+    //  which made the `k === 'ai'` branch below a type error)
+    const k: AssetKind = SEARCHABLE_KINDS.includes(kind as AssetKind) ? (kind as AssetKind) : 'photo';
     const take = limit ? Math.min(Number(limit), 64) : 32;
 
     // AI tab: browse saved generations only (no OpenAI call)
@@ -159,9 +161,9 @@ export async function assetRoutes(app: FastifyInstance) {
 
   /** Rough pool sizes for UI copy — live providers are unbounded; bundled counts are exact. */
   app.get('/catalog', read, async () => {
-    const { UNDRAW_MANIFEST } = await import('../assets/undraw-manifest.js');
     return {
       pools: [
+        { id: 'openpeeps', label: 'Open Peeps characters', kind: 'illustration', approx: OPENPEEPS_MANIFEST.length, delivery: 'bundled', tier: 1, notes: 'CC0 hand-drawn characters (Pablo Stanley) in original B2B scenes' },
         { id: 'undraw', label: 'Flat illustrations', kind: 'illustration', approx: UNDRAW_MANIFEST.length, delivery: 'bundled', tier: 1 },
         { id: 'lucide', label: 'Lucide icons', kind: 'icon', approx: 1500, delivery: 'bundled', tier: 1 },
         { id: 'iconify', label: 'Iconify (open sets)', kind: 'icon', approx: 200_000, delivery: 'hotlink', tier: 2 },
@@ -186,8 +188,11 @@ export async function assetRoutes(app: FastifyInstance) {
     const { hue } = req.query as { hue?: string };
     const accent = hue && HEX_COLOUR.test(hue) ? hue : '#4f46e5';
 
-    if (provider === 'undraw') {
-      const entry = UNDRAW_MANIFEST.find((e) => e.slug === providerId);
+    // Both bundled packs share the accent-swap contract (#6c63ff → brand hue).
+    const pack =
+      provider === 'undraw' ? UNDRAW_MANIFEST : provider === 'openpeeps' ? OPENPEEPS_MANIFEST : null;
+    if (pack) {
+      const entry = pack.find((e) => e.slug === providerId);
       if (!entry) return reply.code(404).send({ error: { code: 'NOT_FOUND' } });
       const svg = entry.svg.replace(UNDRAW_ACCENT, accent);
       return reply

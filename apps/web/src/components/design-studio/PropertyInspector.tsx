@@ -2,6 +2,7 @@ import type { BrandTokensSnapshot, Element, ImageElement, TextElement } from '@b
 import { GOOGLE_FONTS, WEB_SAFE_FONTS, resolveColour } from '@brandflow/design-schema';
 import { BrandColourPicker } from './BrandColourPicker';
 import { updateBundledImageAccent } from './assetDocumentOps';
+import { isBundledSceneProvider } from './assetTypes';
 import type { DesignStudioBindings } from './studio-props';
 import { activePageFromBindings } from './studio-props';
 import {
@@ -161,7 +162,7 @@ export function PropertyInspector({
               <option value="fill">fill</option>
             </select>
           </label>
-          {el.meta?.assetProvider === 'undraw' && (
+          {isBundledSceneProvider(el.meta?.assetProvider as string | undefined) && (
             <div className="space-y-1">
               <div className="text-xs text-slate-600">Illustration accent</div>
               <BrandColourPicker

@@ -7,6 +7,7 @@
  * Live no-key pools (thousands+ of assets):
  *   - Lucide (~1.5k ISC icons, bundled)
  *   - Iconify public API (200k+ icons across 200+ sets)
+ *   - Open Peeps character scenes (bundled openpeeps-manifest, CC0, ~80)
  *   - Flat illustration pack (bundled undraw-manifest, 300+)
  *   - DiceBear figures (Open Peeps etc.)
  *   - Openverse CC0/PDM photos + illustrations
@@ -15,6 +16,7 @@
  */
 import { PROVIDERS, type AssetKind, type ProviderSpec } from './registry.js';
 import { UNDRAW_MANIFEST } from './undraw-manifest.js';
+import { OPENPEEPS_MANIFEST } from './openpeeps-manifest.js';
 import { lucideSvg } from '@brandflow/exporters/icons';
 
 export interface AssetSearchResult {
@@ -229,9 +231,20 @@ function keywordScore(hay: string, term: string, title: string, slug: string): n
   return score;
 }
 
-function searchUndraw(q: string, limit: number, brandHue = '#4f46e5'): AssetSearchResult[] {
+/**
+ * Search one bundled scene pack. Both bundled packs (the original flat pack and
+ * the Open Peeps character pack) share this scorer so ranking stays consistent
+ * and neither pack dumps unrelated scenes on a miss.
+ */
+function searchBundledPack(
+  manifest: readonly { slug: string; title: string; keywords: string[]; svg: string }[],
+  spec: ProviderSpec,
+  q: string,
+  limit: number,
+  brandHue = '#4f46e5',
+): AssetSearchResult[] {
   const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
-  const scored = UNDRAW_MANIFEST.map((e) => {
+  const scored = manifest.map((e) => {
     const hay = `${e.slug.replace(/-/g, ' ')} ${e.title} ${e.keywords.join(' ')}`.toLowerCase();
     const score = terms.reduce((n, t) => n + keywordScore(hay, t, e.title, e.slug), 0);
     const exact = terms.some(
@@ -248,23 +261,30 @@ function searchUndraw(q: string, limit: number, brandHue = '#4f46e5'): AssetSear
     // Exact matches first, then by score, then title
     .sort((a, b) => Number(b.exact) - Number(a.exact) || b.score - a.score || a.e.title.localeCompare(b.e.title));
   // Empty query → browse the pack. No keyword match → empty (don't dump unrelated scenes).
-  const chosen = (
-    terms.length === 0 ? UNDRAW_MANIFEST : matched.map((s) => s.e)
-  ).slice(0, limit);
+  const chosen = (terms.length === 0 ? manifest : matched.map((s) => s.e)).slice(0, limit);
   return chosen.map((e) => {
     const recoloured = e.svg.replace(UNDRAW_ACCENT, brandHue);
     const dataUri = 'data:image/svg+xml;utf8,' + encodeURIComponent(recoloured);
-    return tag(PROVIDERS.undraw!, {
+    return tag(spec, {
       providerId: e.slug,
       kind: 'illustration',
       contentUrl: dataUri,
       thumbUrl: dataUri,
-      attributionRequired: false,
+      sourceUrl: spec.sourceUrl,
+      creator: spec.creator,
+      attributionRequired: spec.attributionRequired,
       mimeType: 'image/svg+xml',
       label: e.title,
     });
   });
 }
+
+const searchUndraw = (q: string, limit: number, brandHue = '#4f46e5') =>
+  searchBundledPack(UNDRAW_MANIFEST, PROVIDERS.undraw!, q, limit, brandHue);
+
+/** Open Peeps character scenes (CC0 art, bundled) — the preferred people pool. */
+const searchOpenpeeps = (q: string, limit: number, brandHue = '#4f46e5') =>
+  searchBundledPack(OPENPEEPS_MANIFEST, PROVIDERS.openpeeps!, q, limit, brandHue);
 
 // ---------- Pexels (photos, key-gated) ----------
 async function searchPexels(q: string, limit: number): Promise<AssetSearchResult[]> {
@@ -546,6 +566,7 @@ export async function searchAssets(opts: SearchOptions): Promise<AssetSearchResu
     if (!browse) jobs.push(searchIconify(q, limit).catch(() => []));
   }
   if (opts.kind === 'illustration') {
+    jobs.push(Promise.resolve(searchOpenpeeps(q, limit)).catch(() => []));
     jobs.push(Promise.resolve(searchUndraw(q, limit)).catch(() => []));
     if (!browse) jobs.push(Promise.resolve(searchDicebear(q, Math.min(limit, 4))));
     if (!browse) {
@@ -564,8 +585,19 @@ export async function searchAssets(opts: SearchOptions): Promise<AssetSearchResu
   // kind === 'ai' → no live generation from search; UI uses /generate + library
 
   const results = (await Promise.all(jobs)).flat();
+  // Bundled packs first (tier 1, no network, recolourable). The hand-drawn Open
+  // Peeps character scenes outrank the geometric flat pack — they are the
+  // 29FORWARD-grade hero art — then avatars, then everything else.
   const rank = (r: AssetSearchResult) =>
-    r.provider === 'undraw' ? 0 : r.provider === 'dicebear' ? 2 : r.kind === 'illustration' ? 1 : 3;
+    r.provider === 'openpeeps'
+      ? 0
+      : r.provider === 'undraw'
+        ? 1
+        : r.provider === 'dicebear'
+          ? 3
+          : r.kind === 'illustration'
+            ? 2
+            : 4;
   results.sort((a, b) => rank(a) - rank(b));
 
   const seen = new Set<string>();

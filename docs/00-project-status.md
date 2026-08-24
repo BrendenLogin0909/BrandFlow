@@ -91,9 +91,16 @@ vendor-neutral internal design schema, and a licence-aware free-asset stack.
 + `providers.ts` (adapters). **Live with no keys (thousands+ searchable):**
 - **Lucide** (~1.5k ISC icons, bundled + searchable)
 - **Iconify** public API (~200k icons across preferred open sets)
-- **DiceBear** (figures / Open Peeps, unlimited seeds)
+- **Open Peeps character pack** (82 bundled recolourable B2B scenes built from
+  the **CC0** hand-drawn Open Peeps library by Pablo Stanley —
+  `openpeeps-manifest.ts` + vendored geometry in `openpeeps-parts.ts`).
+  **Preferred hero art**: ranked first in `searchAssets` and in
+  `resolveImages`, so AI compose reaches for a real character before the
+  geometric fallback pack. Contact sheet: `docs/preview-character-pack.html`.
+- **DiceBear** (figures / Open Peeps avatars, unlimited seeds)
 - **Flat illustration pack** (307 bundled recolourable scenes —
-  characters, charts, B2B metaphors — `undraw-manifest*.ts`)
+  original geometric template art — `undraw-manifest*.ts`); still the fallback
+  for slugs already embedded in saved designs
 - **Openverse** (CC0/PDM photos + illustrations, millions)
 - Wikimedia (PD, review-tier), **Pollinations** (AI, secondary)
 **Key-gated:** Unsplash/Pexels/Pixabay when env keys set.
@@ -101,9 +108,20 @@ vendor-neutral internal design schema, and a licence-aware free-asset stack.
 default to illustration search and return up to 48 hits. Compose
 (`design_freeform@4` + `resolveImages`) prefers flat scenes for people/charts.
 
+**Bundled-pack recolour contract** (`GET /assets/render/:provider/:slug?hue=`):
+both bundled packs keep the literal `#6c63ff` as their single recolourable
+accent, swapped for the brand hue at serve time. In the character pack that
+accent is clothing + prop key surfaces; the hand-drawn line art (`#3f3d56`) and
+the five fixed skin tones are **never** recoloured. `isBundledSceneProvider()`
+(apps/web) routes both packs through the render endpoint so Konva paints bytes,
+not multi-KB data URIs.
+
 **Do not** scrape unDraw/Storyset into the pool (licence blocks competing
-redistribution). Optional: self-host Open Peeps/Humaaans CC0 parts (backlog 4f);
-photo API keys (4b).
+redistribution). **Humaaans** and **Open Doodles** (also Pablo Stanley) were
+licence-verified as CC0 on 2026-08-24 but deliberately *not* shipped: one
+coherent character style reads better than three mixed ones, and Open Peeps was
+the only one with a clean machine-readable part source. They stay available if
+a second style is ever wanted (backlog 4f). Remaining: photo API keys (4b).
 
 ## 6. Key architectural invariants (do not break)
 
@@ -195,7 +213,8 @@ photo API keys (4b).
 
 See **[docs/16-backlog.md](16-backlog.md)** for the full parked list. Highest-value next:
 1. ✅ **Google Fonts** in the playground — DONE. 30-family curated catalog in `packages/design-schema/src/fonts.ts` (shared source of truth), grouped picker (system + sans/serif/display/mono), selected families live-loaded via an injected `<link>`, and the SVG exporter embeds a portable `@import` so standalone `.svg` files render in-font. Free, no key. **PPTX caveat:** PowerPoint substitutes the family name if the font isn't installed locally (webfonts can't embed into PPTX without the binary).
-2. ✅ **Flat illustration pack** — DONE + expanded (backlog item 4). 307 bundled recolourable flat scenes (56 core in `apps/api/src/assets/undraw-manifest.ts` + generated extras in `undraw-manifest-extra*.ts`, regenerable via `generate-undraw-extra*.mjs`), `searchUndraw` + `design_freeform@4` illustration-first compose, covered by `undraw-manifest.test.ts`. Original art only — do not scrape unDraw/Storyset. Optional richer CC0 character packs: backlog 4f.
+2. ✅ **Flat illustration pack** — DONE + expanded (backlog item 4). 307 bundled recolourable flat scenes (56 core in `apps/api/src/assets/undraw-manifest.ts` + generated extras in `undraw-manifest-extra*.ts`, regenerable via `generate-undraw-extra*.mjs`), `searchUndraw` + `design_freeform@4` illustration-first compose, covered by `undraw-manifest.test.ts`. Original art only — do not scrape unDraw/Storyset.
+   ✅ **Open Peeps character pack** — DONE (backlog 4f). 82 bundled scenes of real hand-drawn **CC0** characters (Pablo Stanley, openpeeps.com) in original B2B compositions, ranked above the geometric pack everywhere. `openpeeps-parts.ts` (vendored geometry, 167 KB, regenerable via `generate-openpeeps-parts.mjs`) + `openpeeps-manifest.ts` (scene composer + prop kit). Covered by `openpeeps-manifest.test.ts` (12) and `openpeeps-render.test.ts` (6). Preview: `docs/preview-character-pack.html`.
 3. ✅ **Attribution rendering on export** — DONE (backlog item 4c). `attributions` is now an optional field on `InternalDesignDocument`; `resolveImages` attaches credits to the doc so they persist through save/reopen/export; SVG + PPTX exporters render a credits line, and the playground shows an "Asset credits" panel.
 4. **Customer logo/photo upload** → StoragePort/MinIO → feeds logo-top-left motif.
 5. ✅ **Manual asset insert in playground** — DONE (Agent 6). AssetPicker + insert/replace + icon swap on `/playground` when signed in.

@@ -100,7 +100,9 @@ export function AssetPicker({ open, mode, title, onClose, onPick }: AssetPickerP
     return item.type === 'PHOTO' || item.type === 'ILLUSTRATION';
   });
 
-  const flatCount = catalog?.pools?.find((p) => p.id === 'undraw')?.approx;
+  const flatCount = (catalog?.pools ?? [])
+    .filter((p) => p.id === 'undraw' || p.id === 'openpeeps')
+    .reduce((n, p) => n + (p.approx ?? 0), 0) || undefined;
 
   function handlePick(pick: AssetPick, placeOnCanvas = false) {
     onPick(pick, { placeOnCanvas });

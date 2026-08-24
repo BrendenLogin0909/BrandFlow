@@ -3,19 +3,19 @@ import { getActiveClientId } from '../../lib/api';
 import { updateElementById } from './document-mutations';
 import { activePageFromBindings } from './studio-props';
 import type { AssetPick } from './assetTypes';
-import { attributionLine, resolveAssetContentUrl } from './assetTypes';
+import { attributionLine, isBundledSceneProvider, resolveAssetContentUrl } from './assetTypes';
 
 const DEFAULT_ACCENT = '#4f46e5';
 
 function imageFitForPick(pick: AssetPick): ImageElement['fit'] {
-  if (pick.kind === 'illustration' || pick.contentUrl.includes('svg') || pick.provider === 'undraw') {
+  if (pick.kind === 'illustration' || pick.contentUrl.includes('svg') || isBundledSceneProvider(pick.provider)) {
     return 'contain';
   }
   return 'cover';
 }
 
 function imageSizeForPick(pick: AssetPick): { width: number; height: number } {
-  if (pick.kind === 'illustration' || pick.provider === 'undraw') {
+  if (pick.kind === 'illustration' || isBundledSceneProvider(pick.provider)) {
     return { width: 420, height: 315 };
   }
   return { width: 320, height: 240 };
@@ -35,7 +35,7 @@ function applyPickToImage(el: ImageElement, pick: AssetPick, accentHue = DEFAULT
       ...el.meta,
       assetProvider: pick.provider,
       assetProviderId: pick.providerId,
-      assetAccent: pick.provider === 'undraw' ? accentHue : undefined,
+      assetAccent: isBundledSceneProvider(pick.provider) ? accentHue : undefined,
       manualInsert: true,
     },
   };
@@ -123,7 +123,7 @@ export function insertImageOnPage(
       manualInsert: true,
       assetProvider: pick.provider,
       assetProviderId: pick.providerId,
-      assetAccent: pick.provider === 'undraw' ? accentHue : undefined,
+      assetAccent: isBundledSceneProvider(pick.provider) ? accentHue : undefined,
     },
     assetId: pick.libraryItemId,
     src,
@@ -156,7 +156,7 @@ export function updateBundledImageAccent(
     if (el.type !== 'image') return el;
     const provider = el.meta?.assetProvider as string | undefined;
     const providerId = el.meta?.assetProviderId as string | undefined;
-    if (provider !== 'undraw' || !providerId) return el;
+    if (!isBundledSceneProvider(provider) || !providerId) return el;
     const clientId = getActiveClientId();
     if (!clientId) return el;
     return {

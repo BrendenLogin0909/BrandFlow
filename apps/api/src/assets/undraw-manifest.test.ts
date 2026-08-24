@@ -14,13 +14,15 @@ describe('flat illustration pack', () => {
   });
 
   it('keyword search prefers matching character/chart scenes', async () => {
-    const qa = await searchAssets({ kind: 'illustration', query: 'qa tester bug', limit: 4 });
-    expect(qa[0]?.provider).toBe('undraw');
-    expect(qa[0]?.providerId).toBe('qa-tester-bug');
+    // The bundled Open Peeps character pack now outranks this pack globally
+    // (see the provider rank in providers.ts — hand-drawn characters are the
+    // preferred hero art), so this asserts keyword precision WITHIN the flat
+    // pack: its own best-matching scene must still come first among its hits.
+    const qa = await searchAssets({ kind: 'illustration', query: 'qa tester bug', limit: 8 });
+    expect(qa.find((r) => r.provider === 'undraw')?.providerId).toBe('qa-tester-bug');
 
-    const ladder = await searchAssets({ kind: 'illustration', query: 'maturity ladder', limit: 3 });
-    expect(ladder[0]?.provider).toBe('undraw');
-    expect(ladder[0]?.providerId).toBe('maturity-ladder');
+    const ladder = await searchAssets({ kind: 'illustration', query: 'maturity ladder', limit: 8 });
+    expect(ladder.find((r) => r.provider === 'undraw')?.providerId).toBe('maturity-ladder');
   });
 
   it('lists exact keyword matches before partial prefix matches', async () => {
