@@ -24,6 +24,7 @@ import {
   findElement,
   IconSwapPanel,
   insertImageOnPage,
+  lastInsertedImageId,
   LayersPanel,
   PropertyInspector,
   replaceIconWithName,
@@ -359,14 +360,30 @@ export function PlaygroundPage() {
       ? findElement(displayDoc, selectedIds[0])
       : null;
 
-  function handleAssetPick(pick: AssetPick) {
+  function handleAssetPick(pick: AssetPick, opts?: { placeOnCanvas?: boolean }) {
     if (replaceImageId && displayDoc) {
       setEditedDoc(replaceImageWithAsset(displayDoc, replaceImageId, pick));
       setReplaceImageId(null);
+      setInsertMode(false);
+      setPendingInsert(null);
       return;
     }
-    setPendingInsert(pick);
-    setInsertMode(true);
+    if (!displayDoc || !resolvedActivePageId) return;
+
+    if (opts?.placeOnCanvas) {
+      setPendingInsert(pick);
+      setInsertMode(true);
+      return;
+    }
+
+    const cx = displayDoc.canvas.width / 2;
+    const cy = displayDoc.canvas.height / 2;
+    const next = insertImageOnPage(displayDoc, resolvedActivePageId, pick, cx, cy);
+    setEditedDoc(next);
+    const newId = lastInsertedImageId(next, resolvedActivePageId);
+    if (newId) setSelectedIds([newId]);
+    setInsertMode(false);
+    setPendingInsert(null);
   }
 
   function handleCanvasPageClick(pageX: number, pageY: number) {
@@ -900,6 +917,7 @@ export function PlaygroundPage() {
           <DesignStudioAssetToolbar
             {...studioBindings}
             insertMode={insertMode && Boolean(pendingInsert)}
+            pendingInsertLabel={pendingInsert?.label}
             onInsertModeChange={(on) => {
               setInsertMode(on);
               if (!on) setPendingInsert(null);

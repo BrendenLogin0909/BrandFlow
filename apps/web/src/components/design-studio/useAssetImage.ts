@@ -1,7 +1,7 @@
 /**
  * Load raster/vector artwork into an HTMLImageElement for Konva's <Image>.
  * Two sources:
- *   - a URL (photo `src`)               → loaded directly
+ *   - a URL (photo `src`)               → loaded directly (or via /assets/proxy)
  *   - an IconElement's iconRef          → resolved to a lucide SVG string
  *     (reusing the exporter's resolveIconSvg/styleIconSvg so canvas and export
  *     match), recoloured, then turned into a data-URI image.
@@ -12,25 +12,91 @@
 import { useEffect, useState } from 'react';
 import type { IconElement } from '@brandflow/design-schema';
 import { resolveIconSvg, styleIconSvg } from '@brandflow/exporters/icons';
+import { getAccessToken, getActiveClientId } from '../../lib/api';
+import { assetProxyUrl } from './assetTypes';
 
 const cache = new Map<string, HTMLImageElement>();
+
+function needsProxyHost(url: string): boolean {
+  if (!url.startsWith('http://') && !url.startsWith('https://')) return false;
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return (
+      host.includes('pollinations') ||
+      host.includes('dicebear') ||
+      host.includes('openverse') ||
+      host.includes('wikimedia') ||
+      host.includes('wikipedia') ||
+      host.includes('unsplash') ||
+      host.includes('pexels') ||
+      host.includes('pixabay') ||
+      host.includes('iconify') ||
+      host.includes('flickr') ||
+      host.includes('stocksnap') ||
+      host.includes('rawpixel') ||
+      host.includes('nappy') ||
+      host.includes('shopify') ||
+      host.includes('wp.com') ||
+      host.includes('wordpress.com') ||
+      host.includes('cloudfront.net') ||
+      host.includes('googleusercontent') ||
+      host.includes('imgur')
+    );
+  } catch {
+    return false;
+  }
+}
+
+async function fetchAuthedBlobUrl(apiPath: string): Promise<string> {
+  const token = getAccessToken();
+  const res = await fetch(apiPath, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) throw new Error(`Asset fetch ${res.status}`);
+  const blob = await res.blob();
+  return URL.createObjectURL(blob);
+}
+
+async function resolveLoadSrc(src: string): Promise<string> {
+  // Same-origin API paths need the JWT (render + proxy).
+  const isApi =
+    src.startsWith('/api/') ||
+    (typeof window !== 'undefined' && src.startsWith(`${window.location.origin}/api/`));
+  if (isApi) {
+    const path = src.startsWith('http') ? new URL(src).pathname + new URL(src).search : src;
+    return fetchAuthedBlobUrl(path);
+  }
+  // Hotlinked CDNs often block canvas CORS → grey box. Route through our proxy.
+  if (needsProxyHost(src)) {
+    const clientId = getActiveClientId();
+    if (clientId) return fetchAuthedBlobUrl(assetProxyUrl(clientId, src));
+  }
+  return src;
+}
 
 function loadImage(key: string, src: string): Promise<HTMLImageElement> {
   const cached = cache.get(key);
   if (cached) return Promise.resolve(cached);
-  return new Promise((resolve, reject) => {
-    const img = new window.Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      cache.set(key, img);
-      resolve(img);
-    };
-    img.onerror = reject;
-    img.src = src;
-  });
+  return (async () => {
+    const loadSrc = await resolveLoadSrc(src);
+    return new Promise<HTMLImageElement>((resolve, reject) => {
+      const img = new window.Image();
+      // data:/blob: must not set crossOrigin. Remote http(s) may need it for export,
+      // but CORS-blocked CDNs fail — prefer /assets/proxy for those instead.
+      if (loadSrc.startsWith('http://') || loadSrc.startsWith('https://')) {
+        img.crossOrigin = 'anonymous';
+      }
+      img.onload = () => {
+        cache.set(key, img);
+        resolve(img);
+      };
+      img.onerror = () => reject(new Error(`Failed to load image: ${src.slice(0, 80)}`));
+      img.src = loadSrc;
+    });
+  })();
 }
 
-/** Load a photo/image URL. */
+/** Load a photo/image URL. Returns null while loading or on failure. */
 export function useImageSrc(src: string | undefined): HTMLImageElement | null {
   const [image, setImage] = useState<HTMLImageElement | null>(() => (src ? cache.get(src) ?? null : null));
   useEffect(() => {
@@ -47,6 +113,48 @@ export function useImageSrc(src: string | undefined): HTMLImageElement | null {
     };
   }, [src]);
   return image;
+}
+
+export type ImageLoadStatus = 'idle' | 'loading' | 'ready' | 'error';
+
+/** Like useImageSrc but distinguishes loading vs failed (for canvas placeholders). */
+export function useImageSrcStatus(src: string | undefined): {
+  image: HTMLImageElement | null;
+  status: ImageLoadStatus;
+} {
+  const [image, setImage] = useState<HTMLImageElement | null>(() => (src ? cache.get(src) ?? null : null));
+  const [status, setStatus] = useState<ImageLoadStatus>(() =>
+    !src ? 'idle' : cache.has(src) ? 'ready' : 'loading',
+  );
+  useEffect(() => {
+    if (!src) {
+      setImage(null);
+      setStatus('idle');
+      return;
+    }
+    if (cache.has(src)) {
+      setImage(cache.get(src)!);
+      setStatus('ready');
+      return;
+    }
+    let live = true;
+    setStatus('loading');
+    loadImage(src, src)
+      .then((img) => {
+        if (!live) return;
+        setImage(img);
+        setStatus('ready');
+      })
+      .catch(() => {
+        if (!live) return;
+        setImage(null);
+        setStatus('error');
+      });
+    return () => {
+      live = false;
+    };
+  }, [src]);
+  return { image, status };
 }
 
 /** Build a standalone, recoloured SVG data-URI for an icon (viewBox 0 0 24 24,

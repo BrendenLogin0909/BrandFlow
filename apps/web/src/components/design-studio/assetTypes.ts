@@ -20,6 +20,7 @@ export interface AssetLibraryItem {
   id: string;
   type: string;
   provider: string | null;
+  providerId: string | null;
   licence: string | null;
   usageTier: number;
   approved: boolean;
@@ -69,6 +70,7 @@ export function pickFromLibrary(item: AssetLibraryItem): AssetPick | null {
     thumbUrl: item.thumbUrl ?? undefined,
     label: item.filename,
     provider: item.provider ?? 'library',
+    providerId: item.providerId ?? undefined,
     attributionRequired: item.attributionRequired,
     libraryItemId: item.id,
     kind,
@@ -81,4 +83,61 @@ export function attributionLine(pick: AssetPick): string | null {
   if (!pick.attributionRequired) return null;
   const who = pick.creator ? ` by ${pick.creator}` : '';
   return `${pick.label}${who} (${pick.provider})`.slice(0, 200);
+}
+
+/** Canvas-safe URL for bundled illustrations (avoids multi-KB data-URIs that Konva fails to paint). */
+export function assetRenderUrl(
+  clientId: string,
+  provider: string,
+  providerId: string,
+  hue = '#4f46e5',
+): string {
+  const q = new URLSearchParams({ hue });
+  return `/api/clients/${clientId}/assets/render/${provider}/${encodeURIComponent(providerId)}?${q}`;
+}
+
+/** Same-origin proxy for remote CDN images (Pollinations etc.) — avoids CORS grey boxes. */
+export function assetProxyUrl(clientId: string, remoteUrl: string): string {
+  return `/api/clients/${clientId}/assets/proxy?url=${encodeURIComponent(remoteUrl)}`;
+}
+
+function needsProxy(url: string): boolean {
+  if (!url.startsWith('http://') && !url.startsWith('https://')) return false;
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return (
+      host.includes('pollinations') ||
+      host.includes('dicebear') ||
+      host.includes('openverse') ||
+      host.includes('wikimedia') ||
+      host.includes('wikipedia') ||
+      host.includes('unsplash') ||
+      host.includes('pexels') ||
+      host.includes('pixabay') ||
+      host.includes('iconify') ||
+      host.includes('flickr') ||
+      host.includes('stocksnap') ||
+      host.includes('rawpixel') ||
+      host.includes('nappy') ||
+      host.includes('shopify') ||
+      host.includes('wp.com') ||
+      host.includes('wordpress.com') ||
+      host.includes('cloudfront.net') ||
+      host.includes('googleusercontent') ||
+      host.includes('imgur')
+    );
+  } catch {
+    return false;
+  }
+}
+
+/** Prefer render/proxy endpoints so Konva can always paint the asset. */
+export function resolveAssetContentUrl(pick: AssetPick, clientId: string | null, accentHue = '#4f46e5'): string {
+  if (clientId && pick.provider === 'undraw' && pick.providerId) {
+    return assetRenderUrl(clientId, pick.provider, pick.providerId, accentHue);
+  }
+  if (clientId && needsProxy(pick.contentUrl)) {
+    return assetProxyUrl(clientId, pick.contentUrl);
+  }
+  return pick.contentUrl;
 }

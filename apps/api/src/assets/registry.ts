@@ -36,20 +36,20 @@ export const PROVIDERS: Record<string, ProviderSpec> = {
     id: 'lucide', label: 'Lucide', kinds: ['icon'], licence: 'ISC',
     commercialUse: true, attributionRequired: false, modificationAllowed: true,
     tier: 1, delivery: 'bundled', needsKey: false,
-    notes: 'Bundled (lucide-static). Retain ISC notice in package records.',
+    notes: 'Bundled (lucide-static, ~1500 icons). Searchable via /assets/search?kind=icon. Retain ISC notice in package records.',
   },
   iconify: {
     id: 'iconify', label: 'Iconify', kinds: ['icon'], licence: 'per-set',
     commercialUse: true, attributionRequired: false, modificationAllowed: true,
     tier: 2, delivery: 'hotlink', needsKey: false,
-    notes: 'Aggregates 200+ sets; licence VARIES PER SET — store the set licence per icon. No key for the public API.',
+    notes: 'Public API — 200k+ icons / 200+ sets (no key). Search prefers lucide/tabler/mdi/ph/heroicons/carbon. Licence VARIES PER SET — store set licence on save.',
   },
   // ---- Illustrations (tier 1) ----
   undraw: {
     id: 'undraw', label: 'Flat illustrations', kinds: ['illustration'], licence: 'BrandFlow original (CC0-equivalent, no attribution)',
     commercialUse: true, attributionRequired: false, modificationAllowed: true,
     tier: 1, delivery: 'bundled', needsKey: false,
-    notes: 'Bundled flat single-accent scene illustrations (undraw-manifest.ts), recolourable to a brand hue. Currently ORIGINAL art authored in the unDraw style — not unDraw\'s library — so they are unencumbered and need no attribution. Real unDraw SVGs can be bundled into the same manifest later (its CDN URLs are hashed/unstable, so hotlinking is not an option).',
+    notes: 'Bundled flat single-accent scene illustrations (undraw-manifest.ts), recolourable to a brand hue. ORIGINAL art in the unDraw style (characters, charts, B2B metaphors) — not unDraw\'s library — so unencumbered, no attribution. Expanded for 29FORWARD-style LinkedIn carousels. Do NOT scrape real unDraw/Storyset into this pool (licence forbids competing redistribution).',
   },
   dicebear: {
     id: 'dicebear', label: 'DiceBear', kinds: ['illustration'], licence: 'CC0 / per-style',
@@ -62,7 +62,7 @@ export const PROVIDERS: Record<string, ProviderSpec> = {
     id: 'openverse', label: 'Openverse', kinds: ['photo', 'illustration'], licence: 'CC0 / Public Domain',
     commercialUse: true, attributionRequired: false, modificationAllowed: true,
     tier: 2, delivery: 'hotlink', needsKey: false,
-    notes: 'CC/PD aggregator, no key. We filter to CC0 + Public-Domain-Mark only, so no attribution and commercial-safe; still watch faces/trademarks per item.',
+    notes: 'CC/PD aggregator (millions of works), no key. Filtered to CC0 + Public-Domain-Mark only. Used for photo + illustration search. Watch faces/trademarks per item.',
   },
   wikimedia: {
     id: 'wikimedia', label: 'Wikimedia Commons', kinds: ['photo', 'illustration'], licence: 'PD / CC (varies)',

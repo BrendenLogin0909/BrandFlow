@@ -4,6 +4,7 @@ import { primarySelectedElement } from './document-mutations';
 
 export interface DesignStudioAssetToolbarProps extends DesignStudioBindings {
   insertMode: boolean;
+  pendingInsertLabel?: string | null;
   onInsertModeChange: (on: boolean) => void;
   onReplaceImage: () => void;
   onInsertImage: () => void;
@@ -13,6 +14,7 @@ export function DesignStudioAssetToolbar({
   document: doc,
   selectedIds,
   insertMode,
+  pendingInsertLabel,
   onInsertModeChange,
   onReplaceImage,
   onInsertImage,
@@ -50,7 +52,9 @@ export function DesignStudioAssetToolbar({
         )}
       </div>
       {insertMode && (
-        <p className="text-[10px] text-indigo-700">Pick an asset, then click the canvas to place it.</p>
+        <p className="rounded bg-indigo-50 px-2 py-1 text-[10px] text-indigo-800">
+          Click the canvas to place “{pendingInsertLabel ?? 'image'}”.
+        </p>
       )}
     </div>
   );

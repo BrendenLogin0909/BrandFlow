@@ -1,7 +1,9 @@
 # BrandFlow — Project Status & Handoff
 
 **Living document. Update this at the end of every work session.**
-Last updated: 2026-07-08
+Last updated: 2026-08-24 (asset-expansion work from the July Cursor session
+reviewed, completed — typecheck fixes, library `providerId` fix — verified
+end-to-end in the browser, and committed by the coordinating agent)
 
 This is the single source of truth for *current state*. The numbered docs
 (01–16) are the *design/spec*; this file records what is actually built,
@@ -73,14 +75,22 @@ vendor-neutral internal design schema, and a licence-aware free-asset stack.
 ## 5. Free asset stack (licence-aware whitelist — NOT web search)
 
 `apps/api/src/assets/registry.ts` (`PROVIDERS`, tiers 1/2/3, `AVOID_BY_DEFAULT`)
-+ `providers.ts` (adapters). **Live with no keys:** Lucide (bundled icons),
-Iconify (icon search), DiceBear (figures), **flat illustration pack**
-(22 bundled recolourable scenes, `undraw-manifest.ts`), **Openverse** (CC0/PDM
-photos), Wikimedia (PD, review-tier), **Pollinations** (free AI image gen).
-**Key-gated (light up when env key set):** Unsplash/Pexels/Pixabay stock,
-OpenAI images. Every asset stores full provenance; tier-1 auto-usable,
-tier 2–3 need a human tick. `AssetLibraryItem.clientCompanyId = null` = shared
-pool reusable across clients.
++ `providers.ts` (adapters). **Live with no keys (thousands+ searchable):**
+- **Lucide** (~1.5k ISC icons, bundled + searchable)
+- **Iconify** public API (~200k icons across preferred open sets)
+- **DiceBear** (figures / Open Peeps, unlimited seeds)
+- **Flat illustration pack** (307 bundled recolourable scenes —
+  characters, charts, B2B metaphors — `undraw-manifest*.ts`)
+- **Openverse** (CC0/PDM photos + illustrations, millions)
+- Wikimedia (PD, review-tier), **Pollinations** (AI, secondary)
+**Key-gated:** Unsplash/Pexels/Pixabay when env keys set.
+`GET /assets/catalog` exposes pool sizes to the UI. AssetPicker + Asset Library
+default to illustration search and return up to 48 hits. Compose
+(`design_freeform@4` + `resolveImages`) prefers flat scenes for people/charts.
+
+**Do not** scrape unDraw/Storyset into the pool (licence blocks competing
+redistribution). Optional: self-host Open Peeps/Humaaans CC0 parts (backlog 4f);
+photo API keys (4b).
 
 ## 6. Key architectural invariants (do not break)
 
@@ -172,7 +182,7 @@ pool reusable across clients.
 
 See **[docs/16-backlog.md](16-backlog.md)** for the full parked list. Highest-value next:
 1. ✅ **Google Fonts** in the playground — DONE. 30-family curated catalog in `packages/design-schema/src/fonts.ts` (shared source of truth), grouped picker (system + sans/serif/display/mono), selected families live-loaded via an injected `<link>`, and the SVG exporter embeds a portable `@import` so standalone `.svg` files render in-font. Free, no key. **PPTX caveat:** PowerPoint substitutes the family name if the font isn't installed locally (webfonts can't embed into PPTX without the binary).
-2. ✅ **Flat illustration pack** — DONE (backlog item 4). 22 bundled recolourable flat scene illustrations in `apps/api/src/assets/undraw-manifest.ts`, served by the `searchUndraw` adapter (tier 1, no key, `#6c63ff`→brand-hue recolour, data-URI delivery). **Honest caveat:** the agent could NOT fetch real unDraw art (its CDN URLs are hashed/unstable), so these are **original hand-authored** scenes in the unDraw style — unencumbered, no attribution. Registry `undraw` entry relabelled "Flat illustrations" to reflect this; real unDraw SVGs can be dropped into the same manifest later.
+2. ✅ **Flat illustration pack** — DONE + expanded (backlog item 4). 307 bundled recolourable flat scenes (56 core in `apps/api/src/assets/undraw-manifest.ts` + generated extras in `undraw-manifest-extra*.ts`, regenerable via `generate-undraw-extra*.mjs`), `searchUndraw` + `design_freeform@4` illustration-first compose, covered by `undraw-manifest.test.ts`. Original art only — do not scrape unDraw/Storyset. Optional richer CC0 character packs: backlog 4f.
 3. ✅ **Attribution rendering on export** — DONE (backlog item 4c). `attributions` is now an optional field on `InternalDesignDocument`; `resolveImages` attaches credits to the doc so they persist through save/reopen/export; SVG + PPTX exporters render a credits line, and the playground shows an "Asset credits" panel.
 4. **Customer logo/photo upload** → StoragePort/MinIO → feeds logo-top-left motif.
 5. ✅ **Manual asset insert in playground** — DONE (Agent 6). AssetPicker + insert/replace + icon swap on `/playground` when signed in.

@@ -171,7 +171,7 @@ export function DesignCanvas(props: DesignCanvasProps) {
       const target = e.target;
       if (target === stageRef.current || target.name() === '__background__') {
         const stage = stageRef.current;
-        if (stage && onPageClick) {
+        if (insertMode && stage && onPageClick) {
           const pointer = stage.getPointerPosition();
           if (pointer) {
             const pageX = (pointer.x - stagePos.x) / scale;
@@ -184,7 +184,7 @@ export function DesignCanvas(props: DesignCanvasProps) {
         if (selectedIds.length) onSelectionChange([]);
       }
     },
-    [selectedIds, onSelectionChange, onPageClick, stagePos, scale, canvas.width, canvas.height],
+    [selectedIds, onSelectionChange, onPageClick, stagePos, scale, canvas.width, canvas.height, insertMode],
   );
 
   const fireFirstEdit = useCallback(() => {

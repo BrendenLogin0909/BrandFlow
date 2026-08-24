@@ -48,15 +48,23 @@ const TIER_LABEL: Record<number, { text: string; cls: string }> = {
 
 export function AssetLibraryPage() {
   const queryClient = useQueryClient();
-  const [kind, setKind] = useState<Kind>('icon');
+  const [kind, setKind] = useState<Kind>('illustration');
   const [q, setQ] = useState('');
+  const [aiPrompt, setAiPrompt] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
   const [shareNext, setShareNext] = useState(false);
 
   const { data: providers } = useQuery({
     queryKey: ['asset-providers'],
     queryFn: () => clientApi<{ id: string; label: string; kinds: string[]; needsKey: boolean; tier: number }[]>('/assets/providers'),
+  });
+  const { data: catalog } = useQuery({
+    queryKey: ['assets-catalog'],
+    queryFn: () =>
+      clientApi<{ pools: { id: string; label: string; approx: number | null; kind: string }[] }>('/assets/catalog'),
   });
   const { data: library } = useQuery({
     queryKey: ['assets'],
@@ -65,11 +73,36 @@ export function AssetLibraryPage() {
 
   async function search() {
     setSearching(true);
+    setAiError(null);
     try {
-      const res = await clientApi<{ results: SearchResult[] }>(`/assets/search?kind=${kind}&q=${encodeURIComponent(q)}&limit=16`);
+      const res = await clientApi<{ results: SearchResult[] }>(
+        `/assets/search?kind=${kind}&q=${encodeURIComponent(q)}&limit=48`,
+      );
       setResults(res.results);
     } finally {
       setSearching(false);
+    }
+  }
+
+  async function generate() {
+    const prompt = aiPrompt.trim();
+    if (prompt.length < 20) {
+      setAiError('Add more detail (at least 20 characters): subject, style, mood, setting.');
+      return;
+    }
+    setGenerating(true);
+    setAiError(null);
+    try {
+      const res = await clientApi<{ results: SearchResult[] }>('/assets/generate', {
+        method: 'POST',
+        body: JSON.stringify({ prompt, count: 1, shared: shareNext }),
+      });
+      setResults(res.results);
+      void queryClient.invalidateQueries({ queryKey: ['assets'] });
+    } catch (e) {
+      setAiError(e instanceof Error ? e.message : 'Generation failed');
+    } finally {
+      setGenerating(false);
     }
   }
 
@@ -104,6 +137,18 @@ export function AssetLibraryPage() {
       <p className="mt-1 text-sm text-slate-500">
         Search free, licence-safe providers and save the keepers. Saved assets feed the AI compose
         tool. Tier-1 assets are auto-usable; tier 2–3 need your approval first.
+        {catalog?.pools?.length ? (
+          <>
+            {' '}
+            Live pools:{' '}
+            {catalog.pools
+              .filter((p) => p.approx)
+              .slice(0, 5)
+              .map((p) => `${p.label} (~${Number(p.approx).toLocaleString()})`)
+              .join(' · ')}
+            .
+          </>
+        ) : null}
       </p>
 
       {/* search */}
@@ -113,18 +158,22 @@ export function AssetLibraryPage() {
             <button key={k}
               className={`rounded-md px-3 py-1.5 text-sm font-medium ${kind === k ? 'bg-indigo-600 text-white' : 'border border-slate-300 text-slate-600 hover:bg-slate-50'}`}
               onClick={() => setKind(k)}>
-              {k === 'illustration' ? 'figures' : k === 'ai' ? '✨ generate' : `${k}s`}
+              {k === 'illustration' ? 'illustrations' : k === 'ai' ? 'AI (saved)' : `${k}s`}
             </button>
           ))}
         </div>
-        <input className="min-w-64 flex-1 rounded border border-slate-300 px-3 py-1.5 text-sm"
-          placeholder={kind === 'photo' ? 'e.g. team celebrating' : kind === 'ai' ? 'describe the image to generate…' : kind === 'illustration' ? 'e.g. developer working' : 'e.g. trophy, rocket, target'}
-          value={q} onChange={(e) => setQ(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && search()} />
-        <button className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
-          disabled={searching} onClick={search}>
-          {searching ? (kind === 'ai' ? 'Generating…' : 'Searching…') : kind === 'ai' ? 'Generate' : 'Search'}
-        </button>
+        {kind !== 'ai' && (
+          <>
+            <input className="min-w-64 flex-1 rounded border border-slate-300 px-3 py-1.5 text-sm"
+              placeholder={kind === 'photo' ? 'e.g. team celebrating' : kind === 'illustration' ? 'e.g. developer working' : 'e.g. trophy, rocket, target'}
+              value={q} onChange={(e) => setQ(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && search()} />
+            <button className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+              disabled={searching} onClick={search}>
+              {searching ? 'Searching…' : 'Search'}
+            </button>
+          </>
+        )}
         <label className="flex items-center gap-1.5 text-xs text-slate-500">
           <input type="checkbox" checked={shareNext} onChange={(e) => setShareNext(e.target.checked)} />
           save to shared pool (all clients)
@@ -138,9 +187,37 @@ export function AssetLibraryPage() {
         </div>
       )}
       {kind === 'ai' && (
-        <div className="mt-3 rounded border border-slate-200 bg-slate-50 p-2 text-xs text-slate-500">
-          Free, no-key AI generation (Pollinations, open models). Describe any image; save the ones
-          you like to reuse across designs — and, if you tick “shared”, across clients.
+        <div className="mt-3 space-y-2 rounded border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+          <p className="font-semibold">Generate with AI (uses API credits)</p>
+          <p>
+            This tab lists <strong>already saved</strong> AI images — opening it does not spend credits.
+            To create new ones, write a detailed prompt (≥20 chars) and click Generate (1 image, auto-saved).
+          </p>
+          <textarea
+            className="w-full rounded border border-amber-300 bg-white px-2 py-1.5 text-sm text-slate-800"
+            rows={3}
+            placeholder="e.g. Flat vector illustration of a QA engineer at a laptop finding a bug, soft purple accent, LinkedIn carousel style, no text"
+            value={aiPrompt}
+            onChange={(e) => setAiPrompt(e.target.value)}
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+              disabled={generating || aiPrompt.trim().length < 20}
+              onClick={() => void generate()}
+            >
+              {generating ? 'Generating…' : 'Generate 1 image'}
+            </button>
+            <button
+              className="rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-white"
+              disabled={searching}
+              onClick={() => void search()}
+            >
+              Refresh saved
+            </button>
+            <span className="text-[10px] text-amber-800">{aiPrompt.trim().length}/20+ characters</span>
+          </div>
+          {aiError && <p className="text-red-600">{aiError}</p>}
         </div>
       )}
 

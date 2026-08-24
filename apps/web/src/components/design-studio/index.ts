@@ -38,6 +38,7 @@ export { DesignStudioAssetToolbar } from './DesignStudioAssetToolbar';
 export type { AssetPick } from './assetTypes';
 export {
   insertImageOnPage,
+  lastInsertedImageId,
   replaceImageWithAsset,
   replaceIconWithName,
 } from './assetDocumentOps';

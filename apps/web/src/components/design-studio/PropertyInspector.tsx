@@ -1,6 +1,7 @@
-import type { BrandTokensSnapshot, Element, TextElement } from '@brandflow/design-schema';
-import { GOOGLE_FONTS, WEB_SAFE_FONTS } from '@brandflow/design-schema';
+import type { BrandTokensSnapshot, Element, ImageElement, TextElement } from '@brandflow/design-schema';
+import { GOOGLE_FONTS, WEB_SAFE_FONTS, resolveColour } from '@brandflow/design-schema';
 import { BrandColourPicker } from './BrandColourPicker';
+import { updateBundledImageAccent } from './assetDocumentOps';
 import type { DesignStudioBindings } from './studio-props';
 import { activePageFromBindings } from './studio-props';
 import {
@@ -144,17 +145,55 @@ export function PropertyInspector({
       )}
 
       {el.type === 'image' && (
-        <label className="block text-xs">
-          Corner radius
-          <input
-            type="number"
-            min={0}
-            className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1"
-            value={el.cornerRadius}
-            disabled={el.locked}
-            onChange={(e) => patch({ ...el, cornerRadius: Math.max(0, Number(e.target.value)) })}
-          />
-        </label>
+        <>
+          <label className="block text-xs">
+            Fit
+            <select
+              className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1"
+              value={el.fit}
+              disabled={el.locked}
+              onChange={(e) =>
+                patch({ ...el, fit: e.target.value as ImageElement['fit'] })
+              }
+            >
+              <option value="contain">contain (illustrations)</option>
+              <option value="cover">cover (photos)</option>
+              <option value="fill">fill</option>
+            </select>
+          </label>
+          {el.meta?.assetProvider === 'undraw' && (
+            <div className="space-y-1">
+              <div className="text-xs text-slate-600">Illustration accent</div>
+              <BrandColourPicker
+                colours={doc.brandTokens.colours}
+                allowRawOverride
+                value={{
+                  kind: 'raw',
+                  hex: (el.meta.assetAccent as string) ?? doc.brandTokens.colours.accent,
+                  allowedOverride: true,
+                }}
+                onChange={(colour) => {
+                  const hex =
+                    (colour.kind === 'token' ? resolveColour(colour, doc) : colour.hex) ??
+                    doc.brandTokens.colours.accent ??
+                    '#4f46e5';
+                  onDocumentChange(updateBundledImageAccent(doc, el.id, hex));
+                }}
+              />
+            </div>
+          )}
+          <label className="block text-xs">
+            Corner radius
+            <input
+              type="number"
+              min={0}
+              className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1"
+              value={el.cornerRadius}
+              disabled={el.locked}
+              onChange={(e) => patch({ ...el, cornerRadius: Math.max(0, Number(e.target.value)) })}
+            />
+          </label>
+        </>
       )}
 
       <ActionButtons

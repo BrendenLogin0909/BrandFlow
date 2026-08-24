@@ -186,7 +186,7 @@ ${JSON.stringify(input)}`;
     },
   }),
   design_freeform: template({
-    version: 'design_freeform@3',
+    version: 'design_freeform@4',
     jsonSchema: {
       type: 'object',
       properties: {
@@ -214,22 +214,33 @@ ${JSON.stringify(input)}`;
     render: (input) =>
       `You are an award-winning social media art director. Design an ORIGINAL, visually rich LinkedIn graphic for the content below. You control the entire composition: placement, sizes, layering, colour blocking, decorative motifs.
 
+## Visual benchmark (memorise)
+Match the craft of bold B2B LinkedIn carousels like 29FORWARD Australia: TWO-TONE headlines, FLAT CARTOON CHARACTER illustrations as the hero visual, layered colour blocks, and charts when numbers matter. Do NOT default to a lonely Lucide icon as the hero — that looks sparse and template-y.
+
 ## Element types (exact JSON shapes)
 - TEXT: {"type":"text","text":"...","frame":{"x":0,"y":0,"width":0,"height":0,"rotation":0},"fontFamily":"<heading-or-body font>","fontSize":48,"fontWeight":800,"lineHeight":1.15,"align":"left|center|right","colour":{"kind":"token","token":"text"},"zIndex":5,"roleHint":"headline|subheadline|body|caption|cta|badge|data|decoration"}
-- ICON (line artwork, any size — these are your illustrations): {"type":"icon","iconRef":{"provider":"lucide","name":"trophy"},"frame":{...},"colour":{"kind":"token","token":"accent"},"strokeWidth":1.5,"zIndex":3,"roleHint":"icon|decoration"}
+- IMAGE (PREFERRED hero visual — a licensed flat illustration or photo is fetched for you): {"type":"image","frame":{...},"fit":"contain","cornerRadius":16,"isPlaceholder":true,"imageQuery":"<2-5 word subject>","zIndex":3,"roleHint":"image"} — ALWAYS include imageQuery. Use fit "contain" for illustrations (characters/scenes/charts); "cover" only for photos.
+- ICON (supporting symbols only, NOT the main hero): {"type":"icon","iconRef":{"provider":"lucide","name":"trophy"},"frame":{...},"colour":{"kind":"token","token":"accent"},"strokeWidth":1.5,"zIndex":3,"roleHint":"icon|decoration"}
 - SHAPE: {"type":"shape","shape":"rect|ellipse|line|triangle|arrow","frame":{...},"fill":{"kind":"token","token":"primary"},"cornerRadius":24,"zIndex":1,"roleHint":"decoration|badge"} (arrow points right; rotate the frame for other directions; opacity 0.06-0.15 on big shapes makes soft background blobs)
 - CHART (real data viz): {"type":"chart","chartType":"bar|donut|progress|stat","data":[{"label":"Before","value":38},{"label":"After","value":82}],"palette":[{"category":"colour","token":"primary"},{"category":"colour","token":"accent"}],"frame":{...},"zIndex":4}
-- IMAGE (a real photo/illustration is fetched from the licensed asset library and dropped in for you): {"type":"image","frame":{...},"fit":"cover","cornerRadius":24,"isPlaceholder":true,"imageQuery":"<2-4 word subject, e.g. 'team celebrating win' or 'runner crossing finish line'>","zIndex":2,"roleHint":"image"} — ALWAYS include imageQuery describing the photo you want; use images for human/scene moments and icons for symbols.
 
-## Composition craft (this is what separates you from a template)
-- Build ILLUSTRATION SCENES from icons: ONE hero icon at 240-380px, strokeWidth 1.25-1.75, in a STRONG colour (token primary on light areas; token background when sitting on a filled primary/text panel or ellipse). Support it with 2-4 icons at 64-120px around it. Never draw hero icons in pale/accent-on-light — they must pop. Example scene: "winning" = 320px trophy in primary on a soft accent ellipse, medal + flag at 90px beside it, 5-8 small accent dots (10-16px ellipses) as confetti.
+## imageQuery vocabulary (the asset pipeline matches these keywords)
+Pick queries from this vocabulary so the right flat illustration is found:
+- People/characters: "qa tester bug", "developer coding", "team huddle", "person thinking", "person celebrating", "person presenting", "manager pointing", "mentor coaching", "data analyst", "diverse team", "customer support", "remote worker", "person stressed", "two people debate"
+- Charts/process: "growth chart", "funnel chart", "before after bars", "maturity ladder", "process flow", "kpi gauge", "analytics dashboard", "timeline milestones", "comparison scales", "warning alert"
+- Metaphors: "rocket launch", "bright idea", "secure shield", "handshake deal", "bridge gap", "broken chain", "target goal", "checklist", "connected network", "audience reach"
+You may combine 2-4 words (e.g. "team celebrating win", "qa root cause"). Prefer character/scene queries over abstract nouns.
+
+## Composition craft
+- HERO = IMAGE: every cover/key page should place ONE large illustration image (420-560px wide, fit contain) as the visual anchor — usually a flat character or scene. Soft accent ellipse or colour panel behind it. Support with 1-3 small Lucide icons (48-96px) and accent dots — icons are garnish, not the main art.
 - TWO-TONE HEADLINES: two text elements STACKED WITHOUT OVERLAP — element 2's frame.y MUST equal element 1's frame.y + element 1's frame.height (they share x and width; line 1 token text, line 2 token primary).
-- NO TEXT OVERLAPS ANYTHING: every text frame must be at least 16px clear of every other text/icon frame; when text sits on a busy area, put an opaque rect panel (zIndex below the text) behind it.
+- NO TEXT OVERLAPS ANYTHING: every text frame must be at least 16px clear of every other text/icon/image frame; when text sits on a busy area, put an opaque rect panel (zIndex below the text) behind it.
 - Use ARROWS and LINES to connect ideas (before -> after, problem -> fix); rotate arrows via frame.rotation.
-- Use CHARTS whenever numbers appear — a bar pair for before/after, donut for a share, progress for a percentage, stat for one big number.
+- Use CHART elements whenever concrete numbers appear — bar for before/after, donut for a share, progress for a percentage, stat for one big number. You may ALSO place an IMAGE with a chart-themed imageQuery as a decorative metaphor beside real chart data.
 - COLOUR-BLOCK the canvas: full-width bands, corner panels or diagonal rects (rotation ±6) in primary/accent behind sections; put text ON these blocks with contrasting token colours.
 - Numbered chips (small accent circles + white numeral) for list points; badge pills (rounded rect + short uppercase text) for labels like "GUIDE" or "NEW".
-- Aim for 14-30 elements per page with deliberate zIndex layering (background blobs 0-1, panels 2, illustration 3-5, text 6+). Vary alignment per page: left-anchored, centred hero, split halves, diagonal flow.
+- Aim for 14-30 elements per page with deliberate zIndex layering (background blobs 0-1, panels 2, illustration/image 3-5, text 6+). Vary alignment per page: left-anchored, centred hero, split halves, diagonal flow.
+- Carousel variety: cover = character illustration + two-tone headline; middle pages = chart/process or list; closing = CTA + metaphor illustration.
 
 ## Hard rules (violations are rejected and cost a retry)
 - Colours ONLY as {"kind":"token","token":"primary|secondary|accent|neutral|background|text"}. Raw hex is forbidden.
@@ -241,10 +252,11 @@ ${JSON.stringify(input)}`;
 - Token neutral is for hairlines and small dividers only — big panels and bands use primary, text or accent (soft versions via opacity 0.06-0.15), never large grey slabs.
 - Canvas: square 1080x1080, portrait 1080x1350 (best for feeds), landscape 1200x627. Coordinates are absolute pixels.
 - Icon names must be real lucide names (e.g. trophy, rocket, target, flag, medal, users, brain, bug, shield-check, trending-up, alert-triangle, lightbulb, check-circle-2, x-circle, arrow-right, bar-chart-3, clock, zap, route, layers).
+- At least ONE image placeholder with imageQuery on every page that is not a pure text/list slide. Cover pages MUST have a character or scene imageQuery.
 
 ## Worked example of the expected level (structure only — NEVER copy it)
-Page "Cover": background token background; big soft accent ellipse (700px, opacity 0.10) top-right, zIndex 0; kicker badge pill top-left; two-tone headline upper third ("WORLD'S GREATEST" in text + "TEST TEAM" in primary, 84px); hero scene centre-right: trophy icon 300px in accent on a primary ellipse panel, medal 90px and flag 80px flanking it, three 14px accent dots as confetti; bottom-left panel: rect primary, 5 numbered chips with short lines "5 moves to win the race"; arrow from panel pointing to the trophy.
-Page "Data": diagonal primary band behind the top; headline; bar chart Before/After centre-left; two arrows pointing left and right to icon+caption pairs; progress chart 78% lower right; CTA pill bottom.
+Page "Cover": background token background; soft accent ellipse (700px, opacity 0.10) top-right; kicker badge; two-tone headline ("STOP BLAMING" + "THE TESTER", 72-84px); HERO IMAGE centre-right 480x360 fit contain imageQuery "qa tester bug"; two small icons (bug, alert-triangle) as garnish; bottom colour band with short supporting line.
+Page "Data": diagonal primary band; headline; bar chart Before/After; IMAGE imageQuery "maturity ladder" beside it; numbered chips; CTA pill.
 
 Now design for:
 ${JSON.stringify(input)}`,

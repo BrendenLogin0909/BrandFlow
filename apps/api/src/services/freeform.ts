@@ -184,20 +184,33 @@ export async function resolveImages(doc: InternalDesignDocument): Promise<string
       }
   if (placeholders.length === 0) return attributions;
 
-  const HUMAN = /\b(person|people|team|figure|man|woman|men|women|character|avatar|engineer|worker|founder|ceo|employee|customer|portrait|face|hero|professional|developer|designer|manager|leader|staff|colleague|human)\b/i;
+  // Prefer flat illustrations for people AND for B2B scene/chart metaphors —
+  // photos are a fallback. Matches the 29FORWARD-style LinkedIn benchmark.
+  const ILLUSTRATION_FIRST =
+    /\b(person|people|team|figure|man|woman|men|women|character|avatar|engineer|worker|founder|ceo|employee|customer|portrait|face|hero|professional|developer|designer|manager|leader|staff|colleague|human|tester|qa|analyst|mentor|coach|cartoon|illustration|scene|chart|graph|funnel|gauge|ladder|process|workflow|bug|rocket|shield|trophy|celebration|meeting|presentation|dashboard|metrics|kpi|growth|idea|checklist|network|handshake|megaphone|warning|alert|timeline|comparison|before.?after|maturity)\b/i;
   const seen = new Set<string>();
+  // Prefer bundled flat scenes (undraw) over avatar APIs / stock when both match.
+  const rank = (r: { provider: string; usageTier: number }) =>
+    (r.provider === 'undraw' ? 0 : r.provider === 'dicebear' ? 1 : 2) * 10 + r.usageTier;
+
   await Promise.all(
     placeholders.map(async ({ el, query }) => {
       try {
-        const wantsFigure = HUMAN.test(query);
-        // primary search; for human subjects prefer illustrations (DiceBear
-        // always available), otherwise real photos (Openverse/Wikimedia are
-        // no-key, so scenes resolve even without stock API keys)
-        let results = await searchAssets({ kind: wantsFigure ? 'illustration' : 'photo', query, limit: 6 });
+        const wantsIllustration = ILLUSTRATION_FIRST.test(query);
+        let results = await searchAssets({
+          kind: wantsIllustration ? 'illustration' : 'photo',
+          query,
+          limit: 8,
+        });
         if (results.length === 0)
-          results = await searchAssets({ kind: wantsFigure ? 'photo' : 'illustration', query, limit: 6 });
+          results = await searchAssets({
+            kind: wantsIllustration ? 'photo' : 'illustration',
+            query,
+            limit: 8,
+          });
         // final fallback: free no-key AI generation — never leave a grey box
         if (results.length === 0) results = await searchAssets({ kind: 'ai', query, limit: 1 });
+        results = [...results].sort((a, b) => rank(a) - rank(b));
         const pick = results.find((r) => r.usageTier <= 2 && !seen.has(r.contentUrl));
         if (!pick) return; // no licensed asset available → leave editable placeholder
         seen.add(pick.contentUrl);

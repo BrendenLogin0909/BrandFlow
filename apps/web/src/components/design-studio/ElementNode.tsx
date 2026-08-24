@@ -25,7 +25,7 @@ import type {
 } from '@brandflow/design-schema';
 import { fontStack } from '@brandflow/design-schema';
 import { colourHex, fillProps } from './paint';
-import { useIconImage, useImageSrc } from './useAssetImage';
+import { useIconImage, useImageSrcStatus } from './useAssetImage';
 
 export interface ElementNodeProps {
   element: Element;
@@ -260,7 +260,7 @@ function IconContent({ el, doc }: { el: IconElement; doc: InternalDesignDocument
 // ---------- image ----------
 
 function ImageContent({ el, doc }: { el: ImageElement; doc: InternalDesignDocument }) {
-  const image = useImageSrc(el.src);
+  const { image, status } = useImageSrcStatus(el.src);
   const w = el.frame.width;
   const h = el.frame.height;
   const border = el.borderColour
@@ -268,9 +268,23 @@ function ImageContent({ el, doc }: { el: ImageElement; doc: InternalDesignDocume
     : {};
 
   if (!image) {
-    // placeholder rectangle, matching the exporter's grey box
+    const fill = status === 'loading' ? '#e0e7ff' : '#e5e7eb';
+    const label =
+      status === 'loading' ? 'Loading…' : status === 'error' ? 'Image failed to load' : 'No image';
     return (
-      <Rect x={0} y={0} width={w} height={h} cornerRadius={el.cornerRadius} fill="#e5e7eb" {...border} listening={false} />
+      <Fragment>
+        <Rect x={0} y={0} width={w} height={h} cornerRadius={el.cornerRadius} fill={fill} {...border} listening={false} />
+        <Text
+          x={8}
+          y={h / 2 - 8}
+          width={Math.max(0, w - 16)}
+          text={label}
+          align="center"
+          fontSize={12}
+          fill="#64748b"
+          listening={false}
+        />
+      </Fragment>
     );
   }
   const fit = fitImage(image.width, image.height, w, h, el.fit);
