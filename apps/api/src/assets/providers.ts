@@ -236,12 +236,20 @@ function keywordScore(hay: string, term: string, title: string, slug: string): n
  * the Open Peeps character pack) share this scorer so ranking stays consistent
  * and neither pack dumps unrelated scenes on a miss.
  */
+/** Fallback when no brand colour is supplied (bundled packs' own accent). */
+export const DEFAULT_PACK_HUE = '#4f46e5';
+/** Accept only a full #rrggbb hex; anything else falls back to the pack default. */
+const HEX6 = /^#[0-9a-fA-F]{6}$/;
+export function normaliseHue(hue: string | undefined): string {
+  return hue && HEX6.test(hue) ? hue : DEFAULT_PACK_HUE;
+}
+
 function searchBundledPack(
   manifest: readonly { slug: string; title: string; keywords: string[]; svg: string }[],
   spec: ProviderSpec,
   q: string,
   limit: number,
-  brandHue = '#4f46e5',
+  brandHue = DEFAULT_PACK_HUE,
 ): AssetSearchResult[] {
   const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
   const scored = manifest.map((e) => {
@@ -279,11 +287,11 @@ function searchBundledPack(
   });
 }
 
-const searchUndraw = (q: string, limit: number, brandHue = '#4f46e5') =>
+const searchUndraw = (q: string, limit: number, brandHue = DEFAULT_PACK_HUE) =>
   searchBundledPack(UNDRAW_MANIFEST, PROVIDERS.undraw!, q, limit, brandHue);
 
 /** Open Peeps character scenes (CC0 art, bundled) — the preferred people pool. */
-const searchOpenpeeps = (q: string, limit: number, brandHue = '#4f46e5') =>
+const searchOpenpeeps = (q: string, limit: number, brandHue = DEFAULT_PACK_HUE) =>
   searchBundledPack(OPENPEEPS_MANIFEST, PROVIDERS.openpeeps!, q, limit, brandHue);
 
 // ---------- Pexels (photos, key-gated) ----------
@@ -548,6 +556,12 @@ export interface SearchOptions {
   kind: AssetKind;
   query: string;
   limit?: number;
+  /**
+   * Brand colour used to recolour the bundled packs' accent (#6c63ff).
+   * Without it every composed post gets the same default indigo whatever
+   * the brand palette is — see docs/16-backlog.md item A1.
+   */
+  brandHue?: string;
 }
 
 /**
@@ -559,6 +573,8 @@ export async function searchAssets(opts: SearchOptions): Promise<AssetSearchResu
   const limit = Math.min(Math.max(opts.limit ?? 24, 1), 64);
   const q = opts.query.trim();
   const browse = q.length === 0;
+  // Fall back to the packs' own default when no brand colour is supplied.
+  const hue = normaliseHue(opts.brandHue);
   const jobs: Promise<AssetSearchResult[]>[] = [];
 
   if (opts.kind === 'icon') {
@@ -566,8 +582,8 @@ export async function searchAssets(opts: SearchOptions): Promise<AssetSearchResu
     if (!browse) jobs.push(searchIconify(q, limit).catch(() => []));
   }
   if (opts.kind === 'illustration') {
-    jobs.push(Promise.resolve(searchOpenpeeps(q, limit)).catch(() => []));
-    jobs.push(Promise.resolve(searchUndraw(q, limit)).catch(() => []));
+    jobs.push(Promise.resolve(searchOpenpeeps(q, limit, hue)).catch(() => []));
+    jobs.push(Promise.resolve(searchUndraw(q, limit, hue)).catch(() => []));
     if (!browse) jobs.push(Promise.resolve(searchDicebear(q, Math.min(limit, 4))));
     if (!browse) {
       jobs.push(searchOpenverse(q, limit, 'illustration').catch(() => []));

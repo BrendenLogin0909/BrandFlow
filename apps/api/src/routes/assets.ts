@@ -71,7 +71,7 @@ export async function assetRoutes(app: FastifyInstance) {
   /** Live search across available whitelisted providers (Iconify 200k+, Lucide ~1.5k, Openverse CC0, flat pack).
    *  kind=ai does NOT spend credits — it lists previously generated/saved AI assets from the library. */
   app.get('/search', read, async (req) => {
-    const { kind, q, limit } = req.query as { kind?: string; q?: string; limit?: string };
+    const { kind, q, limit, hue } = req.query as { kind?: string; q?: string; limit?: string; hue?: string };
     // The old `as 'icon'` cast narrowed k to 'icon' | 'photo', making the
     // 'illustration'/'texture'/'ai' branches below type errors.
     const k: AssetKind = SEARCHABLE_KINDS.includes(kind as AssetKind) ? (kind as AssetKind) : 'photo';
@@ -116,7 +116,9 @@ export async function assetRoutes(app: FastifyInstance) {
       };
     }
 
-    const results = await searchAssets({ kind: k, query: q ?? '', limit: take });
+    // `hue` recolours the bundled packs to the caller's brand (defaults to the
+    // packs' own accent when absent or malformed).
+    const results = await searchAssets({ kind: k, query: q ?? '', limit: take, brandHue: hue });
     return { results };
   });
 

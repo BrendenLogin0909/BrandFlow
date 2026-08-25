@@ -17,6 +17,7 @@ import type {
 import {
   contrastRatio,
   fitFontSize,
+  measureText,
   parseDesignDocument,
   resolveColour,
   validateDesignDocument,
@@ -101,6 +102,28 @@ export function autoFixFreeform(doc: InternalDesignDocument): InternalDesignDocu
 
   for (const page of doc.pages) {
     const flat = flatten(page.elements);
+
+    // ---- safe-area clamp ----
+    // The model routinely places an element 10-30px past the right margin
+    // (e.g. x=620 + width=380 = 1000 on a 1080 canvas with a 90px margin),
+    // which is a hard validation error. Pull every element back inside the
+    // safe area before fitting text, so narrowing a frame is accounted for
+    // by the overflow pass below rather than fighting it.
+    // Decoration/background may bleed by design, and groups are checked
+    // through their children — both match the validator's own exemptions.
+    const s = page.safeArea;
+    const maxW = doc.canvas.width - s.left - s.right;
+    const maxH = doc.canvas.height - s.top - s.bottom;
+    for (const el of flat) {
+      if (el.roleHint === 'decoration' || el.roleHint === 'background') continue;
+      if (el.type === 'group') continue;
+      const f = el.frame;
+      f.width = Math.min(f.width, maxW);
+      f.height = Math.min(f.height, maxH);
+      f.x = Math.min(Math.max(f.x, s.left), doc.canvas.width - s.right - f.width);
+      f.y = Math.min(Math.max(f.y, s.top), doc.canvas.height - s.bottom - f.height);
+    }
+
     for (const el of flat) {
       if (el.type !== 'text') continue;
 
@@ -127,10 +150,39 @@ export function autoFixFreeform(doc: InternalDesignDocument): InternalDesignDocu
       }
 
       // ---- overflow fix ----
+      // Two stages, because font-stepping alone does not converge: the AI
+      // often allocates a frame too short for the copy at ANY readable size
+      // (e.g. 2 lines needing 44px in a 26px frame), and the old code just
+      // set the minimum size and let the validator flag it — so posts shipped
+      // with errors a human had to fix (docs/16-backlog.md A2).
       const min = MIN_BY_ROLE[el.roleHint ?? 'body'] ?? 14;
-      const fitted = fitFontSize(el.text, el.fontSize, min, el.lineHeight, el.frame.width, el.frame.height);
-      if (fitted !== null && fitted < el.fontSize) el.fontSize = fitted;
-      else if (fitted === null) el.fontSize = min; // validator flags any residue
+      // Step 1: shrink to fit, at 1px granularity (2px could skip a fit).
+      const fitted = fitFontSize(el.text, el.fontSize, min, el.lineHeight, el.frame.width, el.frame.height, 1);
+      if (fitted !== null) {
+        if (fitted < el.fontSize) el.fontSize = fitted;
+        continue;
+      }
+      // Step 2: it cannot fit at the readability floor, so grow the frame
+      // rather than clipping the copy. Growth stays inside the page safe area
+      // (otherwise we would just trade text-overflow for a safe-margins
+      // error), preferring to extend downwards and only shifting upwards when
+      // there is not enough room below.
+      el.fontSize = min;
+      const needed = Math.ceil(measureText(el.text, min, el.lineHeight, el.frame.width, el.letterSpacing).height) + 1;
+      if (needed <= el.frame.height) continue;
+      const top = page.safeArea.top;
+      const bottom = doc.canvas.height - page.safeArea.bottom;
+      const available = bottom - top;
+      if (needed <= available) {
+        el.frame.height = needed;
+        // pull back up if growing pushed it past the safe bottom edge
+        if (el.frame.y + el.frame.height > bottom) el.frame.y = Math.max(top, bottom - el.frame.height);
+      } else {
+        // Genuinely cannot fit even using the full safe height — take all of
+        // it and let the validator report the residue honestly.
+        el.frame.y = top;
+        el.frame.height = available;
+      }
     }
   }
   return doc;
@@ -189,6 +241,12 @@ export async function resolveImages(doc: InternalDesignDocument): Promise<string
   const ILLUSTRATION_FIRST =
     /\b(person|people|team|figure|man|woman|men|women|character|avatar|engineer|worker|founder|ceo|employee|customer|portrait|face|hero|professional|developer|designer|manager|leader|staff|colleague|human|tester|qa|analyst|mentor|coach|cartoon|illustration|scene|chart|graph|funnel|gauge|ladder|process|workflow|bug|rocket|shield|trophy|celebration|meeting|presentation|dashboard|metrics|kpi|growth|idea|checklist|network|handshake|megaphone|warning|alert|timeline|comparison|before.?after|maturity)\b/i;
   const seen = new Set<string>();
+  // Recolour bundled illustrations to THIS brand. Without it every composed
+  // post came back with the packs' default indigo characters/props no matter
+  // what the brand palette was (docs/16-backlog.md A1). Accent is the pack's
+  // own role (it replaces #6c63ff); primary is the fallback for brands that
+  // do not define one.
+  const brandHue = doc.brandTokens.colours.accent || doc.brandTokens.colours.primary;
   // Prefer the bundled CC0 character scenes, then the flat geometric pack, then
   // avatar APIs / stock. Hand-drawn characters are the 29FORWARD-grade hero art.
   const rank = (r: { provider: string; usageTier: number }) =>
@@ -203,12 +261,14 @@ export async function resolveImages(doc: InternalDesignDocument): Promise<string
           kind: wantsIllustration ? 'illustration' : 'photo',
           query,
           limit: 8,
+          brandHue,
         });
         if (results.length === 0)
           results = await searchAssets({
             kind: wantsIllustration ? 'photo' : 'illustration',
             query,
             limit: 8,
+            brandHue,
           });
         // final fallback: free no-key AI generation — never leave a grey box
         if (results.length === 0) results = await searchAssets({ kind: 'ai', query, limit: 1 });
