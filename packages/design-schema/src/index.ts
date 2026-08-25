@@ -1,4 +1,5 @@
 export * from './schema.js';
+export * from './layout-plan.js';
 export * from './validate.js';
 export * from './measure.js';
 export * from './fonts.js';

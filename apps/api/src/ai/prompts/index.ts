@@ -7,12 +7,25 @@
  */
 import type { PipelineStep } from '../../ports/index.js';
 
+/** A rendered image to attach to the user message (vision steps only). */
+export interface PromptImage {
+  /** Raw base64, no data: prefix. */
+  base64: string;
+  mediaType: 'image/png' | 'image/jpeg' | 'image/webp';
+}
+
 export interface PromptTemplate {
   version: string;
   system: string;
   /** JSON Schema for the tool definition (mirrors the step's Zod schema). */
   jsonSchema: Record<string, unknown>;
   render: (input: unknown) => string;
+  /**
+   * Vision templates only: pull the images out of the step input so the
+   * adapter can build a multimodal message. Templates without this stay
+   * text-only and the adapters behave exactly as before.
+   */
+  images?: (input: unknown) => PromptImage[];
 }
 
 const BASE_SYSTEM = `You are BrandFlow's content engine. You work for exactly one brand at a time;
@@ -23,6 +36,19 @@ Always respond via the submit_result tool with JSON matching its schema exactly.
 
 function template(partial: Omit<PromptTemplate, 'system'> & { system?: string }): PromptTemplate {
   return { system: partial.system ?? BASE_SYSTEM, ...partial };
+}
+
+/** One rubric criterion: a 1-5 score plus the one line that justifies it. */
+function criterionSchema(description: string): Record<string, unknown> {
+  return {
+    type: 'object',
+    description,
+    properties: {
+      score: { type: 'integer', minimum: 1, maximum: 5 },
+      note: { type: 'string', maxLength: 200, description: 'One line justifying the score, describing what is actually on the page' },
+    },
+    required: ['score', 'note'],
+  };
 }
 
 export const PROMPT_TEMPLATES: Record<PipelineStep, PromptTemplate> = {
@@ -392,6 +418,189 @@ ${JSON.stringify(req.excerpt, null, 2)}
 
 ## Brand context
 ${JSON.stringify(req.brand)}${retry}`;
+    },
+  }),
+  design_critique: template({
+    version: 'design_critique@1',
+    system: `You are a senior art director reviewing a rendered page. You are looking at a
+picture, not reading code: judge what the eye actually sees. You are honest and specific —
+a vague note like "improve the hierarchy" is worthless and counts as a failure to do the job.
+
+You do not redesign. You name what is wrong and prescribe the smallest set of REGION-LEVEL
+changes that fixes it. You never emit pixel coordinates, font sizes, hex colours or element
+geometry of any kind — regions live on a 12-column x 16-row grid and carry a named type step,
+and those are the only levers you have. A page that is already good gets few or no adjustments;
+inventing changes to look busy makes the page worse.`,
+    jsonSchema: {
+      type: 'object',
+      properties: {
+        scores: {
+          type: 'object',
+          description: 'All seven rubric criteria, scored 1-5, each with a one-line justification',
+          properties: {
+            hierarchy: criterionSchema('One unmistakable focal point; dramatic size contrast, not gradual steps'),
+            alignment: criterionSchema('Everything relates to a shared structure, visible or not'),
+            activeWhitespace: criterionSchema('Generous DELIBERATE emptiness; accidental dead space at the bottom is the failure, not emptiness itself'),
+            restraint: criterionSchema('Few sizes, few colours, consistent spacing'),
+            concept: criterionSchema('A visual idea carrying the message, not decoration beside it'),
+            signatureMove: criterionSchema('Exactly one signature move on the page. Zero is generic, two is noise'),
+            variety: criterionSchema('This page is not structured like the other pages in the set'),
+          },
+          required: ['hierarchy', 'alignment', 'activeWhitespace', 'restraint', 'concept', 'signatureMove', 'variety'],
+        },
+        biggestProblem: {
+          type: 'string',
+          maxLength: 300,
+          description: 'The SINGLE biggest problem with this page, in one concrete sentence. If the page is genuinely good, say so plainly.',
+        },
+        verdict: {
+          type: 'string',
+          enum: ['good', 'generic', 'amateur', 'broken'],
+          description: 'good = restraint AND concept. generic = restraint without concept or signature move. amateur = concept without restraint. broken = unreadable or structurally failed.',
+        },
+        adjustments: {
+          type: 'array',
+          maxItems: 6,
+          description: 'Region-level fixes, most important first. Empty when the page needs no change.',
+          items: {
+            type: 'object',
+            properties: {
+              regionId: { type: 'string', description: 'id of a region listed in the plan below' },
+              action: {
+                type: 'string',
+                enum: ['move', 'resize', 'emphasise', 'deemphasise', 'recolour', 'remove'],
+              },
+              to: {
+                type: 'object',
+                description: 'Target for move/resize/recolour. Grid cells and token names only — never pixels.',
+                properties: {
+                  col: {
+                    type: 'object',
+                    properties: {
+                      start: { type: 'integer', minimum: 1, maximum: 12 },
+                      span: { type: 'integer', minimum: 1, maximum: 12 },
+                    },
+                  },
+                  row: {
+                    type: 'object',
+                    properties: {
+                      start: { type: 'integer', minimum: 1, maximum: 16 },
+                      span: { type: 'integer', minimum: 1, maximum: 16 },
+                    },
+                  },
+                  colour: {
+                    type: 'string',
+                    enum: ['text', 'primary', 'secondary', 'accent', 'neutral', 'background'],
+                  },
+                  align: { type: 'string', enum: ['left', 'center', 'right'] },
+                  emphasis: {
+                    type: 'integer',
+                    minimum: 1,
+                    maximum: 6,
+                    description: 'Type-scale STEP (1 display .. 6 caption), not a font size. Optional: emphasise/deemphasise move one step by default.',
+                  },
+                },
+              },
+              why: { type: 'string', maxLength: 200, description: 'One line: what the eye sees now, and what this fixes' },
+            },
+            required: ['regionId', 'action', 'why'],
+          },
+        },
+      },
+      required: ['scores', 'biggestProblem', 'verdict', 'adjustments'],
+    },
+    images: (input) => {
+      const req = input as { image?: PromptImage };
+      return req.image ? [req.image] : [];
+    },
+    render: (input) => {
+      const req = input as {
+        format?: string;
+        pageIndex?: number;
+        pageCount?: number;
+        purpose?: string;
+        bigIdea?: string;
+        signatureMove?: string;
+        signatureRegionId?: string;
+        background?: string;
+        regions?: unknown[];
+        otherPages?: string[];
+        occupancy?: {
+          coveragePercent: number;
+          topRow: number;
+          bottomRow: number;
+          emptyRowsBelow: number;
+          emptyRowsAbove: number;
+        };
+        renderNotes?: string[];
+      };
+      const page = `page ${(req.pageIndex ?? 0) + 1} of ${req.pageCount ?? 1}`;
+      const notes = req.renderNotes?.length
+        ? `\n## Render caveats — do NOT mark the design down for these
+${req.renderNotes.map((n) => `- ${n}`).join('\n')}`
+        : '';
+      const set = req.otherPages?.length
+        ? `\n## The other pages in this set (for criterion 7 only)
+${req.otherPages.map((p, i) => `- page ${i + 1}: ${p}`).join('\n')}`
+        : '';
+      const occ = req.occupancy
+        ? `\n## Measured coverage — these are FACTS, not impressions. Do not re-estimate them by eye.
+The grid is 16 rows tall. Content occupies rows ${req.occupancy.topRow}-${req.occupancy.bottomRow}, i.e. ${req.occupancy.coveragePercent}% of the page height.
+Empty rows above the content: ${req.occupancy.emptyRowsAbove}. Empty rows below the content: ${req.occupancy.emptyRowsBelow}.
+The target is at least 75% coverage with no accidental dead band.
+${req.occupancy.emptyRowsBelow >= 3 ? `>>> ${req.occupancy.emptyRowsBelow} of 16 rows at the BOTTOM of this page are empty. That is the accidental dead space described above, and it is the failure this pipeline exists to fix. Score criterion 3 accordingly — 2 or lower unless you can point to a specific compositional reason the page ends where it does. Do not describe it as breathing room.` : `Coverage is within tolerance; judge whitespace on how deliberate it looks, not on how much there is.`}`
+        : '';
+
+      return `Critique the rendered page in the image. It is ${page}${req.format ? ` of a ${req.format}` : ''}.
+
+## The rubric — score every criterion 1-5
+
+GOOD (all four are gradeable):
+
+1. **Hierarchy** — one unmistakable focal point; the eye knows what to read first, second, third. Comes from *dramatic* size contrast, not many gradual steps.
+2. **Alignment** — everything relates to a shared structure, visible or not.
+3. **Active whitespace** — generous, *deliberate* emptiness. Note the distinction: the failure in the assessed posts was accidental empty space at the bottom, which reads as unfinished. Intentional negative space around a focal point is the opposite, and is good.
+4. **Restraint** — few sizes, few colours, consistent spacing.
+
+DISTINCTIVE (what stops it being generic):
+
+5. **A concept** — a visual idea carrying the message, not decoration beside it.
+6. **Exactly one signature move per page** — an oversized numeral cropped by the edge, type overlapping an image, a colour block running off-canvas. One. Two is noise.
+7. **Variety across a set** — no two pages in a carousel, and no two posts in a brand's feed, structured alike.
+
+Generic = restraint without concept or signature move. Amateur = concept without restraint.
+
+## What "active whitespace" means here — read this twice
+Do NOT simply demand the page be filled. Emptiness around the focal point is the design working.
+Score criterion 3 DOWN only for space that reads as *accidental*: a dead band across the bottom
+where the content ran out, an orphaned strip beside a column, margins that are unequal by mistake.
+Score it UP for space that is clearly deliberate and doing a job. "Add something to fill the gap"
+is the wrong instinct and is how pages become cluttered — if the bottom is dead, the usual fix is
+to let the focal region grow into it or to re-balance the existing regions, not to add new ones.
+
+## Scoring
+1 = fails badly, 3 = competent but unremarkable, 5 = an art director would ship it unchanged.
+Be willing to give 2s. A page where everything scores 4 tells the pipeline nothing.
+
+## Adjustments — the only edits you may prescribe
+- move {regionId, to:{col,row}} — put the region in different grid cells
+- resize {regionId, to:{col,row}} — change its span
+- emphasise / deemphasise {regionId} — step it one place up or down the type scale (add to.emphasis for a specific step)
+- recolour {regionId, to:{colour}} — a named brand token
+- remove {regionId} — delete the region entirely; use it, clutter is real
+
+The grid is 12 columns across and 16 rows down. col.start/row.start are 1-based.
+NEVER return pixels, font sizes, hex colours, or new regions — you cannot add content, only
+rearrange, re-rank, recolour and delete what is there. At most 6 adjustments; fewer is better.
+If the page is good, return an empty adjustments array and say so in biggestProblem.
+
+## The page plan you are looking at
+concept / big idea: ${req.bigIdea ?? '(not supplied)'}
+page purpose: ${req.purpose ?? '(not supplied)'}
+page background: ${req.background ?? '(not supplied)'}
+intended signature move: ${req.signatureMove ?? '(none declared)'} on region "${req.signatureRegionId ?? '(none)'}"
+regions (id, role, grid cells, type step):
+${JSON.stringify(req.regions ?? [], null, 2)}${occ}${set}${notes}`;
     },
   }),
   compliance_review: template({

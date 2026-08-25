@@ -18,6 +18,7 @@ export type PipelineStep =
   | 'design_fill'
   | 'design_freeform'
   | 'design_patch'
+  | 'design_critique'
   | 'compliance_review'
   | 'accessibility_review';
 
