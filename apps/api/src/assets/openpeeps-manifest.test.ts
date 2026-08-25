@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { OPENPEEPS_MANIFEST } from './openpeeps-manifest.js';
 import { UNDRAW_MANIFEST } from './undraw-manifest.js';
@@ -31,7 +32,8 @@ describe('Open Peeps character pack — structure', () => {
       expect(e.svg, e.slug).toContain('viewBox="0 0 400 300"');
       expect(e.svg.startsWith('<svg'), e.slug).toBe(true);
       expect(e.svg.endsWith('</svg>'), e.slug).toBe(true);
-      // recolour contract: the render route swaps this literal for the brand hue
+      // recolour contract: the render route swaps this literal for the brand hue.
+      // Characters carry no accent any more, so it must come from the props.
       expect(e.svg, e.slug).toContain('#6c63ff');
       // no external references, fonts, scripts or raster payloads
       expect(e.svg, e.slug).not.toMatch(/<image|<text|<script|<foreignObject|<use\b/);
@@ -51,6 +53,60 @@ describe('Open Peeps character pack — structure', () => {
     const total = OPENPEEPS_MANIFEST.reduce((n, e) => n + e.svg.length, 0);
     // Composed at module load from a shared part table — keep an eye on drift.
     expect(total).toBeLessThan(3_000_000);
+  });
+
+  /**
+   * Regression pin for the "garment-coloured hands" defect (fixed 2026-08-25).
+   *
+   * An Open Peeps pose is exactly two merged paths — one line-art, one covering
+   * the whole interior — and that interior path holds the neck, hands, forearms
+   * and ankles as well as part of the outfit. Painting it with the recolourable
+   * accent (as the pack once did) gave every figure brand-coloured hands, neck,
+   * wrists and ankles against a correctly skin-toned face. The interior must be
+   * a SKIN tone; the brand hue has to come from the props instead.
+   */
+  describe('skin/accent split (regression: skin must reach necks, hands, ankles)', () => {
+    const SKINS = ['#ffd9c0', '#f3b98d', '#d69963', '#a86b3c', '#7a4a24'] as const;
+    /** Accent regions that actually read as brand colour (opaque, or >= 0.3). */
+    const strongAccents = (svg: string) =>
+      [...svg.matchAll(/#6c63ff(?:"\s+opacity="([0-9.]+)")?/g)].filter(
+        (m) => m[1] === undefined || Number(m[1]) >= 0.3,
+      ).length;
+
+    it('paints every scene with at least one fixed skin tone', () => {
+      for (const e of OPENPEEPS_MANIFEST) {
+        expect(SKINS.some((s) => e.svg.includes(s)), e.slug).toBe(true);
+      }
+    });
+
+    it('keeps at least one clearly visible accent prop region per scene', () => {
+      // Figures no longer carry the brand hue, so a scene whose only accent is a
+      // faint background wash would show almost no brand colour at all.
+      for (const e of OPENPEEPS_MANIFEST) {
+        expect(strongAccents(e.svg), e.slug).toBeGreaterThanOrEqual(1);
+      }
+    });
+
+    it('never casts a pose whose garment sits in the recolourable fill path', () => {
+      // These parts put the TOP in the fill region: with fill = skin they render
+      // a flesh-coloured shirt and arms that melt into the torso.
+      const UNUSABLE = [
+        'BlazerPantsBW', 'BlazerPantsWB', 'CrossedArmsWB', 'EasingBW', 'EasingWB',
+        'PointingFingerWB', 'ShirtPantsWB', 'RoboDanceWB', 'ClosedLegWB',
+        'CrossedLegs', 'OneLegUpWB',
+      ];
+      const src = readFileSync(new URL('./openpeeps-manifest.ts', import.meta.url), 'utf8');
+      const castTable = src.slice(src.indexOf('const P = {'), src.indexOf('satisfies Record<string, PeepSpec>'));
+      for (const part of UNUSABLE) {
+        expect(castTable.includes(`'${part}'`), `${part} is cast but is not skin-safe`).toBe(false);
+      }
+    });
+
+    it('keeps skin variety instead of collapsing the cast to one tone', () => {
+      const used = new Set<string>();
+      for (const e of OPENPEEPS_MANIFEST) for (const s of SKINS) if (e.svg.includes(s)) used.add(s);
+      expect(used.size).toBe(SKINS.length);
+    });
   });
 
   it('has unique slugs that never collide with the existing flat pack', () => {
