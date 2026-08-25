@@ -27,6 +27,12 @@ export const STEP_STAGE: Record<PipelineStep, ModelStage> = {
   visual_concept: 'draft',
   design_fill: 'draft',
   design_freeform: 'final',
+  // Stage 1 is a short creative brief with no geometry — cheap tier is enough.
+  design_concept: 'ideation',
+  // Stage 2 is the composition decision; every downstream guarantee is built
+  // on it and a weak plan cannot be repaired by the compositor. Deliberately
+  // on the strongest tier (docs/18 §7 costs this at ~$0.03/post even so).
+  design_art_direction: 'final',
   design_patch: 'final',
   compliance_review: 'review',
   accessibility_review: 'review',
