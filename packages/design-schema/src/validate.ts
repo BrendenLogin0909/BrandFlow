@@ -300,33 +300,120 @@ export function contrastRatio(hexA: string, hexB: string): number {
 }
 
 /**
- * Effective background: the topmost opaque solid shape fully containing the
- * text frame and layered beneath it (e.g. a rail, chip or band); otherwise
- * the page background.
+ * Every background a text element actually sits on.
+ *
+ * This used to return only the topmost shape FULLY CONTAINING the text frame,
+ * falling back to the page background otherwise. That let the worst kind of
+ * illegibility through silently: a headline overlapping a dark panel by half
+ * its width was measured against the white page, so dark-on-dark scored as
+ * high contrast and passed. It matters more now that art direction
+ * deliberately overlaps text with colour blocks.
+ *
+ * So: return the hex of every opaque solid shape beneath the text that covers
+ * a meaningful fraction of it, plus the page background unless a shape covers
+ * the text almost entirely. The caller must hold the text legible against ALL
+ * of them — the worst case is the one the reader sees.
  */
-function effectiveBackgroundHex(
+/**
+ * Sample points across the text frame, used to find what is actually behind
+ * the glyphs. Sampling (rather than comparing bounding boxes) is what makes
+ * this correct for two cases that both occur in real output: a shape that
+ * OCCLUDES another beneath it (the corner-ring motif is an accent ellipse with
+ * a background-coloured ellipse on top — text in the hole sits on the
+ * background, not the accent), and non-rectangular shapes, whose bounding box
+ * badly overstates their coverage at the corners.
+ */
+// Sampling follows the GLYPHS, not the frame. A text frame is usually wider
+// than the text inside it, so sampling its corners reports whatever is behind
+// empty space — which produced a false failure for a numeral centred in a
+// circular chip, where the frame corners fall outside the circle onto the page.
+// Horizontal sampling therefore tracks the alignment, and vertical sampling
+// stays in the band where the first lines sit.
+const SAMPLE_X_BY_ALIGN: Record<string, number[]> = {
+  left: [0.03, 0.18, 0.36, 0.54],
+  center: [0.32, 0.42, 0.5, 0.58, 0.68],
+  right: [0.46, 0.64, 0.82, 0.97],
+};
+const SAMPLE_Y = [0.18, 0.42, 0.7];
+
+/** Is a point inside this shape, accounting for its own rotation? */
+function pointInShape(px: number, py: number, s: Extract<Element, { type: 'shape' }>): boolean {
+  const f = s.frame;
+  const cx = f.x + f.width / 2;
+  const cy = f.y + f.height / 2;
+  let x = px;
+  let y = py;
+  if (f.rotation) {
+    const r = (-f.rotation * Math.PI) / 180;
+    const dx = px - cx;
+    const dy = py - cy;
+    x = cx + dx * Math.cos(r) - dy * Math.sin(r);
+    y = cy + dx * Math.sin(r) + dy * Math.cos(r);
+  }
+  if (x < f.x || x > f.x + f.width || y < f.y || y > f.y + f.height) return false;
+  if (s.shape === 'ellipse') {
+    const rx = f.width / 2 || 1;
+    const ry = f.height / 2 || 1;
+    return ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 <= 1;
+  }
+  // rect and everything else: the bounding box is the honest approximation.
+  return true;
+}
+
+/**
+ * Every background colour visible behind a text element.
+ *
+ * This used to return only the topmost shape FULLY CONTAINING the text frame,
+ * falling back to the page background otherwise — which let the worst kind of
+ * illegibility through silently: a kicker overlapping a dark panel by half its
+ * width was measured against the white page, so dark-on-dark scored as high
+ * contrast and passed. It matters more under art direction, where overlapping
+ * text with a colour block is a deliberate move.
+ *
+ * The caller must hold the text legible against ALL returned colours — the
+ * reader sees the worst one, not the average.
+ */
+export function backgroundHexesUnder(
   el: TextElement,
   doc: InternalDesignDocument,
   page: Page,
   siblings: Element[],
-): string | null {
-  let best: { z: number; hex: string } | null = null;
+): string[] {
+  // Resolve each candidate's colour once; gradients and patterns are skipped
+  // (worst-case sampling for those is handled server-side).
+  const candidates: { shape: Extract<Element, { type: 'shape' }>; z: number; hex: string }[] = [];
   for (const s of siblings) {
     if (s.type !== 'shape' || s.zIndex >= el.zIndex || !s.visible || s.opacity < 0.99) continue;
     const fill = s.fill;
     if (!('kind' in fill) || (fill.kind !== 'token' && fill.kind !== 'raw')) continue;
-    const contains =
-      s.frame.x <= el.frame.x &&
-      s.frame.y <= el.frame.y &&
-      s.frame.x + s.frame.width >= el.frame.x + el.frame.width &&
-      s.frame.y + s.frame.height >= el.frame.y + el.frame.height;
-    if (!contains) continue;
     const hex = resolveColour(fill, doc);
-    if (hex && (!best || s.zIndex > best.z)) best = { z: s.zIndex, hex };
+    if (hex) candidates.push({ shape: s, z: s.zIndex, hex });
   }
-  if (best) return best.hex;
-  const bg = page.background;
-  return 'kind' in bg && (bg.kind === 'token' || bg.kind === 'raw') ? resolveColour(bg, doc) : null;
+  const pageBg = page.background;
+  const pageHex =
+    'kind' in pageBg && (pageBg.kind === 'token' || pageBg.kind === 'raw')
+      ? resolveColour(pageBg, doc)
+      : null;
+
+  const f = el.frame;
+  const seen = new Set<string>();
+  const sampleX = SAMPLE_X_BY_ALIGN[el.align] ?? SAMPLE_X_BY_ALIGN.left!;
+  for (const fx of sampleX) {
+    for (const fy of SAMPLE_Y) {
+      const px = f.x + f.width * fx;
+      const py = f.y + f.height * fy;
+      // Topmost shape wins at this point; anything below it is occluded.
+      let top: { z: number; hex: string } | null = null;
+      for (const c of candidates) {
+        if (top && c.z <= top.z) continue;
+        if (!pointInShape(px, py, c.shape)) continue;
+        top = { z: c.z, hex: c.hex };
+      }
+      const hex = top?.hex ?? pageHex;
+      if (hex) seen.add(hex);
+    }
+  }
+  return [...seen];
 }
 
 function checkContrast(
@@ -338,11 +425,13 @@ function checkContrast(
   v: Violation[],
 ) {
   const fg = resolveColour(el.colour, doc);
-  const bgHex = effectiveBackgroundHex(el, doc, page, siblings);
-  if (!fg || !bgHex) return; // gradient/image backgrounds: worst-case sampling handled server-side
+  const bgHexes = backgroundHexesUnder(el, doc, page, siblings);
+  if (!fg || bgHexes.length === 0) return; // gradient/image backgrounds: worst-case sampling handled server-side
   const large = el.fontSize >= 32 && el.fontWeight >= 700;
   const required = large ? 3 : 4.5;
-  const ratio = contrastRatio(fg, bgHex);
+  // Worst case across every background the text overlaps — the reader sees the
+  // worst one, not the average.
+  const ratio = Math.min(...bgHexes.map((bg) => contrastRatio(fg, bg)));
   if (ratio < required)
     v.push({
       ruleId: 'contrast',

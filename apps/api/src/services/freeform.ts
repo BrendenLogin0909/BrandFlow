@@ -15,6 +15,7 @@ import type {
   ValidationReport,
 } from '@brandflow/design-schema';
 import {
+  backgroundHexesUnder,
   contrastRatio,
   fitFontSize,
   measureText,
@@ -128,18 +129,24 @@ export function autoFixFreeform(doc: InternalDesignDocument): InternalDesignDocu
       if (el.type !== 'text') continue;
 
       // ---- contrast fix ----
-      const bgHex = effectiveBg(el, flat, page.background, doc);
+      // Against EVERY background the text overlaps, not just one that fully
+      // contains it: a headline half-over a dark panel used to be measured
+      // against the white page and pass while rendering dark-on-dark.
+      const bgHexes = backgroundHexesUnder(el, doc, page, flat);
       const fgHex = resolveColour(el.colour, doc);
-      if (bgHex && fgHex) {
+      if (bgHexes.length && fgHex) {
         const large = el.fontSize >= 32 && el.fontWeight >= 700;
         const required = large ? 3 : 4.5;
-        if (contrastRatio(fgHex, bgHex) < required) {
+        const worst = (hex: string) => Math.min(...bgHexes.map((bg) => contrastRatio(hex, bg)));
+        if (worst(fgHex) < required) {
+          // Pick the token that is most legible against the WORST background,
+          // so a fix for one panel cannot make another unreadable.
           let bestToken: string | null = null;
           let bestRatio = 0;
           for (const token of ['text', 'background', 'primary', 'secondary'] as const) {
             const hex = doc.brandTokens.colours[token];
             if (!hex) continue;
-            const r = contrastRatio(hex, bgHex);
+            const r = worst(hex);
             if (r > bestRatio) {
               bestRatio = r;
               bestToken = token;
@@ -192,31 +199,6 @@ function flatten(elements: Element[]): Element[] {
   return elements.flatMap((el) => (el.type === 'group' ? [el, ...flatten(el.children)] : [el]));
 }
 
-function effectiveBg(
-  el: TextElement,
-  siblings: Element[],
-  pageBg: unknown,
-  doc: InternalDesignDocument,
-): string | null {
-  let best: { z: number; hex: string } | null = null;
-  for (const s of siblings) {
-    if (s.type !== 'shape' || s.zIndex >= el.zIndex || !s.visible || s.opacity < 0.99) continue;
-    const fill = s.fill as { kind?: string };
-    if (fill.kind !== 'token' && fill.kind !== 'raw') continue;
-    const contains =
-      s.frame.x <= el.frame.x &&
-      s.frame.y <= el.frame.y &&
-      s.frame.x + s.frame.width >= el.frame.x + el.frame.width &&
-      s.frame.y + s.frame.height >= el.frame.y + el.frame.height;
-    if (!contains) continue;
-    const hex = resolveColour(s.fill as Colour, doc);
-    if (hex && (!best || s.zIndex > best.z)) best = { z: s.zIndex, hex };
-  }
-  if (best) return best.hex;
-  const bg = pageBg as { kind?: string };
-  if (bg.kind === 'token' || bg.kind === 'raw') return resolveColour(pageBg as Colour, doc);
-  return null;
-}
 
 /**
  * Fill AI-placed image placeholders with real assets from the licensed

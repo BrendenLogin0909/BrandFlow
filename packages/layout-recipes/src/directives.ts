@@ -180,9 +180,33 @@ function addMotif(
       return;
     }
     case 'corner-ring': {
-      // ring poking in from the top-right corner (donut = two ellipses)
-      decorate(ellipseShape(newId(), width - 180, -180, 360, 360, { kind: 'token', token: 'background' }, 2));
-      decorate(ellipseShape(newId(), width - 220, -220, 440, 440, accent, 1));
+      // Ring poking in from the top-right corner (donut = two ellipses),
+      // centred on the corner itself.
+      //
+      // It must not pass behind text. It always could, and did: the slide
+      // counter in the carousel recipes sits right across the annulus, so the
+      // accent band rendered behind dark type at 2.76:1. Nothing caught it
+      // until the contrast check learned to sample partial overlaps.
+      // So: shrink the ring until it clears every text frame, and if it cannot
+      // stay a legible ring, draw nothing rather than something unreadable.
+      const OUTER = 220;
+      const INNER_RATIO = 360 / 440;
+      const CLEARANCE = 8;
+      const MIN_OUTER = 120;
+
+      let outer = OUTER;
+      for (const el of elements) {
+        if (el.type !== 'text' || !el.visible) continue;
+        const f = el.frame;
+        // Nearest corner of the text frame to the ring centre at (width, 0).
+        const dx = Math.max(0, width - (f.x + f.width));
+        const dy = Math.max(0, f.y);
+        outer = Math.min(outer, Math.hypot(dx, dy) - CLEARANCE);
+      }
+      if (outer < MIN_OUTER) return; // no room for a ring that reads as one
+      const inner = outer * INNER_RATIO;
+      decorate(ellipseShape(newId(), width - inner, -inner, inner * 2, inner * 2, { kind: 'token', token: 'background' }, 2));
+      decorate(ellipseShape(newId(), width - outer, -outer, outer * 2, outer * 2, accent, 1));
       return;
     }
     case 'diagonal-band': {
