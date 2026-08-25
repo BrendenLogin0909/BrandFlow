@@ -144,6 +144,28 @@ against the section 2 rubric 1–5 per criterion, and returns *region-level* adj
 (move / resize / re-emphasise / recolour) — never raw geometry. Adjustments feed back
 into stage 3. Loop at most twice; keep the highest-scoring version.
 
+## 4a. Contract clarifications (binding, added 2026-08-25)
+
+Gaps found by Agent 17 while implementing stages 1-2, arbitrated by the coordinator.
+These are part of the contract; the compositor and the critic must follow them.
+
+1. **`TypeRole`** (in `ConceptOutput.pages[].copy[].role`) is the set of six **type-scale
+   step names** — `display | headline | subhead | bodyLarge | body | caption` — not the
+   semantic region roles. Section 3 says the scale is referenced by name only; this is that.
+2. **`contentRef`** is the **0-based index into the same page's `copy` array, as a decimal
+   string** (`"0"`, `"1"`). The compositor resolves copy by **index lookup, never by role
+   matching** — role matching silently mis-places copy when a page has two items sharing a
+   role.
+3. **`decoration` and `background` in section 5 are roleHints the COMPOSITOR assigns in
+   stage 3.** They are not stage-2 region roles and never appear in a `LayoutPlan`. The
+   compositor must map bleeding regions (and `block` regions acting as full-bleed
+   backgrounds) onto those roleHints, or the safe-area exemption never applies and every
+   signature move that bleeds fails validation.
+4. **Counts:** 1-14 regions per page, 1-20 pages (matching `MAX_CAROUSEL_SLIDES`).
+5. **Schemas must be `.strict()`.** There is no `x` or `fontSize` field to constrain, so
+   "the AI cannot emit a pixel value" is enforced *only* by unknown-key rejection. A
+   non-strict schema silently removes the central guarantee of stage 2.
+
 ## 5. Signature moves
 
 Enumerated so the compositor can execute them precisely, chosen freely by stage 1.
