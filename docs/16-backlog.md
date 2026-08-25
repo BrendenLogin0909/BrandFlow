@@ -2,6 +2,23 @@
 
 Items explicitly parked by the product owner — revisit before launch.
 
+## Findings from the 10-post assessment (2026-08-25)
+
+Ten real posts were generated across ten different brands/briefs/formats through
+`design_freeform@5` (all 10 succeeded, 30 pages, every image resolved, 38–123s
+each). Reviewing the rendered output surfaced these, highest value first:
+
+| # | Item | Severity | Notes |
+|---|---|---|---|
+| A1 | 🔴 **Bundled illustrations are never recoloured to the brand.** `searchAssets` calls `searchUndraw(q, limit)` / `searchOpenpeeps(q, limit)` without a hue, so the `brandHue = '#4f46e5'` default applies and EVERY AI-composed post gets indigo characters — regardless of whether the brand is navy+gold, near-black+red or bronze. Visible in all 10 posts. Fix: thread the brand's accent/primary through `SearchOptions` → `searchBundledPack`, and have `resolveImages` pass the document's brand tokens. | HIGH — cheap fix, large brand-fidelity win | The render endpoint already supports `?hue=`; only the compose-side search path is missing it |
+| A2 | 🟠 **Text still overflows its frame after auto-repair.** 7 errors across 4 of 10 posts (e.g. "4 lines, needs 73px of 44px"). `autoFixFreeform` font-steps but does not fully resolve, so posts ship with validation errors a human must fix. Fix: iterate the font-step/frame-grow loop until it converges, or feed measured text height back into the layout. | HIGH — blocks clean approval | All 7 were overflow; zero contrast errors, so the nudge model is working |
+| A3 | 🟠 **Poor canvas utilisation on carousels.** Several pages (esp. cybersecurity 1/3/4/5, QA 1/2) place all content in the top 60–70% and leave a large empty band at the bottom of a 1080×1350 canvas. Headlines are also small relative to the canvas versus the 29FORWARD benchmark. Fix: prompt guidance on full-bleed composition + a validation warning for large empty regions. | MEDIUM–HIGH | Quality is variable, not uniformly bad: industrial-maintenance and QA cover 1 are strong, commercial-law is weak (skewed panel, tiny type) |
+| A4 | 🟠 **Style mixing within one post.** The QA carousel resolved 4 bundled flat illustrations plus 1 Flickr photograph, so one slide is stylistically inconsistent with the rest. Fix: constrain a post (and ultimately a brand) to one style pool. | MEDIUM | Feeds directly into A5 |
+| A5 | 🔵 **Brand-level style packs (owner direction 2026-08-25).** Illustration style must be a per-brand choice, NOT a global rank — different companies must be able to look different, and BrandFlow should not make every customer look identical. Move provider/style preference out of the hardcoded rank in `searchAssets`/`resolveImages` into a brand-profile setting; global rank becomes only the default. | ARCHITECTURAL | Prerequisite for A4 and for the multi-style asset ambition below |
+| A6 | 🔵 **Asset scale ambition (owner 2026-08-25):** thousands of images across many styles — hand-drawn, realistic, AI, cartoon, anime, landscape. 82 Open Peeps scenes + 307 geometric scenes is a start, not the destination. Needs style tagging on every pool and a style-aware search. | ROADMAP | Pair with A5 |
+
+## Parked items
+
 | # | Item | Origin | Notes |
 |---|---|---|---|
 | 1 | ✅ **DONE** — **Visual-direction drafting** — draft stage includes `visualDirection` (scene, metaphor, mood, composition hints, colour mood, illustration style); `post_copy@3`; editable in Content Manager; feeds compose + AI patch | 2026-07-06 review | Agent 9 on `feat/design-pipeline` |
