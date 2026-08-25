@@ -53,11 +53,14 @@ describe('GET /assets/render/openpeeps/:slug', () => {
     expect(res.headers['content-type']).toContain('image/svg+xml');
     const svg = res.body;
     expect(svg.startsWith('<svg')).toBe(true);
-    // recoloured: pack accent gone, brand hue present
+    // recoloured: pack accent gone, brand hue present. The hue now comes from
+    // props/panels only — characters carry no accent (see openpeeps-manifest.ts).
     expect(svg).not.toContain('#6c63ff');
     expect(svg).toContain('#0a66c2');
     // fixed roles survive the swap: line art and skin tone
     expect(svg).toContain('#3f3d56');
+    // skin must still be a skin tone after the swap — necks, hands, forearms and
+    // ankles live in the same path as the face, and must never take the brand hue
     expect(svg).toMatch(/#ffd9c0|#f3b98d|#d69963|#a86b3c|#7a4a24/);
   });
 

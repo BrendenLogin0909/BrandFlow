@@ -14,21 +14,43 @@
  *   Props, layouts and backgrounds in this file are ORIGINAL to this repo — the
  *   characters are the licensed art, the scene around them is ours.
  *
+ * SOURCE-ART LIMITATION — READ THIS BEFORE CHANGING ANY COLOUR
+ *   An Open Peeps pose is TWO merged paths and nothing more: one ink path (all
+ *   the hand-drawn line art) and one fill path covering the entire interior.
+ *   That single fill path contains the neck, hands, forearms and ankles AND
+ *   whatever clothing the pose happens to enclose — they are not separable, and
+ *   the vendored geometry exposes only `__FILL__` / `__INK__` to prove it.
+ *   Therefore SKIN COLOUR AND CLOTHING COLOUR CANNOT COEXIST on one figure.
+ *   Do not try to split the merged paths; there is no seam to split on.
+ *
+ *   This pack resolves that trade-off in favour of anatomy: the fill path is
+ *   painted with the figure's SKIN tone, so necks, hands, forearms and ankles
+ *   always match the face. Clothing then has to come from the ink path, so
+ *   every cast pose is one whose TOP is ink (see the note on the `P` table).
+ *   Painting the fill path with the brand accent instead — as this file did
+ *   until 2026-08-25 — gives every figure garment-coloured hands, neck, wrists
+ *   and ankles against a correctly-skin-toned face. That was the bug; this is
+ *   the fix. Do not reintroduce it.
+ *
  * RECOLOUR CONTRACT (must stay compatible with GET /assets/render/:provider/:id)
  *   The render route find-replaces the literal accent `#6c63ff` with the brand
  *   hue. Every scene therefore paints exactly these roles:
- *     #6c63ff  RECOLOURED — character clothing, prop key surfaces, accent
- *              shapes. Soft washes are the same hex at low `opacity`, so a
- *              brand hue stays tonally consistent.
- *     #3f3d56  FIXED ink — all hand-drawn line art, facial features, outlines.
- *              Never recoloured: line art must stay legible on any brand hue.
+ *     #6c63ff  RECOLOURED — props, panels, charts, background washes and accent
+ *              shapes ONLY. Soft washes are the same hex at low `opacity`, so a
+ *              brand hue stays tonally consistent. Characters deliberately
+ *              carry NO accent (see above), so the brand hue now reads from the
+ *              scene around them; every scene must keep at least one accent
+ *              region or the brand colour disappears entirely.
+ *     #3f3d56  FIXED ink — all hand-drawn line art, facial features, outlines,
+ *              and (by necessity) the characters' clothing. Never recoloured:
+ *              line art must stay legible on any brand hue.
  *     #ffd9c0 / #f3b98d / #d69963 / #a86b3c / #7a4a24
  *              FIXED skin tones, varied per character. Never recoloured —
  *              tying skin to a brand colour would be both ugly and wrong.
  *     #a0a0b8 / #e6e6e6 / #f2f2f2 / #ffffff
  *              FIXED neutrals — ground shadows, paper, secondary bars.
- *   Poses come in BW/WB pairs (which garment takes the fill vs the ink), so a
- *   group of characters reads as two-tone rather than one flat block of hue.
+ *   Poses ship as BW/WB pairs that swap which region is ink. Only the variant
+ *   whose top is ink is castable; the other half of every pair is unusable here.
  *
  * OUTPUT
  *   Every entry is a self-contained `<svg viewBox="0 0 400 300">` string: paths,
@@ -159,8 +181,12 @@ function peep(spec: PeepSpec, rect: Rect): string {
   const tx = rect.x + (rect.w - bw * s) / 2 - box[0] * s;
   const ty = rect.y + (rect.h - bh * s) - box[1] * s;
 
+  // The pose's single fill region covers neck, hands, forearms, ankles AND part
+  // of the outfit (see the header note) — so it must be the SKIN tone. The
+  // garment reads from the ink region instead; every spec below picks the pose
+  // variant whose top is ink.
   const inner =
-    paint(body, ACCENT) +
+    paint(body, skin) +
     `<g transform="translate(${HEAD_OFFSET[0]} ${HEAD_OFFSET[1]})">` +
     paint(hair, skin) +
     `<g transform="translate(159 186)">${paint(face, INK)}</g>` +
@@ -558,34 +584,59 @@ function render(def: SceneDef): UndrawEntry {
   };
 }
 
-// Reusable casting shorthands so scenes stay readable.
+/**
+ * Reusable casting shorthands so scenes stay readable.
+ *
+ * POSE CHOICE IS A COLOUR DECISION, NOT JUST A SILHOUETTE ONE. Each pose is two
+ * merged paths — one ink, one fill — and the fill path always carries neck,
+ * hands, forearms and ankles, so it has to be the skin tone. Whatever clothing
+ * happens to sit in that same path therefore also turns skin-coloured. Only
+ * poses whose TOP is in the ink path are usable: anything else renders a
+ * flesh-coloured shirt with arms that melt into the torso.
+ *
+ * Usable pose set (verified by rasterising every part with fill = skin):
+ *   standing  CrossedArmsBW, PointingFingerBW, RestingBW, ShirtPantsBW, WalkingBW
+ *   sitting   ClosedLegBW
+ *   bust      ArmsCrossed, Whatever, Killer, PocketShirt, PointingUp, Paper
+ * Every `WB` pose, plus both BlazerPants and both Easing variants, RoboDanceWB,
+ * CrossedLegs, OneLegUpWB, and the Geek, Device, Coffee, Explaining and Hoodie
+ * busts, put the top in the fill path and are unusable — do not cast them.
+ * Trousers landing in the fill path is fine: they read as tan chinos, well away
+ * from the face.
+ *
+ * Because only twelve poses survive that filter, specs are assigned so that no
+ * two figures IN THE SAME SCENE share a pose. The two unavoidable collisions
+ * (cheer/presenter, seated/thinker) are already mirrored by a scene-level
+ * `flip`, and carry different hair, face and skin. Re-check this table against
+ * the scene list before re-casting anything.
+ */
 const P = {
-  presenter: { standing: 'PointingFingerWB', hair: 'Bun', face: 'SmileBig', skin: 0 } as PeepSpec,
+  presenter: { standing: 'PointingFingerBW', hair: 'Bun', face: 'SmileBig', skin: 0 } as PeepSpec,
   presenter2: { standing: 'PointingFingerBW', hair: 'ShortCurly', face: 'Explaining', skin: 3 } as PeepSpec,
   lead: { standing: 'CrossedArmsBW', hair: 'Afro', face: 'Calm', skin: 4 } as PeepSpec,
-  lead2: { standing: 'CrossedArmsWB', hair: 'MediumBangs', face: 'Serious', skin: 1 } as PeepSpec,
-  easy: { standing: 'EasingBW', hair: 'ShortMessy', face: 'Smile', skin: 2 } as PeepSpec,
-  easy2: { standing: 'EasingWB', hair: 'LongBangs', face: 'Smile', skin: 0 } as PeepSpec,
-  suit: { standing: 'BlazerPantsWB', hair: 'Short', face: 'Calm', skin: 1, beard: 'Goatee' } as PeepSpec,
-  suit2: { standing: 'BlazerPantsBW', hair: 'Hijab', face: 'Smile', skin: 2 } as PeepSpec,
+  lead2: { standing: 'RestingBW', hair: 'MediumBangs', face: 'Serious', skin: 1 } as PeepSpec,
+  easy: { standing: 'RestingBW', hair: 'ShortMessy', face: 'Smile', skin: 1 } as PeepSpec,
+  easy2: { standing: 'RestingBW', hair: 'LongBangs', face: 'Smile', skin: 0 } as PeepSpec,
+  suit: { standing: 'CrossedArmsBW', hair: 'Short', face: 'Calm', skin: 1, beard: 'Goatee' } as PeepSpec,
+  suit2: { standing: 'PointingFingerBW', hair: 'Hijab', face: 'Smile', skin: 2 } as PeepSpec,
   casual: { standing: 'ShirtPantsBW', hair: 'Twists', face: 'Smile', skin: 3 } as PeepSpec,
-  casual2: { standing: 'ShirtPantsWB', hair: 'CornRows', face: 'SmileTeeth', skin: 4 } as PeepSpec,
+  casual2: { standing: 'WalkingBW', hair: 'CornRows', face: 'SmileTeeth', skin: 4 } as PeepSpec,
   walker: { standing: 'WalkingBW', hair: 'ShortVolumed', face: 'Driven', skin: 1 } as PeepSpec,
-  cheer: { standing: 'RoboDanceWB', hair: 'BunCurly', face: 'SmileBig', skin: 0 } as PeepSpec,
+  cheer: { standing: 'PointingFingerBW', hair: 'BunCurly', face: 'SmileBig', skin: 2 } as PeepSpec,
   resting: { standing: 'RestingBW', hair: 'Medium', face: 'Cheeky', skin: 2 } as PeepSpec,
-  seated: { sitting: 'ClosedLegWB', hair: 'LongAfro', face: 'Smile', skin: 3 } as PeepSpec,
+  seated: { sitting: 'ClosedLegBW', hair: 'LongAfro', face: 'Smile', skin: 3 } as PeepSpec,
   seated2: { sitting: 'ClosedLegBW', hair: 'Bangs', face: 'Calm', skin: 0 } as PeepSpec,
-  thinker: { sitting: 'CrossedLegs', hair: 'BantuKnots', face: 'Solemn', skin: 4 } as PeepSpec,
-  crouch: { sitting: 'OneLegUpWB', hair: 'FlatTop', face: 'Concerned', skin: 1 } as PeepSpec,
-  bustLaptop: { bust: 'Geek', hair: 'ShortCurly', face: 'Calm', skin: 2, glasses: 'GlassRound' } as PeepSpec,
-  bustTablet: { bust: 'Device', hair: 'Bun', face: 'Calm', skin: 0 } as PeepSpec,
-  bustCoffee: { bust: 'Coffee', hair: 'Turban', face: 'Smile', skin: 3 } as PeepSpec,
-  bustExplain: { bust: 'Explaining', hair: 'Medium', face: 'Explaining', skin: 1 } as PeepSpec,
+  thinker: { sitting: 'ClosedLegBW', hair: 'BantuKnots', face: 'Solemn', skin: 4 } as PeepSpec,
+  crouch: { sitting: 'ClosedLegBW', hair: 'FlatTop', face: 'Concerned', skin: 1 } as PeepSpec,
+  bustLaptop: { bust: 'Paper', hair: 'ShortCurly', face: 'Calm', skin: 2, glasses: 'GlassRound' } as PeepSpec,
+  bustTablet: { bust: 'Killer', hair: 'Bun', face: 'Calm', skin: 0 } as PeepSpec,
+  bustCoffee: { bust: 'Whatever', hair: 'Turban', face: 'Smile', skin: 3 } as PeepSpec,
+  bustExplain: { bust: 'PointingUp', hair: 'Medium', face: 'Explaining', skin: 1 } as PeepSpec,
   bustPoint: { bust: 'PointingUp', hair: 'Afro', face: 'SmileBig', skin: 4 } as PeepSpec,
   bustShrug: { bust: 'Whatever', hair: 'ShortMessy', face: 'Suspicious', skin: 1 } as PeepSpec,
   bustArms: { bust: 'ArmsCrossed', hair: 'GrayMedium', face: 'Serious', skin: 0, glasses: 'GlassClubmaster' } as PeepSpec,
   bustPaper: { bust: 'Paper', hair: 'LongBangs', face: 'Concerned', skin: 2 } as PeepSpec,
-  bustHoodie: { bust: 'Hoodie', hair: 'CornRows', face: 'Awe', skin: 4 } as PeepSpec,
+  bustHoodie: { bust: 'PocketShirt', hair: 'CornRows', face: 'Awe', skin: 4 } as PeepSpec,
   bustPocket: { bust: 'PocketShirt', hair: 'Short', face: 'Cheeky', skin: 1, beard: 'FullMedium' } as PeepSpec,
   bustKiller: { bust: 'Killer', hair: 'Twists', face: 'EyesClosed', skin: 3 } as PeepSpec,
 } satisfies Record<string, PeepSpec>;
@@ -652,7 +703,8 @@ const SCENES: SceneDef[] = [
     slug: 'peep-mentor-coaching',
     title: 'Mentor coaching a colleague',
     keywords: ['mentor', 'coaching', 'coach', 'teaching', 'guidance', 'training', 'people', 'support', 'growth', 'onboarding'],
-    back: ground(200, 276, 176) + floorPlate() + strip(126, 34, 148, 84, 0.12),
+    back: ground(200, 276, 176) + floorPlate() + strip(126, 34, 148, 84, 0.12) +
+      `<rect x="146" y="52" width="70" height="11" rx="5.5" fill="${ACCENT}"/>` + textLines(146, 74, 108, 3, 11),
     cast: [
       { spec: P.bustExplain, rect: { x: 12, y: 96, w: 136, h: 176 } },
       { spec: { ...P.bustHoodie, flip: true }, rect: { x: 252, y: 108, w: 128, h: 164 } },
@@ -674,7 +726,8 @@ const SCENES: SceneDef[] = [
     keywords: ['support', 'customer', 'service', 'help', 'chat', 'conversation', 'person', 'reply', 'success', 'care'],
     back: ground() + blob(272, 120, 84, 0.1),
     cast: [{ spec: { ...P.bustCoffee, flip: true }, rect: BUST_R }],
-    front: bubble(28, 62, 148, 50, 'left', WHITE) + textLines(44, 78, 112, 2) +
+    // the agent's reply carries the brand hue — figures no longer can
+    front: bubble(28, 62, 148, 50, 'left', ACCENT) + textLines(44, 78, 112, 2, 11, WHITE) +
       bubble(58, 132, 132, 44, 'right', PALE) + textLines(74, 146, 96, 2),
   },
   {
@@ -703,7 +756,7 @@ const SCENES: SceneDef[] = [
     slug: 'peep-two-people-debate',
     title: 'Two people debating',
     keywords: ['debate', 'discussion', 'disagree', 'two', 'people', 'argument', 'opinions', 'conversation', 'decision', 'meeting'],
-    back: ground() + bubble(84, 42, 100, 42, 'left', WHITE) + textLines(98, 56, 72, 2) +
+    back: ground() + bubble(84, 42, 100, 42, 'left', ACCENT) + textLines(98, 56, 72, 2, 11, WHITE) +
       bubble(216, 52, 100, 42, 'right', PALE) + textLines(230, 66, 72, 2),
     cast: [
       { spec: P.lead2, rect: { x: 40, y: 100, w: 106, h: 172 } },
@@ -730,7 +783,7 @@ const SCENES: SceneDef[] = [
     slug: 'peep-person-on-a-call',
     title: 'Person on a call',
     keywords: ['call', 'phone', 'talking', 'person', 'conversation', 'outreach', 'sales', 'contact', 'communication', 'client'],
-    back: ground() + blob(268, 120, 82, 0.1) + bubble(226, 60, 132, 46, 'left', WHITE) + textLines(242, 76, 96, 2),
+    back: ground() + blob(268, 120, 82, 0.1) + bubble(226, 60, 132, 46, 'left', ACCENT) + textLines(242, 76, 96, 2, 11, WHITE),
     cast: [{ spec: P.bustPocket, rect: BUST_L }],
     front: phone(186, 120, 26),
   },
@@ -789,7 +842,8 @@ const SCENES: SceneDef[] = [
     slug: 'peep-person-magnifier-research',
     title: 'Person researching the detail',
     keywords: ['research', 'search', 'discovery', 'analysis', 'investigate', 'person', 'audit', 'findings', 'insight', 'review'],
-    back: ground() + blob(268, 126, 86, 0.1) + magnifier(280, 118, 42),
+    // the finding under the lens is the accent region
+    back: ground() + blob(268, 126, 86, 0.1) + magnifier(280, 118, 42) + dot(280, 118, 13, ACCENT),
     cast: [{ spec: P.bustArms, rect: BUST_L }],
   },
   {
@@ -851,7 +905,8 @@ const SCENES: SceneDef[] = [
     slug: 'peep-team-huddle',
     title: 'Team huddle',
     keywords: ['team', 'huddle', 'together', 'collaboration', 'group', 'people', 'standup', 'alignment', 'meeting', 'unity'],
-    back: ground(200, 276, 168) + blob(200, 136, 118, 0.1),
+    back: ground(200, 276, 168) + blob(200, 136, 118, 0.1) +
+      strip(140, 22, 120, 12, 1) + textLines(140, 44, 120, 1, 11),
     cast: [
       { spec: P.lead, rect: TRIO(0) },
       { spec: P.casual2, rect: TRIO(1) },
@@ -862,7 +917,8 @@ const SCENES: SceneDef[] = [
     slug: 'peep-diverse-team',
     title: 'Diverse team lineup',
     keywords: ['diverse', 'team', 'people', 'inclusion', 'group', 'company', 'culture', 'staff', 'colleagues', 'together'],
-    back: ground(200, 276, 178) + floorPlate(0.1),
+    back: ground(200, 276, 178) + floorPlate(0.1) +
+      strip(132, 30, 136, 13, 1) + textLines(132, 54, 136, 1, 11),
     cast: [
       { spec: P.suit2, rect: QUAD(0) },
       { spec: P.casual, rect: QUAD(1) },
@@ -925,7 +981,8 @@ const SCENES: SceneDef[] = [
       { spec: P.bustLaptop, rect: { x: 6, y: 92, w: 142, h: 180 } },
       { spec: { ...P.bustPocket, flip: true }, rect: { x: 240, y: 96, w: 142, h: 176 } },
     ],
-    front: board(146, 96, 110, 88, textLines(158, 114, 82, 4, 12)),
+    front: board(146, 96, 110, 88,
+      `<rect x="158" y="110" width="54" height="10" rx="5" fill="${ACCENT}"/>` + textLines(158, 130, 82, 3, 12)),
   },
   {
     slug: 'peep-interview-hiring',
@@ -942,7 +999,7 @@ const SCENES: SceneDef[] = [
     slug: 'peep-onboarding-welcome',
     title: 'Onboarding welcome',
     keywords: ['onboarding', 'welcome', 'new', 'hire', 'people', 'introduction', 'training', 'start', 'team', 'culture'],
-    back: ground(200, 276, 168) + blob(200, 112, 104, 0.1) + bubble(132, 34, 136, 44, 'left', WHITE) + textLines(148, 48, 100, 2),
+    back: ground(200, 276, 168) + blob(200, 112, 104, 0.1) + bubble(132, 34, 136, 44, 'left', ACCENT) + textLines(148, 48, 100, 2, 11, WHITE),
     cast: [
       { spec: P.presenter, rect: { x: 40, y: 96, w: 104, h: 176 } },
       { spec: { ...P.casual2, flip: true }, rect: { x: 176, y: 96, w: 104, h: 176 } },
@@ -963,7 +1020,7 @@ const SCENES: SceneDef[] = [
     slug: 'peep-customer-and-rep',
     title: 'Customer meeting the rep',
     keywords: ['customer', 'client', 'meeting', 'sales', 'people', 'account', 'relationship', 'consultation', 'service', 'two'],
-    back: ground(200, 276, 160) + blob(200, 120, 92, 0.1) + bubble(148, 42, 108, 40, 'left', WHITE) + textLines(162, 55, 78, 2),
+    back: ground(200, 276, 160) + blob(200, 120, 92, 0.1) + bubble(148, 42, 108, 40, 'left', ACCENT) + textLines(162, 55, 78, 2, 11, WHITE),
     cast: [
       { spec: P.suit, rect: { x: 40, y: 72, w: 108, h: 200 } },
       { spec: { ...P.resting, flip: true }, rect: { x: 244, y: 72, w: 116, h: 200 } },
@@ -1041,7 +1098,8 @@ const SCENES: SceneDef[] = [
     slug: 'peep-workshop-facilitation',
     title: 'Workshop facilitation',
     keywords: ['workshop', 'facilitation', 'training', 'team', 'people', 'session', 'learning', 'group', 'discussion', 'enablement'],
-    back: ground(200, 276, 176) + board(140, 30, 186, 104, textLines(158, 50, 150, 5, 13)),
+    back: ground(200, 276, 176) + board(140, 30, 186, 104,
+      `<rect x="158" y="46" width="88" height="11" rx="5.5" fill="${ACCENT}"/>` + textLines(158, 68, 150, 4, 13)),
     cast: [
       { spec: P.presenter, rect: { x: 20, y: 88, w: 100, h: 184 } },
       { spec: P.seated, rect: { x: 148, y: 168, w: 116, h: 104 } },
