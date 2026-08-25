@@ -11,6 +11,7 @@ import type { InternalDesignDocument } from '@brandflow/design-schema';
 import { exportPageSvg } from '@brandflow/exporters/svg';
 import { exportPptxBlob } from '@brandflow/exporters/pptx';
 import { clientApi } from '../lib/api';
+import { embedImagesForExport } from '../lib/embedImagesForExport';
 
 interface Draft {
   id: string;
@@ -76,7 +77,9 @@ export function DesignLibraryPage() {
   });
 
   async function downloadPptx(draft: Draft) {
-    const blob = await exportPptxBlob(draft.internalDoc);
+    // Inline authed /api/ image bytes so the .pptx works outside the app (backlog 4g).
+    const { doc } = await embedImagesForExport(draft.internalDoc);
+    const blob = await exportPptxBlob(doc);
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;

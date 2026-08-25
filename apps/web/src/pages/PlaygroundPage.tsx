@@ -38,6 +38,7 @@ import {
 import type { AssetPick } from '../components/design-studio';
 import { clientApi, getAccessToken, getActiveClientId } from '../lib/api';
 import { buildRecipeDocument } from '../lib/buildRecipeDocument';
+import { embedImagesForExport } from '../lib/embedImagesForExport';
 import { RECIPES, HEADLINE_TREATMENTS, MOTIFS } from '@brandflow/layout-recipes';
 import type {
   HeadlineTreatment,
@@ -205,6 +206,7 @@ export function PlaygroundPage() {
   // surfaced as warnings by default; strict mode is an explicit opt-in.
   const [bestPractices, setBestPractices] = useState(false);
   const [saveState, setSaveState] = useState<string | null>(null);
+  const [exportNote, setExportNote] = useState<string | null>(null);
   const [savedDraftId, setSavedDraftId] = useState<string | null>(null);
   // The linked PostPackage id — kept across reopen so a resave stays linked
   // even when the draft has no idea (arrived directly via ?package=).
@@ -566,14 +568,31 @@ export function PlaygroundPage() {
     URL.revokeObjectURL(url);
   }
 
+  /**
+   * Inline image bytes before export so the downloaded file works offline —
+   * bundled illustrations and uploaded logos live behind authed /api/ URLs
+   * that a standalone .svg or .pptx cannot resolve (backlog 4g).
+   */
+  async function portableDoc(doc: InternalDesignDocument): Promise<InternalDesignDocument> {
+    setExportNote(null);
+    const { doc: embedded, failed } = await embedImagesForExport(doc);
+    if (failed.length) {
+      setExportNote(
+        `${failed.length} image${failed.length > 1 ? 's' : ''} could not be embedded — they may not display outside the app.`,
+      );
+    }
+    return embedded;
+  }
+
   async function downloadPptx() {
     if (!displayDoc) return;
-    downloadBlob(await exportPptxBlob(displayDoc), `${recipe.id}.pptx`);
+    downloadBlob(await exportPptxBlob(await portableDoc(displayDoc)), `${recipe.id}.pptx`);
   }
 
   async function downloadSvgs() {
     if (!displayDoc) return;
-    const svgs = displayDoc.pages.map((_, i) => exportPageSvg(displayDoc, i));
+    const exportDoc = await portableDoc(displayDoc);
+    const svgs = exportDoc.pages.map((_, i) => exportPageSvg(exportDoc, i));
     if (svgs.length === 1) {
       downloadBlob(new Blob([svgs[0]!], { type: 'image/svg+xml' }), `${recipe.id}.svg`);
       return;
@@ -903,6 +922,7 @@ export function PlaygroundPage() {
             Export SVGs
           </button>
           {saveState && <span className="text-sm text-slate-500">{saveState}</span>}
+          {exportNote && <span className="text-sm text-amber-700">{exportNote}</span>}
         </div>
         {result.error && (
           <div className="rounded border border-red-300 bg-red-50 p-3 text-sm text-red-800">{result.error}</div>
