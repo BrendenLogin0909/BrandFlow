@@ -46,7 +46,12 @@ export interface ValidationContext {
   contrastMode?: 'enforce' | 'warn';
 }
 
-const MIN_FONT_SIZES: Record<string, number> = {
+/**
+ * Readability floors by role, defined at the 1080px reference canvas and scaled
+ * by canvas width at check time. Exported so composition code can pick a type
+ * step that is legal by construction instead of re-declaring these numbers.
+ */
+export const MIN_FONT_SIZES: Record<string, number> = {
   headline: 24,
   subheadline: 18,
   body: 14,
@@ -300,11 +305,21 @@ export function contrastRatio(hexA: string, hexB: string): number {
 }
 
 /**
+ * WCAG threshold this engine applies to a given text element. Exported so that
+ * composition code can choose a colour that passes rather than guess at the
+ * numbers and disagree with the validator.
+ */
+export function requiredContrastRatio(fontSize: number, fontWeight: number): number {
+  const large = fontSize >= 32 && fontWeight >= 700;
+  return large ? 3 : 4.5;
+}
+
+/**
  * Effective background: the topmost opaque solid shape fully containing the
  * text frame and layered beneath it (e.g. a rail, chip or band); otherwise
  * the page background.
  */
-function effectiveBackgroundHex(
+export function effectiveBackgroundHex(
   el: TextElement,
   doc: InternalDesignDocument,
   page: Page,
@@ -340,8 +355,7 @@ function checkContrast(
   const fg = resolveColour(el.colour, doc);
   const bgHex = effectiveBackgroundHex(el, doc, page, siblings);
   if (!fg || !bgHex) return; // gradient/image backgrounds: worst-case sampling handled server-side
-  const large = el.fontSize >= 32 && el.fontWeight >= 700;
-  const required = large ? 3 : 4.5;
+  const required = requiredContrastRatio(el.fontSize, el.fontWeight);
   const ratio = contrastRatio(fg, bgHex);
   if (ratio < required)
     v.push({
