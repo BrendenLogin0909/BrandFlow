@@ -51,6 +51,50 @@ difference between "imperfect" and "unusable", and it is all compositor work.
 | P1.4 | **Contrast covers artwork.** The contrast rule samples shapes only, so text-over-image is invisible to it. Treat an image/chart under text as unknown-luminance: fail unless a scrim is present. | A document with text on an image produces a contrast violation |
 | P1.5 | **Two-axis coverage + balance.** Coverage is measured vertically only, so a narrow content strip with dead space left and right scores 100%. Add horizontal coverage and a centroid-vs-centre balance check. | The metric flags the pages from the 2026-08-26 run that it previously passed |
 
+## 2c. Phase 1 result (2026-08-26) — usable, not yet designed
+
+Same ten briefs, three generations, measured with the two-axis metrics:
+
+| | Original (single-call) | Design system, pre-Phase-1 | **After Phase 1** |
+|---|---|---|---|
+| Total findings | 43 | 28 | **7** |
+| text-on-artwork | 8 | 14 | **0** |
+| text-cropped | — | 6 | **0** |
+| contrast | 10 | 0 | **0** |
+| text-overflow | 4 | 0 | **0** |
+| safe-margins | 3 | 0 | **0** |
+| coverage (warn) | 16 | 5 | 5 |
+| balance (warn) | 2 | 3 | 2 |
+| font sizes | 21 | 7 | 7 |
+| on the 8px grid | x42% y25% | 100% | 100% |
+
+**Every error class is zero. Only warnings remain, and both are composition
+quality — precisely Phase 2's subject.** 10/10 composed, no failures.
+
+Rendered and looked at, which the last round proved is not optional:
+
+- **fintech** — "82%" intact in brand teal on a purple counter block bleeding
+  off the edge. Correct, and better-looking than before.
+- **QA** — "STOP" legible on a black scrim over the process diagram; the
+  headline large and clear.
+- **law** — every line readable.
+
+And the honest half: **they are now under-designed rather than broken.** Large
+empty regions, small type relative to canvas, the law page carrying no imagery
+at all, and on the QA page the same asset-fragment artefacts (a lone ground
+shadow, a stray sliver) that P2.2 exists to fix — confirmed as an asset
+aspect-ratio problem, not a compositor one.
+
+Phase 1 was scoped to make every page *usable*, and it did exactly that. It was
+never going to make a page *designed*. Phase 2 (density floor, image-treatment
+vocabulary, optical balance) is now the whole remaining gap, and the two
+surviving warning classes point straight at it.
+
+**Caveat worth keeping honest:** `INK_CONFIDENCE` means the validator judges the
+middle 65% of each text line, a deliberate trade against `measureText`'s 0.54em
+estimate. "Zero text on artwork" is a claim about confidently-placed ink, not
+every pixel.
+
 ## 3. Phase 2 — make pages look designed
 
 The bar: a designer would call it competent. Composition, not correctness.
