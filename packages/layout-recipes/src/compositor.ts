@@ -29,6 +29,8 @@ import type {
   Rect,
   RegionRole,
   RoleHint,
+  ShapeElement,
+  SignatureMove,
   TextElement,
   TypeEmphasis,
 } from '@brandflow/design-schema';
@@ -129,6 +131,64 @@ const ICON_NAMES = [
   'gauge',
   'lightbulb',
 ] as const;
+
+// ---------- placement judgement (docs/19 §2) ----------
+//
+// The three rules below are the compositor's model of WHAT SITS ON WHAT. Every
+// value is a ratio of the canvas, never a pixel count, so they hold on every
+// preset.
+
+/**
+ * P1.1 — how much of a line of type may sit on unknown artwork before the
+ * compositor has to act. Four per cent is roughly one glyph of a headline: any
+ * more and a reader notices the collision.
+ */
+export const OCCLUSION_TOLERANCE = 0.04;
+
+/** Sample lattice used to decide what is actually behind a run of glyphs. */
+const OCCLUSION_SAMPLE_COLS = 9;
+const OCCLUSION_SAMPLE_ROWS = 5;
+
+/** Breathing room between a scrim's edge and the glyphs it protects. */
+const SCRIM_PADDING = BASELINE * 2;
+
+/**
+ * How far a relocated text region may travel, as a fraction of the canvas
+ * diagonal. Beyond this the "free cell" is not *nearby* any more and moving the
+ * copy there would break the reading order worse than a scrim breaks the art.
+ */
+export const MAX_RELOCATION_DISTANCE = 0.5;
+
+/**
+ * P1.2 — the most of a bleeding image that may leave the canvas. A bleed is a
+ * gesture; past a quarter of the element it is just a crop, and crops eat
+ * subjects. Text is not covered by this at all: no glyph may leave the canvas.
+ */
+export const MAX_IMAGE_BLEED_FRACTION = 0.25;
+
+/**
+ * P1.3 — the smallest an image or chart may be and still carry meaning.
+ * Below this an illustration renders at icon size and reads as an orphan, so
+ * the region is dropped instead. The area floor catches the pointing hand
+ * beside a headline; the side floor catches slivers that pass on area alone.
+ */
+export const MIN_IMAGE_AREA_RATIO = 0.03;
+export const MIN_IMAGE_SIDE_RATIO = 0.08;
+
+/**
+ * Past this aspect ratio a `cover` crop shows a band through the middle of the
+ * artwork rather than its subject — the mechanism that turns an illustration
+ * into a lone ground-shadow. Charts are exempt: a wide bar chart is fine.
+ */
+export const MAX_IMAGE_ASPECT = 5;
+
+/**
+ * Queries that name no subject. An illustration search for "shape" or
+ * "background" cannot return anything meaningful, so the region is dropped
+ * rather than filled with whatever the asset pipeline happens to match.
+ */
+const SUBJECTLESS_QUERY =
+  /^(abstract|backdrop|background|blob|circle|decoration|decorative|ellipse|gradient|graphic|illustration|image|photo|picture|placeholder|rectangle|shadow|shape|square|texture|visual)$/i;
 
 /**
  * The largest (numerically highest) type step a role may use without tripping
@@ -502,11 +562,20 @@ function composePage(
     emphasis: coerced.emphasis.get(r.id) ?? r.emphasis,
   }));
 
-  // --- 2. fill the page ---
+  // --- 2. fill the page, then throw out what cannot carry meaning ---
+  // The footprint test runs on NORMALISED cells, because a region the plan drew
+  // small may have been stretched into a real one by the step above; and the
+  // gaps are absorbed a second time so a dropped orphan does not leave a hole.
   const pageNotes: string[] = [];
   regions = normaliseRows(regions, pageNotes);
   regions = absorbGaps(regions, canvas, pageNotes);
   for (const note of pageNotes) notes.push(`page ${pageIndex + 1} ${note}`);
+  const viable = dropUnviableRegions(regions, canvas, notes, pageIndex);
+  if (viable.length !== regions.length) {
+    const closing: string[] = [];
+    regions = absorbGaps(viable, canvas, closing);
+    for (const note of closing) notes.push(`page ${pageIndex + 1} ${note}`);
+  }
 
   // --- 3. resolve regions to elements ---
   const pool = new CopyPool(conceptPage?.copy ?? [], {
@@ -542,7 +611,30 @@ function composePage(
   // cell is the usual culprit), so coverage is settled last, on real pixels.
   closeCoverageGaps(elements, canvas, notes, pageIndex);
 
-  // --- 6. a page of nothing but images is not an editable design ---
+  // --- 6. placement judgement, on finished geometry (docs/19 §2) ---
+  // Nothing before this point knows what sits on what: the plan describes cells
+  // and the signature move rewrites them. Both defects it fixes are only
+  // visible once every rectangle is final, so both are settled here.
+  //
+  // Relocation can vacate rows, so coverage is re-settled after it; growing an
+  // element can in turn slide type back onto artwork, so a second, scrim-only
+  // pass closes the loop. A scrim cannot re-open either question — it is a
+  // known-luminance panel above the artwork and below its own text — so two
+  // passes terminate by construction.
+  // Glyph safety first, and it applies to the signature region like everything
+  // else — that is precisely where it was being violated. Occlusion resolution
+  // afterwards can only move copy onto grid cells, tighten a frame or lay a
+  // panel, so nothing below can push a glyph back off the canvas.
+  keepGlyphsOnCanvas(elements, canvas, notes, pageIndex);
+  if (resolveOcclusions(ctx, elements, planPage, notes, pageIndex, true))
+    closeCoverageGaps(elements, canvas, notes, pageIndex);
+  // Relocation and growth are the only things that can put a glyph back over an
+  // edge, and both have run. The last pass may only lay scrims — it never moves
+  // anything — so the two invariants cannot take turns undoing each other.
+  keepGlyphsOnCanvas(elements, canvas, notes, pageIndex);
+  resolveOcclusions(ctx, elements, planPage, notes, pageIndex, false);
+
+  // --- 7. a page of nothing but images is not an editable design ---
   if (!elements.some((el) => el.type !== 'image')) {
     elements.push(
       shapeEl(
@@ -659,7 +751,10 @@ function applySignatureMove(
       const bleed = bleedRect(signature.frame, edge, canvas);
       const primary = signature.elements[0]!;
       if (primary.type === 'image' || primary.type === 'shape') {
-        primary.frame = { ...bleed, rotation: 0 };
+        // One axis, capped: an image that hangs off two edges is being cropped
+        // from the corner, and the subject is the first thing a corner eats.
+        const safe = primary.type === 'image' ? capImageBleed(bleed, canvas, false) : bleed;
+        primary.frame = { ...safe, rotation: 0 };
         primary.roleHint = 'decoration';
         note(`extended "${signature.region.id}" to the ${edge} canvas edge`);
         return [];
@@ -687,20 +782,52 @@ function applySignatureMove(
       const size = typeSize(1, canvas) * OVERSIZED_NUMERAL_MULTIPLIER;
       const lineHeight = lineHeightFor(size);
       const source = el.text.replace(/\s+/g, ' ').trim() || el.text;
-      const first = source.slice(0, 6).trim() || source.slice(0, 1);
+      const fitsOversized = (s: string) =>
+        measureText(s, size, lineHeight, Number.MAX_SAFE_INTEGER).widestLine + size * 0.5 <=
+        canvas.width;
+      // The statistic, not the first six characters of the sentence around it.
+      // "82% of contracts hide it" is the copy; "82%" is the move.
+      const core = numeralCore(source);
+      const first = core && fitsOversized(core) ? core : fitsOversized(source) ? source : null;
+
+      // There is no number here. An art director calling a phrase a `stat` is
+      // common, and the old code answered it by slicing six characters off the
+      // front — which is how "Slow down" rendered as "Slow d" and "10 days" as
+      // "10 day", with nothing anywhere to say the copy had been mutilated.
+      // Copy is never cut to make a gesture: the type stays exactly as written
+      // at its planned size, and the counter block bleeds in its place.
+      if (first === null) {
+        const side: Edge = el.frame.x + el.frame.width / 2 < canvas.width / 2 ? 'left' : 'right';
+        const block = shapeEl(ctx, 'rect', counterRect(el.frame, side, canvas), {
+          fill: token(blockFill(planPage.background, signature.region.colour)),
+          z: layerDirectlyUnder(el, [...built.values()].flatMap((b) => b.elements)),
+          role: 'background',
+        });
+        block.name = `counter:${stat.region.id}`.slice(0, 120);
+        note(
+          `"${source}" holds no numeral that survives ${size}px; copy left whole at ${el.fontSize}px and its counter block bled off the ${side} edge instead`,
+        );
+        return [block];
+      }
       const m = measureText(first, size, lineHeight, Number.MAX_SAFE_INTEGER);
       // widen until the numeral is unambiguously one line — the whole move is
       // one enormous glyph run, and a wrap would turn it into an overflow error
-      let width = ceilTo8(m.widestLine + size * 0.4);
+      let width = ceilTo8(m.widestLine + size * 0.5);
       while (
         measureText(first, size, lineHeight, width).lines > 1 &&
         width < canvas.width * 2
       )
         width += BASELINE;
+      width = Math.min(width, floorTo8(canvas.width));
       const height = ceilTo8(measureText(first, size, lineHeight, width).height + BASELINE);
-      // crop against whichever side the region already leans towards
+      // Lean against whichever side the region already leans towards — but the
+      // DIGITS stay on the canvas. This move used to push 14% of the glyph run
+      // off the edge, which is how "82%" rendered as "32%": the whole reason
+      // the post existed, destroyed to make a gesture. The gesture is kept by
+      // running a backdrop off the edge behind the numeral instead, which is
+      // the half of the composition that carries no meaning to lose.
       const leansLeft = stat.frame.x + stat.frame.width / 2 < canvas.width / 2;
-      const x = leansLeft ? -floorTo8(width * 0.14) : floorTo8(canvas.width - width * 0.86);
+      const x = leansLeft ? 0 : floorTo8(canvas.width - width);
       const y = Math.min(Math.max(snapTo8(stat.frame.y), 0), floorTo8(canvas.height - height));
       el.text = first;
       el.fontSize = size;
@@ -710,9 +837,25 @@ function applySignatureMove(
       el.roleHint = 'decoration';
       el.align = leansLeft ? 'left' : 'right';
       el.verticalAlign = 'middle';
-      el.meta = { ...el.meta, oversized: true };
-      note(`"${first}" set at ${size}px and cropped by the ${leansLeft ? 'left' : 'right'} edge`);
-      return [];
+      // Anything that shortens copy says so. A page that still validates, still
+      // looks composed and quietly says something else is the worst outcome
+      // available, so the flag downstream already reads is set here too.
+      const shortened = first !== source;
+      el.meta = shortened
+        ? { ...el.meta, oversized: true, truncated: true }
+        : { ...el.meta, oversized: true };
+
+      const bleedSide: Edge = leansLeft ? 'left' : 'right';
+      const backdrop = shapeEl(ctx, 'rect', counterRect(el.frame, bleedSide, canvas), {
+        fill: token(blockFill(planPage.background, signature.region.colour)),
+        z: layerDirectlyUnder(el, [...built.values()].flatMap((b) => b.elements)),
+        role: 'background',
+      });
+      backdrop.name = `counter:${stat.region.id}`.slice(0, 120);
+      note(
+        `"${first}" set at ${size}px against the ${bleedSide} edge, every glyph on canvas; its counter block bleeds off that edge instead${shortened ? `; copy shortened from "${source}" and flagged truncated` : ''}`,
+      );
+      return [backdrop];
     }
 
     case 'overlap': {
@@ -764,16 +907,18 @@ function applySignatureMove(
         const side = ceilTo8(Math.max(target.frame.width, target.frame.height) + g.colWidth);
         const cx = target.frame.x + target.frame.width / 2;
         const cy = target.frame.y + target.frame.height / 2;
-        img.frame = {
-          x: snapTo8(cx - side / 2),
-          y: snapTo8(cy - side / 2),
-          width: side,
-          height: side,
-          rotation: 0,
-        };
-        img.cornerRadius = side / 2;
+        // The circle may exceed its column span — that is the move — but only a
+        // capped share of it may leave the canvas, or the subject inside the
+        // mask is cropped away by the edge as well as by the mask.
+        const circle = capImageBleed(
+          { x: cx - side / 2, y: cy - side / 2, width: side, height: side },
+          canvas,
+          true,
+        );
+        img.frame = { ...circle, rotation: 0 };
+        img.cornerRadius = circle.width / 2;
         img.roleHint = 'decoration';
-        note(`image "${target.region.id}" masked to a ${side}px circle beyond its column span`);
+        note(`image "${target.region.id}" masked to a ${circle.width}px circle beyond its column span`);
         return [];
       }
       // no image on the page — an accent disc behind the signature region reads
@@ -803,8 +948,10 @@ function applySignatureMove(
       const anchor = el?.frame ?? headline.frame;
       const width = Math.max(BASELINE * 4, snapTo8(Math.min(anchor.width * 0.4, 320 * (canvas.width / 1080))));
       const height = 16;
-      const below = snapTo8(anchor.y + anchor.height + g.gutter);
-      const y = below + height <= floorTo8(g.bottom) ? below : snapTo8(anchor.y - g.gutter - height);
+      // A heavy rule painted over a line of body copy is a strike-through, and
+      // the copy loses. So the anchor point is a preference, not a command:
+      // take the first slot near the headline that no run of glyphs occupies.
+      const y = clearRuleY(anchor, { width, height }, built, g, canvas);
       const rule = shapeEl(
         ctx,
         'rect',
@@ -827,6 +974,81 @@ function blockFill(background: string, preferred?: string): string {
 
 function ruleFill(background: string): string {
   return background === 'accent' ? 'primary' : 'accent';
+}
+
+/**
+ * A baseline for the accent rule that no type is already sitting on.
+ *
+ * Preference order is the design intent — one gutter under the headline, then
+ * one gutter above it — and after that the nearest clear baseline walking down
+ * the page, then up. The rule sits ABOVE everything in the stack, so unlike a
+ * scrim it cannot be argued with once painted: the only fix is not to paint it
+ * across a word. If the page is genuinely full, it goes where it was asked to
+ * go, because a page with no signature move at all is the worse outcome.
+ */
+function clearRuleY(
+  anchor: Rect,
+  rule: { width: number; height: number },
+  built: Map<string, Built>,
+  g: ReturnType<typeof gridMetrics>,
+  canvas: CanvasSize,
+): number {
+  const glyphRuns = [...built.values()]
+    .flatMap((b) => b.elements)
+    .filter((e): e is TextElement => e.type === 'text' && e.visible)
+    .map((e) => glyphBox(e));
+  const hits = (y: number) =>
+    glyphRuns.some(
+      (t) =>
+        anchor.x < t.x + t.width &&
+        anchor.x + rule.width > t.x &&
+        y < t.y + t.height &&
+        y + rule.height > t.y,
+    );
+
+  const below = snapTo8(anchor.y + anchor.height + g.gutter);
+  const above = snapTo8(anchor.y - g.gutter - rule.height);
+  const top = ceilTo8(g.top);
+  const bottom = floorTo8(g.bottom) - rule.height;
+  const legal = (y: number) => y >= top && y <= bottom;
+
+  for (const y of [below, above]) if (legal(y) && !hits(y)) return y;
+  for (let y = below; y <= bottom; y += BASELINE) if (!hits(y)) return y;
+  for (let y = above; y >= top; y -= BASELINE) if (!hits(y)) return y;
+  return legal(below) ? below : above;
+}
+
+/**
+ * The statistic inside a line of copy — a number with its unit, and nothing
+ * else. `null` when the copy holds no number at all.
+ *
+ * `oversized-numeral` is a move about one number, so it takes the number:
+ * "82% of contracts hide it" becomes "82%", and "10 days to hire" keeps its
+ * unit as "10 days" because "10" alone says something different. The unit is
+ * bounded to one short word, so this can only ever return a stat — never a
+ * clause, and never a fragment of one. The old blind six-character slice is
+ * what turned "Slow down" into "Slow d" at 192px, and returning `null` rather
+ * than a guess is what lets the caller degrade instead of mutilate.
+ */
+function numeralCore(source: string): string | null {
+  const stat = source.match(/[£$€]?\d[\d,.]*\s?(?:%|[A-Za-z]{1,6}\b)?/)?.[0]?.trim();
+  return stat && stat.length > 0 ? stat : null;
+}
+
+/**
+ * The block that bleeds in the numeral's place — sized to the glyphs, running
+ * off the edge the numeral leans against and one gutter clear of it elsewhere.
+ * Nothing on it carries meaning, so nothing is lost when the canvas cuts it.
+ */
+function counterRect(frame: Rect, edge: Edge, canvas: CanvasSize): Rect {
+  const pad = BASELINE * 3;
+  const overshoot = BASELINE * 6;
+  const top = Math.max(0, floorTo8(frame.y - pad));
+  const bottom = Math.min(canvas.height, ceilTo8(frame.y + frame.height + pad));
+  const left = edge === 'left' ? -overshoot : Math.max(0, floorTo8(frame.x - pad));
+  const right =
+    edge === 'right' ? canvas.width + overshoot : Math.min(canvas.width, ceilTo8(frame.x + frame.width + pad));
+  return { x: left, y: top, width: right - left, height: bottom - top };
 }
 
 type Edge = 'left' | 'right' | 'top' | 'bottom';
@@ -915,6 +1137,552 @@ function refit(el: TextElement, region: PlannedRegion, ctx: CompositionContext):
   el.fontSize = fitted.fontSize;
   el.lineHeight = fitted.lineHeight;
   el.frame = { ...fitted.frame, rotation: 0 };
+}
+
+// ---------- what sits on what (docs/19 §2) ----------
+
+/**
+ * The rectangle the GLYPHS occupy, which is not the rectangle the element
+ * occupies. A text frame is a grid cell; the type inside it is usually much
+ * narrower and shorter, and every judgement on this page — is it on the
+ * artwork, does it cross the canvas edge, how big is its scrim — is a question
+ * about the glyphs, not about the cell.
+ *
+ * Derived from the same `measureText` the validator and the SVG exporter use,
+ * and positioned by the same alignment rules the exporter applies, so what this
+ * says is on the page is what a reader sees on the page.
+ */
+export function glyphBox(el: TextElement): Rect {
+  const m = measureText(el.text, el.fontSize, el.lineHeight, el.frame.width, el.letterSpacing);
+  const width = Math.max(m.widestLine, 1);
+  const height = Math.max(m.height, el.fontSize);
+  const f = el.frame;
+  const x =
+    el.align === 'center'
+      ? f.x + (f.width - width) / 2
+      : el.align === 'right'
+        ? f.x + f.width - width
+        : f.x;
+  const y =
+    el.verticalAlign === 'middle'
+      ? f.y + (f.height - height) / 2
+      : el.verticalAlign === 'bottom'
+        ? f.y + f.height - height
+        : f.y;
+  return { x, y, width, height };
+}
+
+/**
+ * How opaque an element is, from the point of view of type sitting on it.
+ *
+ * `unknown` is the dangerous one: an image or a chart is filled by the asset
+ * pipeline long after composition, so no text colour can be *proven* legible
+ * against it and none should be attempted. `solid` elements are opaque too, but
+ * their luminance is a brand token, so `ensureLegibleText` settles those by
+ * recolouring the text rather than by covering the artwork.
+ */
+function occluderKind(el: Element): 'unknown' | 'solid' | null {
+  if (!el.visible || el.opacity < 0.99) return null;
+  if (el.type === 'image' || el.type === 'chart') return 'unknown';
+  if (el.type === 'shape') {
+    const fill = el.fill;
+    return 'kind' in fill && (fill.kind === 'token' || fill.kind === 'raw') ? 'solid' : null;
+  }
+  return null;
+}
+
+/** Point-in-element, honouring circular masks and ellipses. */
+function occluderCoversPoint(el: Element, px: number, py: number): boolean {
+  const f = el.frame;
+  if (px < f.x || px > f.x + f.width || py < f.y || py > f.y + f.height) return false;
+  if (el.type === 'shape' && el.shape === 'ellipse') {
+    const rx = f.width / 2 || 1;
+    const ry = f.height / 2 || 1;
+    return ((px - (f.x + rx)) / rx) ** 2 + ((py - (f.y + ry)) / ry) ** 2 <= 1;
+  }
+  const radius =
+    el.type === 'image' || el.type === 'shape'
+      ? Math.min(el.cornerRadius ?? 0, f.width / 2, f.height / 2)
+      : 0;
+  if (radius <= 0) return true;
+  const cx = Math.min(Math.max(px, f.x + radius), f.x + f.width - radius);
+  const cy = Math.min(Math.max(py, f.y + radius), f.y + f.height - radius);
+  return (px - cx) ** 2 + (py - cy) ** 2 <= radius * radius;
+}
+
+interface Occlusion {
+  /** Fraction of the glyph run whose topmost backing is unknown artwork. */
+  fraction: number;
+  occluders: Element[];
+}
+
+/**
+ * What is behind this run of glyphs, resolved in z-order exactly the way the
+ * validator resolves backgrounds: at each sample point only the TOPMOST element
+ * below the text counts, so a scrim laid over an illustration genuinely fixes
+ * the text above it instead of merely joining the pile.
+ */
+function occlusionUnder(el: TextElement, siblings: readonly Element[], box?: Rect): Occlusion {
+  const gb = box ?? glyphBox(el);
+  const candidates = siblings.filter(
+    (s) => s.id !== el.id && s.zIndex < el.zIndex && occluderKind(s) !== null,
+  );
+  if (candidates.length === 0) return { fraction: 0, occluders: [] };
+
+  const found = new Map<string, Element>();
+  let hits = 0;
+  const total = OCCLUSION_SAMPLE_COLS * OCCLUSION_SAMPLE_ROWS;
+  for (let i = 0; i < OCCLUSION_SAMPLE_COLS; i++) {
+    for (let j = 0; j < OCCLUSION_SAMPLE_ROWS; j++) {
+      const px = gb.x + (gb.width * (i + 0.5)) / OCCLUSION_SAMPLE_COLS;
+      const py = gb.y + (gb.height * (j + 0.5)) / OCCLUSION_SAMPLE_ROWS;
+      let top: Element | null = null;
+      for (const c of candidates) {
+        if (top && c.zIndex <= top.zIndex) continue;
+        if (!occluderCoversPoint(c, px, py)) continue;
+        top = c;
+      }
+      if (top && occluderKind(top) === 'unknown') {
+        hits++;
+        found.set(top.id, top);
+      }
+    }
+  }
+  return { fraction: hits / total, occluders: [...found.values()] };
+}
+
+/**
+ * Fraction of a run of glyphs that renders directly on artwork — an image or a
+ * chart, whose pixels the compositor cannot know and no text colour can be
+ * proven against. The measurement docs/19 P1.1 is defined by: anything above
+ * `OCCLUSION_TOLERANCE` is text no one can read.
+ */
+export function glyphsOnArtwork(el: TextElement, siblings: readonly Element[]): number {
+  return occlusionUnder(el, siblings).fraction;
+}
+
+/**
+ * Shrink a text frame horizontally onto its own glyphs.
+ *
+ * Two things depend on this. A scrim "sized to the text" needs a text whose
+ * frame IS its text — otherwise the panel is a grid cell wide and reads as a
+ * slab. And the validator samples for contrast at fixed fractions of the
+ * FRAME, so a scrim drawn around the glyphs of a frame three times their width
+ * would be sampled off its own edge and judged against the page instead.
+ *
+ * It matters how much: a headline's cell is most of a column and three lines of
+ * type are not, so an untightened scrim covers roughly twice the artwork it
+ * needs to. On the QA funnel page that was the difference between a card
+ * sitting on the illustration and the illustration being erased.
+ *
+ * Setting the width to the widest line cannot re-wrap the text — every line
+ * already fits inside it — but the result is verified against `measureText`
+ * regardless and abandoned if the wrap moves at all. Height only ever shrinks
+ * to what the lines occupy, so `text-overflow` cannot start failing either.
+ * Coverage is settled again afterwards, on the tightened geometry.
+ */
+function tightenToGlyphs(el: TextElement): boolean {
+  const before = measureText(el.text, el.fontSize, el.lineHeight, el.frame.width, el.letterSpacing);
+  const width = Math.min(el.frame.width, ceilTo8(before.widestLine + 1));
+  const after = measureText(el.text, el.fontSize, el.lineHeight, width, el.letterSpacing);
+  if (after.lines !== before.lines) return false;
+  const height = Math.min(el.frame.height, ceilTo8(after.height + 1));
+  if (width >= el.frame.width && height >= el.frame.height) return false;
+
+  const slackX = el.frame.width - width;
+  const slackY = el.frame.height - height;
+  const rawX =
+    el.align === 'center' ? el.frame.x + slackX / 2 : el.align === 'right' ? el.frame.x + slackX : el.frame.x;
+  const rawY =
+    el.verticalAlign === 'middle'
+      ? el.frame.y + slackY / 2
+      : el.verticalAlign === 'bottom'
+        ? el.frame.y + slackY
+        : el.frame.y;
+  el.frame = {
+    ...el.frame,
+    x: Math.min(Math.max(snapTo8(rawX), el.frame.x), el.frame.x + slackX),
+    y: Math.min(Math.max(snapTo8(rawY), el.frame.y), el.frame.y + slackY),
+    width,
+    height,
+  };
+  return true;
+}
+
+/**
+ * The brand tokens for a scrim and the text on it.
+ *
+ * Order matters as design, not just as arithmetic: the calmest panel that
+ * clears the threshold wins, so dark type gets a plain background panel rather
+ * than the most violently contrasting colour in the kit. A scrim is always a
+ * token — never a raw hex — because a raw fill would fail `palette-only` and,
+ * worse, would not move when the brand does.
+ */
+function scrimTokens(
+  ctx: CompositionContext,
+  el: TextElement,
+): { fill: string; text: string; ratio: number } {
+  const palette = paletteTokens(ctx.brandTokens);
+  const preference = ['background', 'text', 'primary', 'secondary', 'neutral', 'accent'].filter((t) =>
+    palette.includes(t),
+  );
+  const ordered = [...preference, ...palette.filter((t) => !preference.includes(t))];
+  const required = requiredContrastRatio(el.fontSize, el.fontWeight);
+  const current = el.colour.kind === 'token' ? el.colour.token : null;
+  const currentHex = current ? ctx.brandTokens.colours[current] : undefined;
+
+  let best: { fill: string; text: string; ratio: number } | null = null;
+  if (current && currentHex) {
+    for (const fill of ordered) {
+      const hex = ctx.brandTokens.colours[fill];
+      if (!hex || fill === current) continue;
+      const ratio = contrastRatio(currentHex, hex);
+      if (!best || ratio > best.ratio) best = { fill, text: current, ratio };
+      if (ratio >= required) return { fill, text: current, ratio };
+    }
+  }
+  // The art director's colour cannot be carried by any panel: take the best
+  // pair the brand owns and recolour the type to match its own scrim.
+  const pair = bestPair(ctx.brandTokens, ordered);
+  if (pair && (!best || pair.ratio > best.ratio)) return { fill: pair.bg, text: pair.fg, ratio: pair.ratio };
+  return best ?? { fill: 'background', text: current ?? 'text', ratio: 1 };
+}
+
+/**
+ * The z-index for a panel that must be seen BEHIND one element and IN FRONT OF
+ * everything else beneath it — which is the only position from which a scrim or
+ * a chip does anything at all.
+ *
+ * Sharing a z with another shape under the same text is not a near miss, it is
+ * a silent failure: the validator resolves ties by document order, so a chip
+ * laid at the same level as a backdrop it was meant to cover is skipped and the
+ * text is judged against the backdrop it cannot read on. The element above is
+ * raised if there is no room, which costs nothing — it is already the topmost
+ * thing in its own stack.
+ */
+function layerDirectlyUnder(el: Element, elements: readonly Element[], mustCover: readonly Element[] = []): number {
+  const below = [...elements, ...mustCover]
+    .filter((s) => s.id !== el.id && s.zIndex < el.zIndex)
+    .map((s) => s.zIndex);
+  const z = Math.max(el.zIndex - 1, ...below.map((n) => n + 1), 1);
+  if (z >= el.zIndex) el.zIndex = z + 1;
+  return z;
+}
+
+/** Lay a brand-token panel behind a run of glyphs, above the artwork it covers. */
+function addScrim(
+  ctx: CompositionContext,
+  elements: Element[],
+  el: TextElement,
+  occluders: readonly Element[],
+): ShapeElement {
+  tightenToGlyphs(el);
+  const canvas = ctx.canvas;
+  // The union of the frame and the glyphs, not just the frame: an unbreakable
+  // word longer than its frame renders outside it, and a scrim that stopped at
+  // the frame edge would leave exactly that word on the artwork.
+  const f = el.frame;
+  const gb = glyphBox(el);
+  const left = Math.min(f.x, gb.x);
+  const top = Math.min(f.y, gb.y);
+  const right = Math.max(f.x + f.width, gb.x + gb.width);
+  const bottom = Math.max(f.y + f.height, gb.y + gb.height);
+  const x = Math.max(0, floorTo8(left - SCRIM_PADDING));
+  const y = Math.max(0, floorTo8(top - SCRIM_PADDING));
+  const rect: Rect = {
+    x,
+    y,
+    width: Math.min(canvas.width - x, ceilTo8(right + SCRIM_PADDING) - x),
+    height: Math.min(canvas.height - y, ceilTo8(bottom + SCRIM_PADDING) - y),
+  };
+
+  const chosen = scrimTokens(ctx, el);
+  el.colour = token(chosen.text);
+  const z = layerDirectlyUnder(el, elements, occluders);
+
+  const scrim = shapeEl(ctx, 'rect', rect, { fill: token(chosen.fill), z, role: 'decoration' });
+  scrim.name = `scrim:${el.recipeSlotId ?? el.name}`.slice(0, 120);
+  scrim.cornerRadius = snapTo8(Math.min(rect.width, rect.height) * 0.04);
+  scrim.meta = { scrimFor: el.id };
+  elements.push(scrim);
+  return scrim;
+}
+
+/**
+ * Move a run of copy off the artwork and into free cells.
+ *
+ * The grid is the vocabulary here as everywhere else: the text lands on whole
+ * cells, keeps its type step, and is only accepted if it fits and if the cells
+ * it lands on are clear of artwork and of other copy. Candidates are scored by
+ * distance, so the copy moves as little as the page allows.
+ */
+function relocateText(
+  el: TextElement,
+  ctx: CompositionContext,
+  elements: readonly Element[],
+): { moved: boolean; distance: number } {
+  const canvas = ctx.canvas;
+  const g = gridMetrics(canvas);
+  const blockers = elements.filter(
+    (s) => s.id !== el.id && s.visible && s.roleHint !== 'background' && s.roleHint !== 'divider',
+  );
+
+  const cellFree = (col: number, row: number): boolean => {
+    const cell = gridFrame(canvas, { start: col, span: 1 }, { start: row, span: 1 });
+    const area = cell.width * cell.height;
+    for (const b of blockers) {
+      const ix = Math.max(0, Math.min(b.frame.x + b.frame.width, cell.x + cell.width) - Math.max(b.frame.x, cell.x));
+      const iy = Math.max(0, Math.min(b.frame.y + b.frame.height, cell.y + cell.height) - Math.max(b.frame.y, cell.y));
+      if (area > 0 && (ix * iy) / area > 0.2) return false;
+    }
+    return true;
+  };
+
+  const free: boolean[][] = [];
+  for (let c = 1; c <= GRID_COLUMNS; c++) {
+    const column: boolean[] = [];
+    for (let r = 1; r <= GRID_ROWS; r++) column.push(cellFree(c, r));
+    free.push(column);
+  }
+
+  const cols = Math.min(
+    GRID_COLUMNS,
+    Math.max(1, Math.ceil((el.frame.width + g.gutter) / (g.colWidth + g.gutter))),
+  );
+  const rows = Math.min(GRID_ROWS, Math.max(1, Math.ceil(el.frame.height / g.rowHeight)));
+  const shapes: [number, number][] = [];
+  for (const dr of [0, 1, 2])
+    for (const dc of [0, 1, -1]) {
+      const c = cols + dc;
+      const r = rows + dr;
+      if (c >= 1 && c <= GRID_COLUMNS && r >= 1 && r <= GRID_ROWS && !shapes.some(([a, b]) => a === c && b === r))
+        shapes.push([c, r]);
+    }
+
+  const centre = { x: el.frame.x + el.frame.width / 2, y: el.frame.y + el.frame.height / 2 };
+  const limit = MAX_RELOCATION_DISTANCE * Math.hypot(canvas.width, canvas.height);
+  let best: { frame: Rect; d: number; key: string } | null = null;
+
+  for (const [cs, rs] of shapes) {
+    for (let col = 1; col + cs - 1 <= GRID_COLUMNS; col++) {
+      for (let row = 1; row + rs - 1 <= GRID_ROWS; row++) {
+        let clear = true;
+        for (let c = col; c < col + cs && clear; c++)
+          for (let r = row; r < row + rs && clear; r++) if (!free[c - 1]![r - 1]) clear = false;
+        if (!clear) continue;
+
+        const frame = gridFrame(canvas, { start: col, span: cs }, { start: row, span: rs });
+        const m = measureText(el.text, el.fontSize, el.lineHeight, frame.width, el.letterSpacing);
+        // Height AND width: an unbreakable word wider than the cell would hang
+        // outside it, back over the artwork this move exists to escape.
+        if (m.height > frame.height || m.widestLine > frame.width) continue;
+        const d = Math.hypot(frame.x + frame.width / 2 - centre.x, frame.y + frame.height / 2 - centre.y);
+        if (d > limit) continue;
+        const key = `${row}:${col}:${cs}:${rs}`;
+        if (!best || d < best.d || (d === best.d && key < best.key)) best = { frame, d, key };
+      }
+    }
+  }
+
+  if (!best) return { moved: false, distance: 0 };
+  el.frame = { ...best.frame, rotation: el.frame.rotation };
+  return { moved: true, distance: best.d };
+}
+
+/**
+ * An overlap is DELIBERATE when it is the page's signature move rather than an
+ * accident of art direction. Three of the six moves exist precisely to run one
+ * thing over another; when one of those is in play and the signature region is
+ * on either side of the collision, the answer is a scrim, because relocating
+ * the copy would delete the move. Everything else is an accident, and an
+ * accident is moved out of the way if the page has anywhere to put it.
+ */
+const OVERLAPPING_MOVES = new Set<SignatureMove>(['overlap', 'bleed-edge', 'full-bleed-block']);
+
+function isDeliberateOverlap(
+  move: SignatureMove,
+  signatureRegionId: string,
+  el: TextElement,
+  occluders: readonly Element[],
+): boolean {
+  if (!OVERLAPPING_MOVES.has(move)) return false;
+  if (el.recipeSlotId === signatureRegionId) return true;
+  return occluders.some((o) => o.recipeSlotId === signatureRegionId);
+}
+
+/**
+ * P1.1 — no copy renders on artwork unaided.
+ *
+ * Runs on finished geometry, after the signature move, because a move can
+ * create a collision the plan never had. Each run of glyphs is judged against
+ * what is actually beneath it; the ones sitting on unknown artwork are either
+ * moved to free cells or given a brand-token panel, and the choice is recorded.
+ */
+function resolveOcclusions(
+  ctx: CompositionContext,
+  elements: Element[],
+  planPage: LayoutPlan['pages'][number],
+  notes: string[],
+  pageIndex: number,
+  allowRelocation: boolean,
+): boolean {
+  const move = ctx.concept.signatureMove;
+  const note = (what: string) => notes.push(`page ${pageIndex + 1} occlusion: ${what}`);
+  let changed = false;
+
+  // Ascending z, so a scrim decided for one line is visible to the next.
+  const texts = elements
+    .filter((e): e is TextElement => e.type === 'text')
+    .sort((a, b) => a.zIndex - b.zIndex || a.id.localeCompare(b.id));
+
+  for (const el of texts) {
+    const found = occlusionUnder(el, elements);
+    if (found.fraction <= OCCLUSION_TOLERANCE) continue;
+    const what = `"${el.name}" (${Math.round(found.fraction * 100)}% of its glyphs on ${found.occluders
+      .map((o) => `"${o.name}"`)
+      .join(', ')})`;
+
+    const deliberate = isDeliberateOverlap(move, planPage.signatureRegionId, el, found.occluders);
+    if (allowRelocation && !deliberate && el.roleHint !== 'decoration') {
+      const moved = relocateText(el, ctx, elements);
+      if (moved.moved && occlusionUnder(el, elements).fraction <= OCCLUSION_TOLERANCE) {
+        note(`relocated ${what} to free cells ${Math.round(moved.distance)}px away`);
+        changed = true;
+        continue;
+      }
+    }
+
+    const scrim = addScrim(ctx, elements, el, found.occluders);
+    const why = deliberate ? `the ${move} signature move` : 'no free cells within reach';
+    note(
+      `scrimmed ${what} — ${why}; ${(scrim.fill as { token: string }).token} panel at ${scrimTokens(ctx, el).ratio.toFixed(1)}:1`,
+    );
+    changed = true;
+  }
+  return changed;
+}
+
+/**
+ * P1.2 — no glyph crosses the canvas edge.
+ *
+ * A bleed extends a region past the safe area; it must never truncate meaning,
+ * and a digit is the most meaning any mark on the page carries. "82%" bled off
+ * the left edge and rendered "32%" — the statistic the post existed for,
+ * destroyed silently. Backdrops bleed; type does not.
+ */
+function keepGlyphsOnCanvas(
+  elements: Element[],
+  canvas: CanvasSize,
+  notes: string[],
+  pageIndex: number,
+): void {
+  for (const el of elements) {
+    if (el.type !== 'text') continue;
+    const gb = glyphBox(el);
+    const dx = gb.x < 0 ? -gb.x : gb.x + gb.width > canvas.width ? canvas.width - (gb.x + gb.width) : 0;
+    const dy = gb.y < 0 ? -gb.y : gb.y + gb.height > canvas.height ? canvas.height - (gb.y + gb.height) : 0;
+    if (dx === 0 && dy === 0) continue;
+    // Snap away from the edge being crossed, so rounding can never re-cross it.
+    const x = dx > 0 ? ceilTo8(el.frame.x + dx) : dx < 0 ? floorTo8(el.frame.x + dx) : el.frame.x;
+    const y = dy > 0 ? ceilTo8(el.frame.y + dy) : dy < 0 ? floorTo8(el.frame.y + dy) : el.frame.y;
+    el.frame = { ...el.frame, x, y };
+    notes.push(
+      `page ${pageIndex + 1} bleed: pulled "${el.name}" back inside the canvas (${Math.round(dx)},${Math.round(dy)}px) — glyphs never bleed`,
+    );
+  }
+}
+
+/** Fraction of a rect that lies outside the canvas. */
+function offCanvasFraction(r: Rect, canvas: CanvasSize): number {
+  const ix = Math.max(0, Math.min(r.x + r.width, canvas.width) - Math.max(r.x, 0));
+  const iy = Math.max(0, Math.min(r.y + r.height, canvas.height) - Math.max(r.y, 0));
+  const area = r.width * r.height;
+  return area <= 0 ? 1 : 1 - (ix * iy) / area;
+}
+
+/**
+ * P1.2 for artwork — bleed on one axis, and only so far.
+ *
+ * An image that hangs off two edges at once is not bleeding, it is being
+ * cropped from the corner, and the subject is the first thing to go. So: cap
+ * the hang at `MAX_IMAGE_BLEED_FRACTION` of the element on each axis, keep the
+ * axis with the larger gesture, and pull the other one fully inside. If the
+ * element is too large to bleed within the cap at all, it shrinks until it can.
+ */
+function capImageBleed(rect: Rect, canvas: CanvasSize, keepSquare: boolean): Rect {
+  const room = 1 - MAX_IMAGE_BLEED_FRACTION;
+  const scale = Math.min(1, canvas.width / room / rect.width, canvas.height / room / rect.height);
+  let width = Math.max(BASELINE, floorTo8(rect.width * scale));
+  let height = Math.max(BASELINE, floorTo8(rect.height * scale));
+  if (keepSquare) width = height = Math.min(width, height);
+  const cx = rect.x + rect.width / 2;
+  const cy = rect.y + rect.height / 2;
+  let x = snapTo8(cx - width / 2);
+  let y = snapTo8(cy - height / 2);
+
+  const hangX = width * MAX_IMAGE_BLEED_FRACTION;
+  const hangY = height * MAX_IMAGE_BLEED_FRACTION;
+  const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi);
+  x = clamp(x, -hangX, canvas.width - width + hangX);
+  y = clamp(y, -hangY, canvas.height - height + hangY);
+
+  // One axis bleeds; the other comes home.
+  const outX = Math.max(0, -x, x + width - canvas.width);
+  const outY = Math.max(0, -y, y + height - canvas.height);
+  if (outX > 0 && outY > 0) {
+    if (outX >= outY) y = clamp(y, 0, canvas.height - height);
+    else x = clamp(x, 0, canvas.width - width);
+  }
+  return { x: snapTo8(x), y: snapTo8(y), width, height };
+}
+
+/**
+ * P1.3 — an image region too small, too thin or too vague to mean anything is
+ * dropped rather than rendered.
+ *
+ * The failures this exists for are all the same failure: something that is not
+ * a picture rendered in a picture's place. A pointing hand at icon size beside
+ * a headline; a lone grey ellipse that was an illustration's ground shadow; a
+ * letterbox strip that shows the middle band of a figure and none of the
+ * figure. A page is better without any of them, and the note says so.
+ */
+function dropUnviableRegions(
+  regions: PlannedRegion[],
+  canvas: CanvasSize,
+  notes: string[],
+  pageIndex: number,
+): PlannedRegion[] {
+  const minSide = MIN_IMAGE_SIDE_RATIO * Math.min(canvas.width, canvas.height);
+  const minArea = MIN_IMAGE_AREA_RATIO * canvas.width * canvas.height;
+  const note = (what: string) => notes.push(`page ${pageIndex + 1} footprint: ${what}`);
+
+  const kept = regions.filter((r) => {
+    if (r.role !== 'image' && r.role !== 'chart') return true;
+    const f = gridFrame(canvas, r.col, r.row);
+    const area = f.width * f.height;
+    if (area < minArea || f.width < minSide || f.height < minSide) {
+      note(
+        `dropped ${r.role} "${r.id}" — ${Math.round(f.width)}x${Math.round(f.height)}px is below the ${Math.round(minSide)}px / ${(MIN_IMAGE_AREA_RATIO * 100).toFixed(0)}% floor and would render at icon size`,
+      );
+      return false;
+    }
+    if (r.role !== 'image') return true;
+    const aspect = Math.max(f.width / f.height, f.height / f.width);
+    if (aspect > MAX_IMAGE_ASPECT) {
+      note(
+        `dropped image "${r.id}" — ${aspect.toFixed(1)}:1 crops an illustration to a band with no subject in it`,
+      );
+      return false;
+    }
+    const query = (r.imageQuery ?? '').trim();
+    if (query.length > 1 && SUBJECTLESS_QUERY.test(query)) {
+      note(`dropped image "${r.id}" — the query "${query}" names no subject`);
+      return false;
+    }
+    return true;
+  });
+  // A plan is never emptied: the last region stands whatever its size.
+  return kept.length > 0 ? kept : regions;
 }
 
 // ---------- coverage backstop ----------
@@ -1061,7 +1829,7 @@ function ensureLegibleText(
     page.elements.push(
       shapeEl(ctx, 'rect', chipRect(el.frame, ctx.canvas), {
         fill: token(pair.bg),
-        z: el.zIndex - 1,
+        z: layerDirectlyUnder(el, page.elements),
         role: 'decoration',
       }),
     );
