@@ -62,6 +62,32 @@ The bar: a designer would call it competent. Composition, not correctness.
 | P2.3 | **Optical balance rules.** Content centroid should sit deliberately, not accidentally; enforce optical margins and prevent one-sided drift. | Fixes the "everything crammed centre-right" look |
 | P2.4 | **Concept quality audit.** Stage 1 has never been assessed on whether its ideas are *distinctive* rather than merely valid. Sample its output across briefs and judge the metaphors. | The grid cannot fix a boring idea |
 
+## 2b. Concept audit (P2.4) — done 2026-08-26, and the answer is good
+
+Stage 1 has never been assessed on whether its ideas are *distinctive* rather than
+merely valid. Reading the copy from all ten posts of the 2026-08-26 run: it is
+genuinely good, and this stage is not the bottleneck.
+
+Representative lines, none of which are stock phrasing:
+
+- "Blaming the tester is easy. Fixing the pipeline is hard." / "We map the leaks,
+  not the scapegoats."
+- "It's not one weak link — it's a failed process." / "Blame is a bandage."
+- "Read the dashboard, not just the crash."
+- "Three strong opinions beat thirty updates." / "Volume without a point of view
+  is just static."
+
+The banned-phrase and banned-metaphor lists in `design_concept@1` are doing their
+job. **Conclusion: do not spend effort on the concept stage. The gap is entirely
+in execution.**
+
+The audit did expose two execution defects, both in the compositor:
+
+| ID | Item | Severity |
+|---|---|---|
+| P1.2b | **`oversized-numeral` crops WORDS, silently.** Applied to non-numeric text it produced "Slow d" (from "Slow down") and "10 day" (from "10 days") — the compositor's own notes record it as "cropped by the right edge", and nothing sets `meta.truncated`, so a page validates cleanly while saying the wrong thing. The move must apply only to actual numerals/short stats and degrade safely otherwise; any path that mutates copy must flag it. Folded into P1.2. | HIGH |
+| P2.5 | **The signature move repeats on every page of a carousel.** All four recruitment pages used `oversized-numeral`, which is exactly the cookie-cutter failure the owner warned about. **This is a contradiction in this spec's own parent:** `18` §2 criterion 7 requires that no two pages in a carousel share a structure, while `18` §4 puts `signatureMove` on `ConceptOutput` — one per SET, so by construction every page gets the same one. Resolve by letting a page choose its own move (the concept nominating a default), which touches the stage-2 contract, the prompt and the compositor. Deferred to Phase 2 rather than destabilising Phase 1 mid-build. | MEDIUM-HIGH |
+
 ## 4. Phase 3 — judgement loop
 
 | ID | Item | Why |
