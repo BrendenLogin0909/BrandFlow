@@ -17,6 +17,11 @@ export type PipelineStep =
   | 'visual_concept'
   | 'design_fill'
   | 'design_freeform'
+  // Composition pipeline (docs/18-design-system-and-pipeline.md §4):
+  // stage 1 decides the idea, stage 2 places it on the grid, stage 3 is
+  // deterministic code, stage 4 critiques the render.
+  | 'design_concept'
+  | 'design_art_direction'
   | 'design_patch'
   | 'compliance_review'
   | 'accessibility_review';
