@@ -7,7 +7,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
 import type { AiCompletionMeta, AiProviderPort, PipelineStep } from '../ports/index.js';
 import { PROMPT_TEMPLATES } from '../ai/prompts/index.js';
-import { modelFor } from '../ai/models.js';
+import { modelFor, VISION_STEPS, visionModelFor } from '../ai/models.js';
 
 const MAX_REPAIRS = 2;
 
@@ -25,6 +25,16 @@ export class AnthropicAdapter implements AiProviderPort {
   ): Promise<{ data: T; meta: AiCompletionMeta }> {
     const template = PROMPT_TEMPLATES[step];
     const model = modelFor('anthropic', step);
+    // modelFor already substitutes for vision steps; surface the substitution
+    if (VISION_STEPS.has(step)) {
+      const choice = visionModelFor('anthropic');
+      if (choice.fellBackFrom)
+        console.warn(
+          `[ai] step "${step}" needs image input but ${choice.fellBackFrom} is text-only — using ${choice.model} instead`,
+        );
+    }
+    // attach the render once; it is identical across repair attempts
+    const images = template.images?.(input) ?? [];
     let tokensUsed = 0;
     let lastError = '';
 
@@ -34,11 +44,25 @@ export class AnthropicAdapter implements AiProviderPort {
           ? ''
           : `\n\nYour previous output failed validation:\n${lastError}\nReturn corrected JSON that satisfies the schema exactly.`;
 
+      const text = template.render(input) + repairNote;
+      type Block = Anthropic.TextBlockParam | Anthropic.ImageBlockParam;
+      const content: Block[] = images.length
+        ? [
+            ...images.map(
+              (img): Block => ({
+                type: 'image',
+                source: { type: 'base64', media_type: img.mediaType, data: img.base64 },
+              }),
+            ),
+            { type: 'text', text },
+          ]
+        : [{ type: 'text', text }];
+
       const response = await this.client.messages.create({
         model,
         max_tokens: 8192,
         system: template.system,
-        messages: [{ role: 'user', content: template.render(input) + repairNote }],
+        messages: [{ role: 'user', content }],
         tools: [
           {
             name: 'submit_result',

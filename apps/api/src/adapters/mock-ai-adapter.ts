@@ -334,6 +334,50 @@ export class MockAiAdapter implements AiProviderPort {
       return { pages: conceptPages.map((p, i) => mockLayoutPage(p.copy ?? [], i, move)) };
     }
 
+    if (step === 'design_critique') {
+      const r = (input ?? {}) as {
+        regions?: { id: string; role: string; emphasis: number; row?: { start: number; span: number } }[];
+        signatureRegionId?: string;
+      };
+      const regions = r.regions ?? [];
+      // Canned but plan-aware: the loop is only testable offline if the mock
+      // targets ids that actually exist. Picks the two faults a deterministic
+      // compositor most often leaves behind — a headline that is not dominant
+      // enough, and a region stranded at the bottom of the grid.
+      const headline = regions.find((x) => x.role === 'headline') ?? regions[0];
+      const lowest = [...regions].sort(
+        (a, b) => (b.row?.start ?? 0) + (b.row?.span ?? 0) - ((a.row?.start ?? 0) + (a.row?.span ?? 0)),
+      )[0];
+      const adjustments: Record<string, unknown>[] = [];
+      if (headline && headline.emphasis > 1)
+        adjustments.push({
+          regionId: headline.id,
+          action: 'emphasise',
+          why: 'Sample critique: the headline does not dominate — the eye has no clear first stop.',
+        });
+      if (lowest && lowest.id !== headline?.id)
+        adjustments.push({
+          regionId: lowest.id,
+          action: 'move',
+          to: { row: { start: Math.max(1, (lowest.row?.start ?? 2) - 1), span: lowest.row?.span ?? 1 } },
+          why: 'Sample critique: a dead band sits below this region; pulling it up closes the accidental gap.',
+        });
+      return {
+        scores: {
+          hierarchy: { score: 3, note: 'Sample: headline and subhead are too close in size to rank clearly.' },
+          alignment: { score: 4, note: 'Sample: regions share a common left edge and sit on the grid.' },
+          activeWhitespace: { score: 3, note: 'Sample: the space around the focal point is deliberate; the bottom band is not.' },
+          restraint: { score: 4, note: 'Sample: few type steps and a tight palette.' },
+          concept: { score: 3, note: 'Sample: the visual supports the message but does not carry it.' },
+          signatureMove: { score: 3, note: `Sample: one move declared on "${r.signatureRegionId ?? 'none'}" but it reads quietly.` },
+          variety: { score: 4, note: 'Sample: this page is structured differently from its siblings.' },
+        },
+        biggestProblem: 'Sample critique: the headline is not dominant enough for the eye to know where to start.',
+        verdict: 'generic',
+        adjustments,
+      };
+    }
+
     throw new Error(`MockAiAdapter has no canned output for step "${step}"`);
   }
 }

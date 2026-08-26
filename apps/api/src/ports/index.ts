@@ -23,6 +23,7 @@ export type PipelineStep =
   | 'design_concept'
   | 'design_art_direction'
   | 'design_patch'
+  | 'design_critique'
   | 'compliance_review'
   | 'accessibility_review';
 

@@ -145,7 +145,7 @@ export interface GridSpan {
   span: number;
 }
 
-const clampSpan = (s: GridSpan, max: number): GridSpan => {
+export const clampSpan = (s: GridSpan, max: number): GridSpan => {
   const start = Math.min(Math.max(Math.round(s.start), 1), max);
   const span = Math.min(Math.max(Math.round(s.span), 1), max - start + 1);
   return { start, span };
@@ -481,4 +481,34 @@ export function hashSeed(input: string): number {
     h = Math.imul(h, 0x01000193) >>> 0;
   }
   return h >>> 0;
+}
+
+
+// ---------------------------------------------------------------------------
+// Plan helpers used by the stage-4 critic when it applies region adjustments.
+//
+// These arrived with the critic in a parallel module that re-declared the whole
+// LayoutPlan schema. Two transcriptions of one contract is exactly the drift the
+// spec exists to prevent, so the schema lives here only and the critic's unique
+// helpers were folded in. `PlanRegion`/`PlanPage` are aliases for the canonical
+// names so the critic's imports keep reading naturally.
+// ---------------------------------------------------------------------------
+
+export const EMPHASIS_MIN = 1;
+export const EMPHASIS_MAX = 6;
+export const MAX_DISTINCT_EMPHASIS_PER_PAGE = MAX_TYPE_STEPS_PER_PAGE;
+
+export type PlanRegion = LayoutRegion;
+export type PlanPage = LayoutPlan['pages'][number];
+
+export function clampCol(span: GridSpan): GridSpan {
+  return clampSpan(span, GRID_COLUMNS);
+}
+
+export function clampRow(span: GridSpan): GridSpan {
+  return clampSpan(span, GRID_ROWS);
+}
+
+export function clampEmphasis(value: number): TypeEmphasis {
+  return Math.min(Math.max(Math.round(value), EMPHASIS_MIN), EMPHASIS_MAX) as TypeEmphasis;
 }

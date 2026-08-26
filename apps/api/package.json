@@ -9,7 +9,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:generate": "prisma generate"
+    "prisma:generate": "prisma generate",
+    "fonts": "node scripts/fetch-fonts.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.0",
@@ -22,6 +23,7 @@
     "@fastify/jwt": "^9.0.0",
     "@fastify/multipart": "^9.0.0",
     "@prisma/client": "^5.18.0",
+    "@resvg/resvg-js": "^2.6.2",
     "argon2": "^0.41.0",
     "bullmq": "^5.12.0",
     "fastify": "^5.0.0",

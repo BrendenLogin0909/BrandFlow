@@ -12,3 +12,6 @@ apps/api/prisma/dev.db
 .idea/
 .vscode/
 uploads/
+
+# Google Font TTFs fetched by apps/api/scripts/fetch-fonts.mjs (npm run fonts)
+apps/api/.fonts/

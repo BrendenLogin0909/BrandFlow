@@ -8,7 +8,7 @@ import OpenAI from 'openai';
 import { z } from 'zod';
 import type { AiCompletionMeta, AiProviderPort, PipelineStep } from '../ports/index.js';
 import { PROMPT_TEMPLATES } from '../ai/prompts/index.js';
-import { modelFor } from '../ai/models.js';
+import { modelFor, VISION_STEPS, visionModelFor } from '../ai/models.js';
 
 const MAX_REPAIRS = 2;
 
@@ -28,6 +28,14 @@ export class OpenAIAdapter implements AiProviderPort {
   ): Promise<{ data: T; meta: AiCompletionMeta }> {
     const template = PROMPT_TEMPLATES[step];
     const model = modelFor('openai', step);
+    if (VISION_STEPS.has(step)) {
+      const choice = visionModelFor('openai');
+      if (choice.fellBackFrom)
+        console.warn(
+          `[ai] step "${step}" needs image input but ${choice.fellBackFrom} is text-only — using ${choice.model} instead`,
+        );
+    }
+    const images = template.images?.(input) ?? [];
     let tokensUsed = 0;
     let lastError = '';
 
@@ -36,6 +44,19 @@ export class OpenAIAdapter implements AiProviderPort {
         attempt === 0
           ? ''
           : `\n\nYour previous output failed validation:\n${lastError}\nReturn corrected arguments that satisfy the schema exactly.`;
+
+      const userText = template.render(input) + repairNote;
+      const userContent: OpenAI.Chat.ChatCompletionUserMessageParam['content'] = images.length
+        ? [
+            ...images.map(
+              (img): OpenAI.Chat.ChatCompletionContentPart => ({
+                type: 'image_url',
+                image_url: { url: `data:${img.mediaType};base64,${img.base64}` },
+              }),
+            ),
+            { type: 'text' as const, text: userText },
+          ]
+        : userText;
 
       const response = await this.client.chat.completions.create({
         model,
@@ -46,7 +67,7 @@ export class OpenAIAdapter implements AiProviderPort {
           : {}),
         messages: [
           { role: 'system', content: template.system },
-          { role: 'user', content: template.render(input) + repairNote },
+          { role: 'user', content: userContent },
         ],
         tools: [
           {

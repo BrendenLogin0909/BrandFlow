@@ -182,6 +182,69 @@ Enumerated so the compositor can execute them precisely, chosen freely by stage 
 `decoration` and `background` roles are exempt from the safe-area clamp, so bleeds are
 legal by construction rather than by exception.
 
+## 5a. Stage-4 dependencies, risks and limits (2026-08-26)
+
+### Licence risk — the rasteriser is MPL-2.0 (owner-accepted, kept removable)
+
+`@resvg/resvg-js` turns an exported page into a PNG for the critic to look at.
+It is **MPL-2.0 — weak copyleft**, and the only non-permissive runtime dependency
+in the product. The owner accepted it on 2026-08-26 on the condition that the
+position is written down and the dependency stays removable.
+
+**Our understanding of why our usage is within the licence** (recorded so it can
+be re-checked; not legal advice):
+
+- We consume the published npm package **unmodified**. MPL-2.0 copyleft is
+  *file-level* — it reaches files of the covered work that you modify, not
+  software that merely calls it.
+- MPL-2.0 has **no network/SaaS clause** (unlike AGPL), so rendering an image
+  server-side creates no obligation to publish anything.
+- We neither redistribute resvg's source nor statically link it into a combined
+  work; it is a runtime dependency used through its public API.
+
+**Containment, so it can be dropped if that understanding changes:**
+
+- `apps/api/src/services/rasterise.ts` is the **only** module permitted to import
+  it. `rasterise.contained.test.ts` fails the build if anything else does, and
+  asserts no resvg type leaks out of the public API.
+- Only stage 4 consumes it, and a rasterisation failure is already non-fatal —
+  the critic returns the plan unchanged.
+- **To remove:** delete `rasterise.ts` and the render step in `critic.ts`, drop
+  the dependency. Stage 4 degrades to a no-op; stages 1–3 are unaffected.
+
+### Fonts — fixed 2026-08-26
+
+resvg does not execute the `@import` the SVG exporter emits and never fetches
+webfonts, so every brand face silently fell back — and resvg then picked the
+alphabetically first system family (Agency FB on Windows), distorting headline
+weight enough to make any critique of typography worthless.
+
+`apps/api/scripts/fetch-fonts.mjs` (`npm run fonts`, run from `apps/api`)
+downloads all 30 curated Google families as TTFs into `apps/api/.fonts`
+(gitignored; OFL/Apache, redistributable, recorded in `LICENCES.txt`). The
+rasteriser includes that directory by default, `BRANDFLOW_FONT_DIRS` still wins,
+and unresolved families are reported on `fontFallbacks`.
+
+Files are named `Family-Regular.ttf` / `Family-Bold.ttf` **deliberately**: the
+matcher recovers a family name by stripping known weight suffixes, so an
+arbitrary suffix makes every family look unmatched.
+
+Verified by rendering three real posts with distinct brand typography — with the
+directory present `fontFallbacks` is empty and the raster differs from the
+fallback render; with it moved aside, both revert.
+
+### Known stage-4 limits (from live verification)
+
+- The critic is **strong on spatial composition, weak on whether an element
+  should be there at all** — it missed clipped and black-on-black text, and
+  invented a justification for an irrelevant photograph. Legibility and asset
+  relevance stay with the deterministic validator.
+- **Total scores do not discriminate** (observed band 26–30 of 35; a page with
+  illegible text scored higher than the best-composed one). Use per-criterion
+  scores, anchored on measured facts; never gate on the total.
+- Vision models cannot judge proportion by eye. Passing measured grid occupancy
+  in as fact moved the whitespace score on the worst page from 4/5 to 2/5.
+
 ## 6. Measurable targets (how we know it worked)
 
 Re-run the same 10 briefs and require:
