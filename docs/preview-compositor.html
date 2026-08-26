@@ -54,29 +54,44 @@
   .pill.good { background: var(--good-bg); color: var(--good); }
   .pill.bad { background: var(--bad-bg); color: var(--bad); }
   footer { max-width: 1400px; margin: 0 auto; padding: 0 32px 64px; color: var(--muted); font-size: 13px; }
+  .card.flagged { border-color: var(--good); }
+  .pill.flag { background: var(--good-bg); color: var(--good); }
+  .card.flagged { border-color: var(--good); }
+  .pill.flag { background: var(--good-bg); color: var(--good); }
+  .card.flagged { border-color: var(--good); }
+  .pill.flag { background: var(--good-bg); color: var(--good); }
 </style>
 </head>
 <body>
 <header>
   <h1>Compositor preview — stage 3 output</h1>
   <p class="lede">
-    Twelve <code>LayoutPlan</code>s put through <code>composeFromPlan</code> and rendered with the
+    17 <code>LayoutPlan</code>s put through <code>composeFromPlan</code> and rendered with the
     production SVG exporter. Nothing on this page was drawn by a model: every coordinate, type size
     and colour was derived from the grid, the type scale and the brand tokens. Image regions render
     as grey placeholders because asset resolution runs later in the pipeline.
   </p>
+  <p class="lede">
+    The last five cards are the <code>docs/19</code> phase-1 behaviours, each built from a defect
+    observed in real output: copy rendered across an illustration, copy rendered on a chart, a
+    statistic bled off the canvas until <code>82%</code> read as <code>32%</code>, and image regions
+    too small, too thin or too vague to mean anything. Read their <em>Coercions</em> lines — the
+    compositor records which choice it made and why.
+  </p>
   <div class="totals">
-    <span class="pill good">0 validation errors across 12 pages</span>
-    <span class="pill">0 warnings</span>
+    <span class="pill good">0 validation errors across 17 pages</span>
     <span class="pill">worst coverage 77%</span>
     <span class="pill">worst 8px alignment 100%</span>
     <span class="pill">most font sizes on a page: 4</span>
+    <span class="pill good">0 runs of glyphs on artwork</span>
+    <span class="pill good">0 glyphs across a canvas edge</span>
   </div>
 </header>
 <main class="sheet">
 
       <figure class="card">
-        <div class="frame" style="aspect-ratio:1080/1350"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+        <div class="frame" style="aspect-ratio:1080/1350"><?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
      width="1080" height="1350" viewBox="0 0 1080 1350">
   <title>Split hero, block bleeding left</title>
   <defs>
@@ -112,24 +127,26 @@
               <span class="pill">100% on 8px</span>
               <span class="pill">3 font sizes: 68, 22, 16</span>
             </dd></div>
-            <div><dt>Coercions</dt><dd class="notes">page 1 signature: bleed-edge — extended "r0" to the left canvas edge<br>legibility: recoloured "kicker:r2" to text for 18.5:1</dd></div>
+            <div><dt>Coercions</dt><dd class="notes">page 1 signature: bleed-edge — extended &quot;r0&quot; to the left canvas edge</dd></div>
           </dl>
         </figcaption>
       </figure>
 
       <figure class="card">
-        <div class="frame" style="aspect-ratio:1080/1350"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+        <div class="frame" style="aspect-ratio:1080/1350"><?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
      width="1080" height="1350" viewBox="0 0 1080 1350">
-  <title>Oversized numeral, cropped left</title>
+  <title>Oversized numeral, digits intact</title>
   <defs>
     <style type="text/css"><![CDATA[
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
     ]]></style>
   </defs>
   <rect id="page-background" width="1080" height="1350" fill="#ffffff"/>
-  <rect id="00000000-0000-4000-8000-000000000004" data-name="rect" data-role="decoration" opacity="1" x="96" y="1112" width="888" height="136" rx="8" fill="#e8b23a"/>
-  <text id="00000000-0000-4000-8000-000000000001" data-name="stat:r0" data-role="decoration" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="192" font-weight="800" font-style="normal" fill="#1a3c8f">
-    <tspan x="-48" y="369.6">73%</tspan>
+  <rect id="00000000-0000-4000-8000-000000000004" data-name="rect" data-role="decoration" opacity="1" x="96" y="1112" width="888" height="136" rx="8" fill="#1a3c8f"/>
+  <rect id="00000000-0000-4000-8000-000000000005" data-name="counter:r0" data-role="background" opacity="1" x="-48" y="72" width="480" height="264" rx="0" fill="#1a3c8f"/>
+  <text id="00000000-0000-4000-8000-000000000001" data-name="stat:r0" data-role="decoration" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="192" font-weight="800" font-style="normal" fill="#8a8f98">
+    <tspan x="0" y="369.6">73%</tspan>
   </text>
   <text id="00000000-0000-4000-8000-000000000002" data-name="headline:r1" data-role="headline" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="68" font-weight="800" font-style="normal" fill="#101418">
     <tspan x="96" y="652.4">of releases that</tspan>
@@ -137,13 +154,12 @@
     <tspan x="96" dy="80">named on day one</tspan>
   </text>
   <text id="00000000-0000-4000-8000-000000000003" data-name="body:r2" data-role="body" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="22" font-weight="400" font-style="normal" fill="#101418">
-    <tspan x="96" y="918.6">Ownership is the cheapest scheduling tool there is, and</tspan>
-    <tspan x="96" dy="32">it costs one line in the kickoff doc.</tspan>
+    <tspan x="96" y="918.6">Ownership is the cheapest scheduling tool there is.</tspan>
   </text>
 </svg></div>
         <figcaption>
-          <div class="head"><span class="num">02</span><h2>Oversized numeral, cropped left</h2></div>
-          <p class="blurb">The stat is set at display x2 and deliberately runs off the canvas — the single signature move on the page.</p>
+          <div class="head"><span class="num">02</span><h2>Oversized numeral, digits intact</h2></div>
+          <p class="blurb">The stat is set at display x2 hard against the edge. Its counter block runs off the canvas; the digits never do.</p>
           <dl class="meta">
             <div><dt>Signature</dt><dd><code>oversized-numeral</code> on <code>r0</code></dd></div>
             <div><dt>Canvas</dt><dd>1080&times;1350, bg <code>background</code></dd></div>
@@ -154,13 +170,14 @@
               <span class="pill">100% on 8px</span>
               <span class="pill">3 font sizes: 192, 68, 22</span>
             </dd></div>
-            <div><dt>Coercions</dt><dd class="notes">page 1 coverage: plan occupied rows 2-16; stretched to fill rows 1-16<br>page 1 signature: oversized-numeral — "73%" set at 192px and cropped by the left edge<br>page 1 coverage: grew "stat:r0" to close a 216px dead band</dd></div>
+            <div><dt>Coercions</dt><dd class="notes">page 1 coverage: plan occupied rows 2-16; stretched to fill rows 1-16<br>page 1 signature: oversized-numeral — &quot;73%&quot; set at 192px against the left edge, every glyph on canvas; its counter block bleeds off that edge instead<br>page 1 coverage: grew &quot;stat:r0&quot; to close a 216px dead band<br>legibility: recoloured &quot;stat:r0&quot; to neutral for 3.1:1</dd></div>
           </dl>
         </figcaption>
       </figure>
 
       <figure class="card">
-        <div class="frame" style="aspect-ratio:1080/1080"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+        <div class="frame" style="aspect-ratio:1080/1080"><?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
      width="1080" height="1080" viewBox="0 0 1080 1080">
   <title>Full-bleed band behind the hook</title>
   <defs>
@@ -170,7 +187,7 @@
   </defs>
   <rect id="page-background" width="1080" height="1080" fill="#ffffff"/>
   <rect id="00000000-0000-4000-8000-000000000005" data-name="rect" data-role="background" opacity="1" x="0" y="184" width="1080" height="384" rx="0" fill="#1a3c8f"/>
-  <rect id="00000000-0000-4000-8000-000000000004" data-name="abstract engineering workflow" data-role="image" opacity="1" x="96" y="760" width="888" height="224" rx="16" fill="#e5e7eb" data-asset-id="" data-placeholder="true"/>
+  <rect id="00000000-0000-4000-8000-000000000004" data-name="automated deployment pipeline" data-role="image" opacity="1" x="96" y="760" width="888" height="224" rx="16" fill="#e5e7eb" data-asset-id="" data-placeholder="true"/>
   <text id="00000000-0000-4000-8000-000000000001" data-name="kicker:r0" data-role="caption" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="16" font-weight="700" font-style="normal" letter-spacing="2" fill="#101418">
     <tspan x="96" y="156.8">PLATFORM</tspan>
   </text>
@@ -180,8 +197,7 @@
   </text>
   <text id="00000000-0000-4000-8000-000000000003" data-name="body:r2" data-role="body" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="22" font-weight="400" font-style="normal" fill="#101418">
     <tspan x="96" y="566.6">Automate the boring path first. The interesting</tspan>
-    <tspan x="96" dy="32">failures only become visible once the dull ones</tspan>
-    <tspan x="96" dy="32">stop.</tspan>
+    <tspan x="96" dy="32">failures are never the ones you rehearsed.</tspan>
   </text>
 </svg></div>
         <figcaption>
@@ -197,13 +213,14 @@
               <span class="pill">100% on 8px</span>
               <span class="pill">3 font sizes: 68, 22, 16</span>
             </dd></div>
-            <div><dt>Coercions</dt><dd class="notes">page 1 signature: full-bleed-block — colour band across the full canvas width behind "r1"<br>legibility: recoloured "kicker:r0" to text for 18.5:1<br>legibility: recoloured "headline:r1" to background for 10.1:1</dd></div>
+            <div><dt>Coercions</dt><dd class="notes">page 1 signature: full-bleed-block — colour band across the full canvas width behind &quot;r1&quot;<br>legibility: recoloured &quot;headline:r1&quot; to background for 10.1:1</dd></div>
           </dl>
         </figcaption>
       </figure>
 
       <figure class="card">
-        <div class="frame" style="aspect-ratio:1080/1350"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+        <div class="frame" style="aspect-ratio:1080/1350"><?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
      width="1080" height="1350" viewBox="0 0 1080 1350">
   <title>Circular crop beyond the column</title>
   <defs>
@@ -212,23 +229,23 @@
     ]]></style>
   </defs>
   <rect id="page-background" width="1080" height="1350" fill="#ffffff"/>
-  <rect id="00000000-0000-4000-8000-000000000001" data-name="abstract engineering workflow" data-role="decoration" opacity="1" x="224" y="64" width="640" height="640" rx="320" fill="#e5e7eb" data-asset-id="" data-placeholder="true"/>
-  <text id="00000000-0000-4000-8000-000000000002" data-name="headline:r1" data-role="headline" opacity="1" text-anchor="middle" font-family="'Inter', sans-serif" font-size="68" font-weight="800" font-style="normal" fill="#101418">
-    <tspan x="540" y="760.4">We hired for polish and</tspan>
-    <tspan x="540" dy="80">shipped nothing for a</tspan>
-    <tspan x="540" dy="80">quarter</tspan>
+  <rect id="00000000-0000-4000-8000-000000000001" data-name="engineering lead portrait" data-role="decoration" opacity="1" x="224" y="64" width="640" height="640" rx="320" fill="#e5e7eb" data-asset-id="" data-placeholder="true"/>
+  <text id="00000000-0000-4000-8000-000000000002" data-name="headline:r1" data-role="headline" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="68" font-weight="800" font-style="normal" fill="#101418">
+    <tspan x="96" y="760.4">We hired for polish and</tspan>
+    <tspan x="96" dy="80">shipped nothing for a</tspan>
+    <tspan x="96" dy="80">quarter</tspan>
   </text>
-  <text id="00000000-0000-4000-8000-000000000003" data-name="subhead:r2" data-role="subheadline" opacity="1" text-anchor="middle" font-family="'Inter', sans-serif" font-size="30" font-weight="700" font-style="normal" fill="#101418">
-    <tspan x="464" y="1029">What we learned rebuilding the release</tspan>
-    <tspan x="464" dy="40">process from scratch</tspan>
+  <text id="00000000-0000-4000-8000-000000000003" data-name="subhead:r2" data-role="subheadline" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="30" font-weight="700" font-style="normal" fill="#101418">
+    <tspan x="96" y="1029">What we learned rebuilding the release</tspan>
+    <tspan x="96" dy="40">process from the constraints up</tspan>
   </text>
-  <text id="00000000-0000-4000-8000-000000000004" data-name="cta:r3" data-role="cta" opacity="1" text-anchor="middle" font-family="'Inter', sans-serif" font-size="22" font-weight="700" font-style="normal" fill="#1a3c8f">
-    <tspan x="540" y="1134.6">Read the full write-up -&gt;</tspan>
+  <text id="00000000-0000-4000-8000-000000000004" data-name="cta:r3" data-role="cta" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="22" font-weight="700" font-style="normal" fill="#101418">
+    <tspan x="96" y="1134.6">Read the full write-up →</tspan>
   </text>
 </svg></div>
         <figcaption>
           <div class="head"><span class="num">04</span><h2>Circular crop beyond the column</h2></div>
-          <p class="blurb">The portrait is masked to a circle wider than the cells it was assigned, breaking the grid on purpose.</p>
+          <p class="blurb">The portrait is masked to a circle wider than the cells it was assigned, breaking the grid on purpose — capped so the subject cannot fall off the canvas.</p>
           <dl class="meta">
             <div><dt>Signature</dt><dd><code>crop-circle</code> on <code>r0</code></dd></div>
             <div><dt>Canvas</dt><dd>1080&times;1350, bg <code>background</code></dd></div>
@@ -239,13 +256,14 @@
               <span class="pill">100% on 8px</span>
               <span class="pill">3 font sizes: 68, 30, 22</span>
             </dd></div>
-            <div><dt>Coercions</dt><dd class="notes">page 1 signature: crop-circle — image "r0" masked to a 640px circle beyond its column span<br>legibility: recoloured "subhead:r2" to text for 18.5:1</dd></div>
+            <div><dt>Coercions</dt><dd class="notes">page 1 signature: crop-circle — image &quot;r0&quot; masked to a 640px circle beyond its column span</dd></div>
           </dl>
         </figcaption>
       </figure>
 
       <figure class="card">
-        <div class="frame" style="aspect-ratio:1080/1350"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+        <div class="frame" style="aspect-ratio:1080/1350"><?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
      width="1080" height="1350" viewBox="0 0 1080 1350">
   <title>Editorial two-column with accent rule</title>
   <defs>
@@ -260,7 +278,7 @@
   <text id="00000000-0000-4000-8000-000000000002" data-name="headline:r1" data-role="headline" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="68" font-weight="800" font-style="normal" fill="#101418">
     <tspan x="96" y="324.4">The best code review</tspan>
     <tspan x="96" dy="80">comment is the one you</tspan>
-    <tspan x="96" dy="80">never have to write</tspan>
+    <tspan x="96" dy="80">never had to write</tspan>
   </text>
   <text id="00000000-0000-4000-8000-000000000003" data-name="body:r2" data-role="body" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="22" font-weight="400" font-style="normal" fill="#101418">
     <tspan x="96" y="694.6">Conventions, formatters and types</tspan>
@@ -270,10 +288,10 @@
   <text id="00000000-0000-4000-8000-000000000004" data-name="body:r3" data-role="body" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="22" font-weight="400" font-style="normal" fill="#101418">
     <tspan x="552" y="694.6">What is left is the part reviewers</tspan>
     <tspan x="552" dy="32">are actually good at: is this the</tspan>
-    <tspan x="552" dy="32">right thing to build at all?</tspan>
+    <tspan x="552" dy="32">right change at all?</tspan>
   </text>
-  <text id="00000000-0000-4000-8000-000000000005" data-name="cta:r4" data-role="cta" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="22" font-weight="700" font-style="normal" fill="#1a3c8f">
-    <tspan x="96" y="1134.6">Full checklist in the comments -&gt;</tspan>
+  <text id="00000000-0000-4000-8000-000000000005" data-name="cta:r4" data-role="cta" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="22" font-weight="700" font-style="normal" fill="#101418">
+    <tspan x="96" y="1134.6">Full checklist in the comments →</tspan>
   </text>
   <rect id="00000000-0000-4000-8000-000000000006" data-name="rect" data-role="divider" opacity="1" x="96" y="624" width="320" height="16" rx="0" fill="#e8b23a"/>
 </svg></div>
@@ -290,13 +308,14 @@
               <span class="pill">100% on 8px</span>
               <span class="pill">3 font sizes: 68, 22, 16</span>
             </dd></div>
-            <div><dt>Coercions</dt><dd class="notes">page 1 signature: rule-accent — heavy accent rule anchored to "r1"<br>legibility: recoloured "kicker:r0" to text for 18.5:1</dd></div>
+            <div><dt>Coercions</dt><dd class="notes">page 1 signature: rule-accent — heavy accent rule anchored to &quot;r1&quot;</dd></div>
           </dl>
         </figcaption>
       </figure>
 
       <figure class="card">
-        <div class="frame" style="aspect-ratio:1080/1080"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+        <div class="frame" style="aspect-ratio:1080/1080"><?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
      width="1080" height="1080" viewBox="0 0 1080 1080">
   <title>Overlapping headline and image</title>
   <defs>
@@ -306,7 +325,7 @@
   </defs>
   <rect id="page-background" width="1080" height="1080" fill="#ffffff"/>
   <rect id="00000000-0000-4000-8000-000000000004" data-name="rect" data-role="decoration" opacity="1" x="96" y="816" width="888" height="168" rx="8" fill="#1a3c8f"/>
-  <rect id="00000000-0000-4000-8000-000000000002" data-name="abstract engineering workflow" data-role="image" opacity="1" x="632" y="96" width="352" height="496" rx="24" fill="#e5e7eb" data-asset-id="" data-placeholder="true"/>
+  <rect id="00000000-0000-4000-8000-000000000002" data-name="roadmap on a whiteboard" data-role="image" opacity="1" x="632" y="96" width="352" height="496" rx="24" fill="#e5e7eb" data-asset-id="" data-placeholder="true"/>
   <text id="00000000-0000-4000-8000-000000000001" data-name="headline:r0" data-role="headline" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="68" font-weight="800" font-style="normal" fill="#101418">
     <tspan x="96" y="248.4">Most roadmaps</tspan>
     <tspan x="96" dy="80">are a list of</tspan>
@@ -315,12 +334,12 @@
   </text>
   <text id="00000000-0000-4000-8000-000000000003" data-name="body:r2" data-role="body" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="22" font-weight="400" font-style="normal" fill="#101418">
     <tspan x="96" y="614.6">A roadmap earns the name when removing an item changes what the team does</tspan>
-    <tspan x="96" dy="32">on Monday morning.</tspan>
+    <tspan x="96" dy="32">on Monday.</tspan>
   </text>
 </svg></div>
         <figcaption>
           <div class="head"><span class="num">06</span><h2>Overlapping headline and image</h2></div>
-          <p class="blurb">The headline extends one gutter into the image and sits above it in the stack.</p>
+          <p class="blurb">The headline extends one gutter into the image and sits above it in the stack — with a scrim, so the overlap survives and stays readable.</p>
           <dl class="meta">
             <div><dt>Signature</dt><dd><code>overlap</code> on <code>r0</code></dd></div>
             <div><dt>Canvas</dt><dd>1080&times;1080, bg <code>background</code></dd></div>
@@ -331,13 +350,14 @@
               <span class="pill">100% on 8px</span>
               <span class="pill">2 font sizes: 68, 22</span>
             </dd></div>
-            <div><dt>Coercions</dt><dd class="notes">page 1 signature: overlap — "r0" overlaps "r1" by one gutter</dd></div>
+            <div><dt>Coercions</dt><dd class="notes">page 1 signature: overlap — &quot;r0&quot; overlaps &quot;r1&quot; by one gutter</dd></div>
           </dl>
         </figcaption>
       </figure>
 
       <figure class="card">
-        <div class="frame" style="aspect-ratio:1080/1350"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+        <div class="frame" style="aspect-ratio:1080/1350"><?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
      width="1080" height="1350" viewBox="0 0 1080 1350">
   <title>Dark ground, display type</title>
   <defs>
@@ -346,7 +366,7 @@
     ]]></style>
   </defs>
   <rect id="page-background" width="1080" height="1350" fill="#101418"/>
-  <text id="00000000-0000-4000-8000-000000000001" data-name="kicker:r0" data-role="caption" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="16" font-weight="700" font-style="normal" letter-spacing="2" fill="#e8b23a">
+  <text id="00000000-0000-4000-8000-000000000001" data-name="kicker:r0" data-role="caption" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="16" font-weight="700" font-style="normal" letter-spacing="2" fill="#ffffff">
     <tspan x="96" y="172.8">THE HARD PART</tspan>
   </text>
   <text id="00000000-0000-4000-8000-000000000002" data-name="headline:r1" data-role="headline" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="96" font-weight="800" font-style="normal" fill="#ffffff">
@@ -354,12 +374,10 @@
   </text>
   <text id="00000000-0000-4000-8000-000000000003" data-name="body:r2" data-role="body" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="22" font-weight="400" font-style="normal" fill="#ffffff">
     <tspan x="96" y="838.6">Every week a decision waits, it gets more expensive and</tspan>
-    <tspan x="96" dy="32">less reversible. Deciding badly and quickly beats</tspan>
-    <tspan x="96" dy="32">deciding perfectly and late in almost every case we</tspan>
-    <tspan x="96" dy="32">measured.</tspan>
+    <tspan x="96" dy="32">less reversible. Both directions.</tspan>
   </text>
-  <text id="00000000-0000-4000-8000-000000000004" data-name="cta:r3" data-role="cta" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="22" font-weight="700" font-style="normal" fill="#e8b23a">
-    <tspan x="96" y="1134.6">Agree? Disagree? -&gt;</tspan>
+  <text id="00000000-0000-4000-8000-000000000004" data-name="cta:r3" data-role="cta" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="22" font-weight="700" font-style="normal" fill="#ffffff">
+    <tspan x="96" y="1134.6">Agree? Disagree? →</tspan>
   </text>
   <rect id="00000000-0000-4000-8000-000000000005" data-name="rect" data-role="divider" opacity="1" x="96" y="768" width="296" height="16" rx="0" fill="#e8b23a"/>
 </svg></div>
@@ -376,13 +394,14 @@
               <span class="pill">100% on 8px</span>
               <span class="pill">3 font sizes: 96, 22, 16</span>
             </dd></div>
-            <div><dt>Coercions</dt><dd class="notes">page 1 signature: rule-accent — heavy accent rule anchored to "r1"<br>legibility: recoloured "headline:r1" to background for 18.5:1<br>legibility: recoloured "body:r2" to background for 18.5:1</dd></div>
+            <div><dt>Coercions</dt><dd class="notes">page 1 signature: rule-accent — heavy accent rule anchored to &quot;r1&quot;<br>legibility: recoloured &quot;kicker:r0&quot; to background for 18.5:1<br>legibility: recoloured &quot;headline:r1&quot; to background for 18.5:1<br>legibility: recoloured &quot;body:r2&quot; to background for 18.5:1<br>legibility: recoloured &quot;cta:r3&quot; to background for 18.5:1</dd></div>
           </dl>
         </figcaption>
       </figure>
 
       <figure class="card">
-        <div class="frame" style="aspect-ratio:1080/1350"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+        <div class="frame" style="aspect-ratio:1080/1350"><?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
      width="1080" height="1350" viewBox="0 0 1080 1350">
   <title>Data page with chart region</title>
   <defs>
@@ -392,18 +411,14 @@
   </defs>
   <rect id="page-background" width="1080" height="1350" fill="#ffffff"/>
   <g id="00000000-0000-4000-8000-000000000003" data-name="chart:r2" data-role="data" opacity="1" data-chart="bar">
-    <rect x="118.2" y="956.75" width="103.6" height="61.25" rx="6" fill="#1a3c8f"/>
-    <text x="170" y="1036" text-anchor="middle" font-family="Arial" font-size="15.299999999999999" fill="#1a3c8f">Q</text>
-    <rect x="266.2" y="773" width="103.6" height="245" rx="6" fill="#e8b23a"/>
-    <text x="318" y="1036" text-anchor="middle" font-family="Arial" font-size="15.299999999999999" fill="#e8b23a">3</text>
-    <rect x="414.2" y="895.5" width="103.6" height="122.5" rx="6" fill="#1a3c8f"/>
-    <text x="466" y="1036" text-anchor="middle" font-family="Arial" font-size="15.299999999999999" fill="#1a3c8f">Q</text>
-    <rect x="562.2" y="528" width="103.6" height="490" rx="6" fill="#e8b23a"/>
-    <text x="614" y="1036" text-anchor="middle" font-family="Arial" font-size="15.299999999999999" fill="#e8b23a">4</text>
-    <rect x="710.2" y="834.25" width="103.6" height="183.75" rx="6" fill="#1a3c8f"/>
-    <text x="762" y="1036" text-anchor="middle" font-family="Arial" font-size="15.299999999999999" fill="#1a3c8f">Q</text>
-    <rect x="858.2" y="956.75" width="103.6" height="61.25" rx="6" fill="#e8b23a"/>
-    <text x="910" y="1036" text-anchor="middle" font-family="Arial" font-size="15.299999999999999" fill="#e8b23a">6</text>
+    <rect x="129.3" y="528" width="155.39999999999998" height="490" rx="6" fill="#1a3c8f"/>
+    <text x="207" y="1036" text-anchor="middle" font-family="Arial" font-size="15.299999999999999" fill="#1a3c8f">Elite</text>
+    <rect x="351.3" y="691.3333333333334" width="155.39999999999998" height="326.66666666666663" rx="6" fill="#e8b23a"/>
+    <text x="429" y="1036" text-anchor="middle" font-family="Arial" font-size="15.299999999999999" fill="#e8b23a">High</text>
+    <rect x="573.3" y="854.6666666666667" width="155.39999999999998" height="163.33333333333331" rx="6" fill="#1a3c8f"/>
+    <text x="651" y="1036" text-anchor="middle" font-family="Arial" font-size="15.299999999999999" fill="#1a3c8f">Medium</text>
+    <rect x="795.3" y="948" width="155.39999999999998" height="70" rx="6" fill="#e8b23a"/>
+    <text x="873" y="1036" text-anchor="middle" font-family="Arial" font-size="15.299999999999999" fill="#e8b23a">Low</text>
   </g>
   <text id="00000000-0000-4000-8000-000000000001" data-name="kicker:r0" data-role="caption" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="16" font-weight="700" font-style="normal" letter-spacing="2" fill="#101418">
     <tspan x="96" y="136.8">BENCHMARK 2026</tspan>
@@ -413,8 +428,7 @@
     <tspan x="96" dy="56">quartile from everyone else</tspan>
   </text>
   <text id="00000000-0000-4000-8000-000000000004" data-name="body:r3" data-role="body" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="22" font-weight="400" font-style="normal" fill="#101418">
-    <tspan x="96" y="1062.6">Sample of 240 engineering organisations, self-reported,</tspan>
-    <tspan x="96" dy="32">normalised per service.</tspan>
+    <tspan x="96" y="1062.6">Sample of 240 engineering organisations, self-reported, 2026.</tspan>
   </text>
   <rect id="00000000-0000-4000-8000-000000000005" data-name="rect" data-role="divider" opacity="1" x="96" y="480" width="320" height="16" rx="0" fill="#e8b23a"/>
 </svg></div>
@@ -431,13 +445,14 @@
               <span class="pill">100% on 8px</span>
               <span class="pill">3 font sizes: 44, 22, 16</span>
             </dd></div>
-            <div><dt>Coercions</dt><dd class="notes">page 1 signature: rule-accent — heavy accent rule anchored to "r1"<br>legibility: recoloured "kicker:r0" to text for 18.5:1</dd></div>
+            <div><dt>Coercions</dt><dd class="notes">page 1 signature: rule-accent — heavy accent rule anchored to &quot;r1&quot;</dd></div>
           </dl>
         </figcaption>
       </figure>
 
       <figure class="card">
-        <div class="frame" style="aspect-ratio:1080/1080"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+        <div class="frame" style="aspect-ratio:1080/1080"><?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
      width="1080" height="1080" viewBox="0 0 1080 1080">
   <title>Icon trio over a colour field</title>
   <defs>
@@ -447,33 +462,29 @@
   </defs>
   <rect id="page-background" width="1080" height="1080" fill="#ffffff"/>
   <rect id="00000000-0000-4000-8000-000000000005" data-name="rect" data-role="decoration" opacity="1" x="0" y="488" width="984" height="496" rx="16" fill="#1a3c8f"/>
-  <g id="00000000-0000-4000-8000-000000000002" data-name="icon:abstract-engineering-workflow" data-role="icon" opacity="1" data-icon="lucide/abstract-engineering-workflow" transform="translate(96,320)">
-    <svg width="168" height="168" viewBox="0 0 24 24" fill="none" stroke="#1a3c8f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-  <path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z" />
-  <path d="M20 2v4" />
-  <path d="M22 4h-4" />
-  <circle cx="4" cy="20" r="2" />
+  <g id="00000000-0000-4000-8000-000000000002" data-name="icon:target" data-role="icon" opacity="1" data-icon="lucide/target" transform="translate(96,320)">
+    <svg width="168" height="168" viewBox="0 0 24 24" fill="none" stroke="#e8b23a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <circle cx="12" cy="12" r="10" />
+  <circle cx="12" cy="12" r="6" />
+  <circle cx="12" cy="12" r="2" />
 </svg>
   </g>
-  <g id="00000000-0000-4000-8000-000000000003" data-name="icon:abstract-engineering-workflow" data-role="icon" opacity="1" data-icon="lucide/abstract-engineering-workflow" transform="translate(400,320)">
-    <svg width="168" height="168" viewBox="0 0 24 24" fill="none" stroke="#1a3c8f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-  <path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z" />
-  <path d="M20 2v4" />
-  <path d="M22 4h-4" />
-  <circle cx="4" cy="20" r="2" />
+  <g id="00000000-0000-4000-8000-000000000003" data-name="icon:gauge" data-role="icon" opacity="1" data-icon="lucide/gauge" transform="translate(400,320)">
+    <svg width="168" height="168" viewBox="0 0 24 24" fill="none" stroke="#e8b23a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <path d="m12 14 4-4" />
+  <path d="M3.34 19a10 10 0 1 1 17.32 0" />
 </svg>
   </g>
-  <g id="00000000-0000-4000-8000-000000000004" data-name="icon:abstract-engineering-workflow" data-role="icon" opacity="1" data-icon="lucide/abstract-engineering-workflow" transform="translate(704,320)">
-    <svg width="168" height="168" viewBox="0 0 24 24" fill="none" stroke="#1a3c8f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-  <path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z" />
-  <path d="M20 2v4" />
-  <path d="M22 4h-4" />
-  <circle cx="4" cy="20" r="2" />
+  <g id="00000000-0000-4000-8000-000000000004" data-name="icon:route" data-role="icon" opacity="1" data-icon="lucide/route" transform="translate(704,320)">
+    <svg width="168" height="168" viewBox="0 0 24 24" fill="none" stroke="#e8b23a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <circle cx="6" cy="19" r="3" />
+  <path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15" />
+  <circle cx="18" cy="5" r="3" />
 </svg>
   </g>
   <text id="00000000-0000-4000-8000-000000000001" data-name="headline:r0" data-role="headline" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="44" font-weight="800" font-style="normal" fill="#101418">
-    <tspan x="96" y="193.2">Three habits that survived</tspan>
-    <tspan x="96" dy="56">every reorg we went through</tspan>
+    <tspan x="96" y="193.2">Three habits behind every team</tspan>
+    <tspan x="96" dy="56">that ships on a Friday</tspan>
   </text>
 </svg></div>
         <figcaption>
@@ -489,13 +500,14 @@
               <span class="pill">100% on 8px</span>
               <span class="pill">1 font size: 44</span>
             </dd></div>
-            <div><dt>Coercions</dt><dd class="notes">page 1 signature: bleed-edge — extended "r4" to the left canvas edge</dd></div>
+            <div><dt>Coercions</dt><dd class="notes">page 1 signature: bleed-edge — extended &quot;r4&quot; to the left canvas edge</dd></div>
           </dl>
         </figcaption>
       </figure>
 
       <figure class="card">
-        <div class="frame" style="aspect-ratio:1080/1080"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+        <div class="frame" style="aspect-ratio:1080/1080"><?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
      width="1080" height="1080" viewBox="0 0 1080 1080">
   <title>Accent ground, centred statement</title>
   <defs>
@@ -504,16 +516,16 @@
     ]]></style>
   </defs>
   <rect id="page-background" width="1080" height="1080" fill="#e8b23a"/>
-  <text id="00000000-0000-4000-8000-000000000001" data-name="headline:r0" data-role="headline" opacity="1" text-anchor="middle" font-family="'Inter', sans-serif" font-size="96" font-weight="800" font-style="normal" fill="#101418">
-    <tspan x="540" y="320.8">Boring is a</tspan>
-    <tspan x="540" dy="104">feature</tspan>
+  <text id="00000000-0000-4000-8000-000000000001" data-name="headline:r0" data-role="headline" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="96" font-weight="800" font-style="normal" fill="#101418">
+    <tspan x="96" y="320.8">Boring is a</tspan>
+    <tspan x="96" dy="104">feature</tspan>
   </text>
-  <text id="00000000-0000-4000-8000-000000000002" data-name="subhead:r1" data-role="subheadline" opacity="1" text-anchor="middle" font-family="'Inter', sans-serif" font-size="30" font-weight="700" font-style="normal" fill="#101418">
-    <tspan x="544" y="693">The systems nobody talks about are the ones</tspan>
-    <tspan x="544" dy="40">that never wake anyone at 3am</tspan>
+  <text id="00000000-0000-4000-8000-000000000002" data-name="subhead:r1" data-role="subheadline" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="30" font-weight="700" font-style="normal" fill="#101418">
+    <tspan x="176" y="693">The systems nobody talks about are the ones</tspan>
+    <tspan x="176" dy="40">that never woke anybody up</tspan>
   </text>
-  <text id="00000000-0000-4000-8000-000000000003" data-name="cta:r2" data-role="cta" opacity="1" text-anchor="middle" font-family="'Inter', sans-serif" font-size="22" font-weight="700" font-style="normal" fill="#101418">
-    <tspan x="540" y="894.6">What is your most boring win? -&gt;</tspan>
+  <text id="00000000-0000-4000-8000-000000000003" data-name="cta:r2" data-role="cta" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="22" font-weight="700" font-style="normal" fill="#101418">
+    <tspan x="96" y="894.6">What is your most boring win? →</tspan>
   </text>
   <rect id="00000000-0000-4000-8000-000000000004" data-name="rect" data-role="divider" opacity="1" x="96" y="616" width="320" height="16" rx="0" fill="#1a3c8f"/>
 </svg></div>
@@ -530,13 +542,14 @@
               <span class="pill">100% on 8px</span>
               <span class="pill">3 font sizes: 96, 30, 22</span>
             </dd></div>
-            <div><dt>Coercions</dt><dd class="notes">page 1 coverage: plan occupied rows 3-16; stretched to fill rows 1-16<br>page 1 signature: rule-accent — heavy accent rule anchored to "r0"</dd></div>
+            <div><dt>Coercions</dt><dd class="notes">page 1 coverage: plan occupied rows 3-16; stretched to fill rows 1-16<br>page 1 signature: rule-accent — heavy accent rule anchored to &quot;r0&quot;</dd></div>
           </dl>
         </figcaption>
       </figure>
 
       <figure class="card">
-        <div class="frame" style="aspect-ratio:1080/1350"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+        <div class="frame" style="aspect-ratio:1080/1350"><?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
      width="1080" height="1350" viewBox="0 0 1080 1350">
   <title>Stat rail beside the argument</title>
   <defs>
@@ -556,16 +569,15 @@
   <text id="00000000-0000-4000-8000-000000000004" data-name="headline:r3" data-role="headline" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="44" font-weight="800" font-style="normal" fill="#ffffff">
     <tspan x="400" y="385.2">Teams with written</tspan>
     <tspan x="400" dy="56">decisions move four</tspan>
-    <tspan x="400" dy="56">times faster after month</tspan>
-    <tspan x="400" dy="56">three</tspan>
+    <tspan x="400" dy="56">times faster through</tspan>
+    <tspan x="400" dy="56">review</tspan>
   </text>
   <text id="00000000-0000-4000-8000-000000000005" data-name="body:r4" data-role="body" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="22" font-weight="400" font-style="normal" fill="#ffffff">
     <tspan x="400" y="694.6">The gain is not in the writing. It is in never</tspan>
-    <tspan x="400" dy="32">re-litigating a settled question because nobody</tspan>
-    <tspan x="400" dy="32">remembers the reasoning.</tspan>
+    <tspan x="400" dy="32">re-litigating a settled question.</tspan>
   </text>
   <text id="00000000-0000-4000-8000-000000000006" data-name="cta:r5" data-role="cta" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="22" font-weight="700" font-style="normal" fill="#ffffff">
-    <tspan x="400" y="1062.6">Template in the comments -&gt;</tspan>
+    <tspan x="400" y="1062.6">Template in the comments →</tspan>
   </text>
 </svg></div>
         <figcaption>
@@ -581,13 +593,14 @@
               <span class="pill">100% on 8px</span>
               <span class="pill">4 font sizes: 68, 44, 22, 16</span>
             </dd></div>
-            <div><dt>Coercions</dt><dd class="notes">page 1 signature: full-bleed-block — colour band across the full canvas width behind "r0"<br>legibility: recoloured "kicker:r2" to background for 10.1:1<br>legibility: recoloured "headline:r3" to background for 10.1:1<br>legibility: recoloured "body:r4" to background for 10.1:1<br>legibility: recoloured "cta:r5" to background for 10.1:1</dd></div>
+            <div><dt>Coercions</dt><dd class="notes">page 1 signature: full-bleed-block — colour band across the full canvas width behind &quot;r0&quot;<br>legibility: recoloured &quot;stat:r1&quot; to background for 10.1:1<br>legibility: recoloured &quot;kicker:r2&quot; to background for 10.1:1<br>legibility: recoloured &quot;headline:r3&quot; to background for 10.1:1<br>legibility: recoloured &quot;body:r4&quot; to background for 10.1:1<br>legibility: recoloured &quot;cta:r5&quot; to background for 10.1:1</dd></div>
           </dl>
         </figcaption>
       </figure>
 
       <figure class="card">
-        <div class="frame" style="aspect-ratio:1080/1350"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+        <div class="frame" style="aspect-ratio:1080/1350"><?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
      width="1080" height="1350" viewBox="0 0 1080 1350">
   <title>Carousel opener, image bleeding bottom</title>
   <defs>
@@ -596,7 +609,7 @@
     ]]></style>
   </defs>
   <rect id="page-background" width="1080" height="1350" fill="#ffffff"/>
-  <rect id="00000000-0000-4000-8000-000000000004" data-name="abstract engineering workflow" data-role="decoration" opacity="1" x="0" y="744" width="984" height="504" rx="32" fill="#e5e7eb" data-asset-id="" data-placeholder="true"/>
+  <rect id="00000000-0000-4000-8000-000000000004" data-name="onboarding checklist desk" data-role="decoration" opacity="1" x="0" y="744" width="984" height="504" rx="32" fill="#e5e7eb" data-asset-id="" data-placeholder="true"/>
   <text id="00000000-0000-4000-8000-000000000001" data-name="kicker:r0" data-role="caption" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="16" font-weight="700" font-style="normal" letter-spacing="2" fill="#101418">
     <tspan x="96" y="136.8">1 OF 6</tspan>
   </text>
@@ -606,8 +619,7 @@
     <tspan x="96" dy="80">afternoon</tspan>
   </text>
   <text id="00000000-0000-4000-8000-000000000003" data-name="body:r2" data-role="body" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="22" font-weight="400" font-style="normal" fill="#101418">
-    <tspan x="96" y="550.6">Six changes, none of them clever, all of them boring</tspan>
-    <tspan x="96" dy="32">enough that nobody had bothered.</tspan>
+    <tspan x="96" y="550.6">Six changes, none of them clever, all of them boring.</tspan>
   </text>
 </svg></div>
         <figcaption>
@@ -623,15 +635,229 @@
               <span class="pill">100% on 8px</span>
               <span class="pill">3 font sizes: 68, 22, 16</span>
             </dd></div>
-            <div><dt>Coercions</dt><dd class="notes">page 1 signature: bleed-edge — extended "r3" to the left canvas edge<br>legibility: recoloured "kicker:r0" to text for 18.5:1</dd></div>
+            <div><dt>Coercions</dt><dd class="notes">page 1 signature: bleed-edge — extended &quot;r3&quot; to the left canvas edge</dd></div>
+          </dl>
+        </figcaption>
+      </figure>
+
+      <figure class="card flagged">
+        <div class="frame" style="aspect-ratio:1080/1350"><?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="1080" height="1350" viewBox="0 0 1080 1350">
+  <title>Copy laid on artwork, relocated</title>
+  <defs>
+    <style type="text/css"><![CDATA[
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+    ]]></style>
+  </defs>
+  <rect id="page-background" width="1080" height="1350" fill="#ffffff"/>
+  <rect id="00000000-0000-4000-8000-000000000001" data-name="contract with a highlighted clause" data-role="image" opacity="1" x="96" y="96" width="432" height="720" rx="24" fill="#e5e7eb" data-asset-id="" data-placeholder="true"/>
+  <text id="00000000-0000-4000-8000-000000000002" data-name="headline:r1" data-role="headline" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="44" font-weight="800" font-style="normal" fill="#101418">
+    <tspan x="552" y="413.2">The clause that</tspan>
+    <tspan x="552" dy="56">costs you the</tspan>
+    <tspan x="552" dy="56">client</tspan>
+  </text>
+  <text id="00000000-0000-4000-8000-000000000003" data-name="body:r2" data-role="body" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="22" font-weight="400" font-style="normal" fill="#101418">
+    <tspan x="96" y="838.6">Uncapped indemnity hides in one line of a standard MSA. Here is what to</tspan>
+    <tspan x="96" dy="32">check before you sign.</tspan>
+  </text>
+  <rect id="00000000-0000-4000-8000-000000000004" data-name="rect" data-role="divider" opacity="1" x="248" y="624" width="176" height="16" rx="0" fill="#e8b23a"/>
+</svg></div>
+        <figcaption>
+          <div class="head"><span class="num">13</span><h2>Copy laid on artwork, relocated</h2><span class="pill flag">P1.1 relocate</span></div>
+          <p class="blurb">Art direction put the headline inside the illustration’s own cells. The page has free cells nearby, so the copy moves to them and the artwork is left whole.</p>
+          <dl class="meta">
+            <div><dt>Signature</dt><dd><code>rule-accent</code> on <code>r0</code></dd></div>
+            <div><dt>Canvas</dt><dd>1080&times;1350, bg <code>background</code></dd></div>
+            <div><dt>Plan</dt><dd class="regions">image c1+6 r1+10 e4 · headline c3+6 r4+4 e2 · body c1+12 r11+6 e5</dd></div>
+            <div><dt>Measured</dt><dd>
+              <span class="pill good">0 errors</span>
+              <span class="pill">85% coverage</span>
+              <span class="pill">100% on 8px</span>
+              <span class="pill">2 font sizes: 44, 22</span>
+            </dd></div>
+            <div><dt>Coercions</dt><dd class="notes">page 1 signature: rule-accent — heavy accent rule anchored to &quot;r1&quot;<br>page 1 occlusion: relocated &quot;headline:r1&quot; (78% of its glyphs on &quot;contract with a highlighted clause&quot;) to free cells 268px away</dd></div>
+          </dl>
+        </figcaption>
+      </figure>
+
+      <figure class="card flagged">
+        <div class="frame" style="aspect-ratio:1080/1350"><?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="1080" height="1350" viewBox="0 0 1080 1350">
+  <title>Copy on artwork, scrimmed</title>
+  <defs>
+    <style type="text/css"><![CDATA[
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+    ]]></style>
+  </defs>
+  <rect id="page-background" width="1080" height="1350" fill="#ffffff"/>
+  <rect id="00000000-0000-4000-8000-000000000002" data-name="cracked pipeline leaking" data-role="image" opacity="1" x="96" y="96" width="512" height="1088" rx="32" fill="#e5e7eb" data-asset-id="" data-placeholder="true"/>
+  <rect id="00000000-0000-4000-8000-000000000004" data-name="scrim:r0" data-role="decoration" opacity="1" x="360" y="312" width="480" height="440" rx="16" fill="#ffffff"/>
+  <text id="00000000-0000-4000-8000-000000000001" data-name="headline:r0" data-role="headline" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="68" font-weight="800" font-style="normal" fill="#101418">
+    <tspan x="376" y="392.4">Blaming the</tspan>
+    <tspan x="376" dy="80">tester is</tspan>
+    <tspan x="376" dy="80">easy. Fixing</tspan>
+    <tspan x="376" dy="80">the pipeline</tspan>
+    <tspan x="376" dy="80">is hard.</tspan>
+  </text>
+  <text id="00000000-0000-4000-8000-000000000003" data-name="body:r2" data-role="body" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="22" font-weight="400" font-style="normal" fill="#101418">
+    <tspan x="632" y="838.6">A bug hits prod. The stand-up</tspan>
+    <tspan x="632" dy="32">points to the tester. No one</tspan>
+    <tspan x="632" dy="32">looks upstream.</tspan>
+  </text>
+</svg></div>
+        <figcaption>
+          <div class="head"><span class="num">14</span><h2>Copy on artwork, scrimmed</h2><span class="pill flag">P1.1 scrim</span></div>
+          <p class="blurb">The same collision, but the overlap IS the page’s signature move. Relocating would delete the move, so a brand-token panel goes behind the type instead, sized to the glyphs.</p>
+          <dl class="meta">
+            <div><dt>Signature</dt><dd><code>overlap</code> on <code>r0</code></dd></div>
+            <div><dt>Canvas</dt><dd>1080&times;1350, bg <code>background</code></dd></div>
+            <div><dt>Plan</dt><dd class="regions">headline c5+7 r6+4 e2 · image c1+7 r4+10 e4 · body c8+5 r11+4 e5</dd></div>
+            <div><dt>Measured</dt><dd>
+              <span class="pill good">0 errors</span>
+              <span class="pill">85% coverage</span>
+              <span class="pill">100% on 8px</span>
+              <span class="pill">2 font sizes: 68, 22</span>
+            </dd></div>
+            <div><dt>Coercions</dt><dd class="notes">page 1 coverage: plan occupied rows 4-14; stretched to fill rows 1-16<br>page 1 signature: overlap — &quot;r0&quot; overlaps &quot;r1&quot; by one gutter<br>page 1 occlusion: scrimmed &quot;headline:r0&quot; (56% of its glyphs on &quot;cracked pipeline leaking&quot;) — the overlap signature move; background panel at 18.5:1</dd></div>
+          </dl>
+        </figcaption>
+      </figure>
+
+      <figure class="card flagged">
+        <div class="frame" style="aspect-ratio:1080/1350"><?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="1080" height="1350" viewBox="0 0 1080 1350">
+  <title>Body copy on a chart</title>
+  <defs>
+    <style type="text/css"><![CDATA[
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+    ]]></style>
+  </defs>
+  <rect id="page-background" width="1080" height="1350" fill="#ffffff"/>
+  <g id="00000000-0000-4000-8000-000000000001" data-name="chart:r0" data-role="data" opacity="1" data-chart="progress">
+    <rect x="96" y="406" width="888" height="28" rx="14" fill="#1a3c8f" opacity="0.2"/>
+    <rect x="96" y="406" width="550.56" height="28" rx="14" fill="#1a3c8f"/>
+    <text x="984" y="398" text-anchor="end" font-family="Arial" font-weight="700" font-size="25.2" fill="#1a3c8f">62%</text>
+  </g>
+  <rect id="00000000-0000-4000-8000-000000000004" data-name="scrim:r1" data-role="decoration" opacity="1" x="160" y="224" width="712" height="104" rx="8" fill="#ffffff"/>
+  <text id="00000000-0000-4000-8000-000000000002" data-name="body:r1" data-role="body" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="22" font-weight="400" font-style="normal" fill="#101418">
+    <tspan x="176" y="262.6">Most of the funnel is lost before anyone reads the second</tspan>
+    <tspan x="176" dy="32">screen.</tspan>
+  </text>
+  <text id="00000000-0000-4000-8000-000000000003" data-name="headline:r2" data-role="headline" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="68" font-weight="800" font-style="normal" fill="#101418">
+    <tspan x="96" y="976.4">Where the drop-off</tspan>
+    <tspan x="96" dy="80">actually happens</tspan>
+  </text>
+</svg></div>
+        <figcaption>
+          <div class="head"><span class="num">15</span><h2>Body copy on a chart</h2><span class="pill flag">P1.1 scrim</span></div>
+          <p class="blurb">A chart is opaque for the same reason an image is: the compositor cannot know what it will look like, so no text colour can be proven against it.</p>
+          <dl class="meta">
+            <div><dt>Signature</dt><dd><code>overlap</code> on <code>r1</code></dd></div>
+            <div><dt>Canvas</dt><dd>1080&times;1350, bg <code>background</code></dd></div>
+            <div><dt>Plan</dt><dd class="regions">chart c1+12 r1+9 e4 · body c2+9 r3+5 e5 · headline c1+12 r10+7 e2</dd></div>
+            <div><dt>Measured</dt><dd>
+              <span class="pill good">0 errors</span>
+              <span class="pill">85% coverage</span>
+              <span class="pill">100% on 8px</span>
+              <span class="pill">2 font sizes: 68, 22</span>
+            </dd></div>
+            <div><dt>Coercions</dt><dd class="notes">page 1 signature: overlap — &quot;r1&quot; overlaps &quot;r0&quot; by one gutter<br>page 1 occlusion: scrimmed &quot;body:r1&quot; (100% of its glyphs on &quot;chart:r0&quot;) — the overlap signature move; background panel at 18.5:1</dd></div>
+          </dl>
+        </figcaption>
+      </figure>
+
+      <figure class="card flagged">
+        <div class="frame" style="aspect-ratio:1080/1350"><?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="1080" height="1350" viewBox="0 0 1080 1350">
+  <title>Bleeding numeral keeps its digits</title>
+  <defs>
+    <style type="text/css"><![CDATA[
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+    ]]></style>
+  </defs>
+  <rect id="page-background" width="1080" height="1350" fill="#ffffff"/>
+  <rect id="00000000-0000-4000-8000-000000000002" data-name="empty wallet and a profit report" data-role="image" opacity="1" x="552" y="96" width="432" height="872" rx="24" fill="#e5e7eb" data-asset-id="" data-placeholder="true"/>
+  <rect id="00000000-0000-4000-8000-000000000005" data-name="counter:r0" data-role="background" opacity="1" x="-48" y="144" width="480" height="264" rx="0" fill="#1a3c8f"/>
+  <text id="00000000-0000-4000-8000-000000000001" data-name="stat:r0" data-role="decoration" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="192" font-weight="800" font-style="normal" fill="#ffffff">
+    <tspan x="0" y="333.6">82%</tspan>
+  </text>
+  <text id="00000000-0000-4000-8000-000000000003" data-name="headline:r2" data-role="headline" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="44" font-weight="800" font-style="normal" fill="#101418">
+    <tspan x="96" y="877.2">Fail from cash</tspan>
+    <tspan x="96" dy="56">flow, not profit</tspan>
+  </text>
+  <text id="00000000-0000-4000-8000-000000000004" data-name="body:r3" data-role="body" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="22" font-weight="400" font-style="normal" fill="#101418">
+    <tspan x="176" y="1062.6">You can be profitable on paper and</tspan>
+    <tspan x="176" dy="32">still miss payroll.</tspan>
+  </text>
+</svg></div>
+        <figcaption>
+          <div class="head"><span class="num">16</span><h2>Bleeding numeral keeps its digits</h2><span class="pill flag">P1.2 bleed</span></div>
+          <p class="blurb">The defect this rule exists for: 82% bled off the left edge and rendered as 32%. The digits now sit hard against the edge and the counter block bleeds in their place.</p>
+          <dl class="meta">
+            <div><dt>Signature</dt><dd><code>oversized-numeral</code> on <code>r0</code></dd></div>
+            <div><dt>Canvas</dt><dd>1080&times;1350, bg <code>background</code></dd></div>
+            <div><dt>Plan</dt><dd class="regions">stat c1+7 r3+8 e1 · image c7+6 r2+11 e4 · headline c2+7 r11+3 e2 · body c2+6 r14+3 e5</dd></div>
+            <div><dt>Measured</dt><dd>
+              <span class="pill good">0 errors</span>
+              <span class="pill">85% coverage</span>
+              <span class="pill">100% on 8px</span>
+              <span class="pill">3 font sizes: 192, 44, 22</span>
+            </dd></div>
+            <div><dt>Coercions</dt><dd class="notes">page 1 coverage: plan occupied rows 2-16; stretched to fill rows 1-16<br>page 1 signature: oversized-numeral — &quot;82%&quot; set at 192px against the left edge, every glyph on canvas; its counter block bleeds off that edge instead; copy shortened from &quot;82% of invoices are paid late&quot; and flagged truncated<br>page 1 occlusion: relocated &quot;headline:r2&quot; (18% of its glyphs on &quot;empty wallet and a profit report&quot;) to free cells 121px away<br>legibility: recoloured &quot;stat:r0&quot; to background for 10.1:1</dd></div>
+          </dl>
+        </figcaption>
+      </figure>
+
+      <figure class="card flagged">
+        <div class="frame" style="aspect-ratio:1080/1350"><?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="1080" height="1350" viewBox="0 0 1080 1350">
+  <title>Orphans dropped, not rendered</title>
+  <defs>
+    <style type="text/css"><![CDATA[
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+    ]]></style>
+  </defs>
+  <rect id="page-background" width="1080" height="1350" fill="#ffffff"/>
+  <text id="00000000-0000-4000-8000-000000000001" data-name="headline:r0" data-role="headline" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="68" font-weight="800" font-style="normal" fill="#101418">
+    <tspan x="96" y="432.4">A page is better with</tspan>
+    <tspan x="96" dy="80">nothing there than with</tspan>
+    <tspan x="96" dy="80">something meaningless</tspan>
+    <tspan x="96" dy="80">there</tspan>
+  </text>
+  <text id="00000000-0000-4000-8000-000000000002" data-name="body:r4" data-role="body" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="22" font-weight="400" font-style="normal" fill="#101418">
+    <tspan x="96" y="990.6">An illustration at icon size, a band too thin to hold a figure, and a</tspan>
+    <tspan x="96" dy="32">search that names no subject.</tspan>
+  </text>
+  <rect id="00000000-0000-4000-8000-000000000003" data-name="rect" data-role="divider" opacity="1" x="96" y="1032" width="320" height="16" rx="0" fill="#e8b23a"/>
+</svg></div>
+        <figcaption>
+          <div class="head"><span class="num">17</span><h2>Orphans dropped, not rendered</h2><span class="pill flag">P1.3 footprint</span></div>
+          <p class="blurb">Three regions no asset can fill meaningfully: a one-cell illustration that would render at icon size, a letterbox band with no room for a subject, and a query that names no subject at all. All three are dropped and noted.</p>
+          <dl class="meta">
+            <div><dt>Signature</dt><dd><code>rule-accent</code> on <code>r0</code></dd></div>
+            <div><dt>Canvas</dt><dd>1080&times;1350, bg <code>background</code></dd></div>
+            <div><dt>Plan</dt><dd class="regions">headline c1+12 r1+6 e2 · image c1+1 r7+1 e4 · image c1+12 r8+2 e4 · image c1+5 r10+3 e4 · body c1+12 r13+4 e5</dd></div>
+            <div><dt>Measured</dt><dd>
+              <span class="pill good">0 errors</span>
+              <span class="pill">85% coverage</span>
+              <span class="pill">100% on 8px</span>
+              <span class="pill">2 font sizes: 68, 22</span>
+            </dd></div>
+            <div><dt>Coercions</dt><dd class="notes">page 1 footprint: dropped image &quot;r1&quot; — 56x72px is below the 86px / 3% floor and would render at icon size<br>page 1 footprint: dropped image &quot;r2&quot; — 6.2:1 crops an illustration to a band with no subject in it<br>page 1 footprint: dropped image &quot;r3&quot; — the query &quot;shadow&quot; names no subject<br>page 1 coverage: absorbed dead band at rows 7-12 into region &quot;r0&quot;<br>page 1 signature: rule-accent — heavy accent rule anchored to &quot;r0&quot;</dd></div>
           </dl>
         </figcaption>
       </figure>
 </main>
 <footer>
-  Generated from <code>packages/layout-recipes/src/compositor.ts</code> and
-  <code>packages/design-schema/src/design-system.ts</code>. See
-  <code>docs/18-design-system-and-pipeline.md</code> for the pipeline this is stage 3 of.
+  <p>
+    Generated from <code>packages/layout-recipes/src/compositor.ts</code>. Every number above is
+    measured from the composed documents, not asserted.
+  </p>
 </footer>
 </body>
 </html>

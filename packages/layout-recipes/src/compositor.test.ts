@@ -23,10 +23,16 @@ import {
   validateDesignDocument,
 } from '@brandflow/design-schema';
 import {
+  MAX_IMAGE_ASPECT,
+  MIN_IMAGE_AREA_RATIO,
+  MIN_IMAGE_SIDE_RATIO,
+  OCCLUSION_TOLERANCE,
   baselineAlignment,
   composeFromPlan,
   composeFromPlanVerbose,
   distinctFontSizes,
+  glyphBox,
+  glyphsOnArtwork,
   minTypeStepForRole,
   verticalCoverage,
 } from './compositor.js';
@@ -262,6 +268,7 @@ describe('composeFromPlan — property tests over generated plans', () => {
     minAlignment: 1,
     minCoverage: 1,
     maxDistinctSizes: 0,
+    worstOnArtwork: 0,
   };
 
   const composed = Array.from({ length: PLANS }, (_, i) => {
@@ -330,6 +337,54 @@ describe('composeFromPlan — property tests over generated plans', () => {
       }
   });
 
+  // ---- docs/19 phase 1 invariants, over the same generated corpus ----
+
+  it('never renders a run of glyphs on artwork without a scrim under it', () => {
+    for (const { g, doc } of composed)
+      for (const page of doc.pages)
+        for (const el of page.elements) {
+          if (el.type !== 'text') continue;
+          const onArt = glyphsOnArtwork(el, page.elements);
+          results.worstOnArtwork = Math.max(results.worstOnArtwork, onArt);
+          expect(
+            onArt,
+            `${g.move}: ${(onArt * 100).toFixed(0)}% of "${el.name}" renders on an image or chart`,
+          ).toBeLessThanOrEqual(OCCLUSION_TOLERANCE);
+        }
+  });
+
+  it('never lets a glyph cross the canvas edge', () => {
+    for (const { g, doc } of composed)
+      for (const page of doc.pages)
+        for (const el of page.elements) {
+          if (el.type !== 'text') continue;
+          const gb = glyphBox(el);
+          const where = `${g.move} ${g.canvas.width}x${g.canvas.height}: "${el.name}"`;
+          expect(gb.x, `${where} crosses the left edge`).toBeGreaterThanOrEqual(0);
+          expect(gb.x + gb.width, `${where} crosses the right edge`).toBeLessThanOrEqual(g.canvas.width);
+          expect(gb.y, `${where} crosses the top edge`).toBeGreaterThanOrEqual(0);
+          expect(gb.y + gb.height, `${where} crosses the bottom edge`).toBeLessThanOrEqual(g.canvas.height);
+        }
+  });
+
+  it('never renders an image or chart below the minimum footprint', () => {
+    for (const { g, doc } of composed) {
+      const minSide = MIN_IMAGE_SIDE_RATIO * Math.min(g.canvas.width, g.canvas.height);
+      const minArea = MIN_IMAGE_AREA_RATIO * g.canvas.width * g.canvas.height;
+      for (const page of doc.pages)
+        for (const el of page.elements) {
+          if (el.type !== 'image' && el.type !== 'chart') continue;
+          const f = el.frame;
+          const where = `${g.move}: "${el.name}" at ${Math.round(f.width)}x${Math.round(f.height)}`;
+          // a signature move may GROW artwork past its cell; none may shrink it
+          expect(Math.min(f.width, f.height), `${where} is thinner than the floor`).toBeGreaterThanOrEqual(
+            minSide,
+          );
+          expect(f.width * f.height, `${where} is smaller than the floor`).toBeGreaterThanOrEqual(minArea);
+        }
+    }
+  });
+
   it('is deterministic: the same plan composes to the same document', () => {
     for (let i = 0; i < 40; i++) {
       const g = generate(i + 1);
@@ -349,6 +404,7 @@ describe('composeFromPlan — property tests over generated plans', () => {
       worstCoverage: Number(results.minCoverage.toFixed(3)),
       mostDistinctFontSizes: results.maxDistinctSizes,
       validationErrors: results.errors.length,
+      worstGlyphsOnArtwork: Number(results.worstOnArtwork.toFixed(3)),
     }).toMatchObject({ validationErrors: 0 });
   });
 });
@@ -408,7 +464,7 @@ describe('signature moves', () => {
     expect(['decoration', 'background']).toContain(bled!.roleHint);
   });
 
-  it('oversized-numeral sets a stat at display x2 and crops it on the canvas edge', () => {
+  it('oversized-numeral sets a stat at display x2 and bleeds its counter block, not its digits', () => {
     const { plan, ctx } = simplePlan(
       [
         { role: 'stat', col: { start: 1, span: 8 }, row: { start: 1, span: 8 }, emphasis: 1 },
@@ -423,11 +479,17 @@ describe('signature moves', () => {
     );
     expect(numeral).toBeDefined();
     expect(numeral!.roleHint).toBe('decoration');
-    // genuinely cropped: one edge is off-canvas, but it is not off-canvas entirely
-    const off = numeral!.frame.x < 0 || numeral!.frame.x + numeral!.frame.width > PORTRAIT.width;
-    expect(off).toBe(true);
-    expect(numeral!.frame.x).toBeLessThan(PORTRAIT.width);
-    expect(numeral!.frame.x + numeral!.frame.width).toBeGreaterThan(0);
+    // docs/19 P1.2: the statistic survives whole — every glyph on the canvas
+    expect(numeral!.text).toBe('73%');
+    const gb = glyphBox(numeral!);
+    expect(gb.x).toBeGreaterThanOrEqual(0);
+    expect(gb.x + gb.width).toBeLessThanOrEqual(PORTRAIT.width);
+    // the move is still a bleed: its counter block runs off the canvas instead
+    const bled = doc.pages[0]!.elements.filter(
+      (e) => e.type === 'shape' && (e.frame.x < 0 || e.frame.x + e.frame.width > PORTRAIT.width),
+    );
+    expect(bled.length).toBeGreaterThan(0);
+    expect(['decoration', 'background']).toContain(bled[0]!.roleHint);
   });
 
   it('overlap extends the signature region into its neighbour by one gutter', () => {
@@ -515,6 +577,359 @@ describe('signature moves', () => {
       const { notes } = composeFromPlanVerbose(plan, ctx);
       expect(notes.filter((n) => n.includes('signature:')).length).toBeLessThanOrEqual(1);
     }
+  });
+});
+
+// ---------- docs/19 phase 1: what sits on what ----------
+//
+// Every case below is a real defect, reduced to the plan that produced it.
+// The shapes come from the 2026-08-26 run: a law-firm headline rendered across
+// a document illustration, QA body copy rendered on a funnel chart, "82%" bled
+// off the left edge and rendered "32%", and a pointing-hand illustration
+// rendered at icon size beside a headline.
+
+const isScrim = (e: { name: string }) => e.name.startsWith('scrim:');
+
+describe('P1.1 occlusion — copy never renders on artwork unaided', () => {
+  it('relocates a headline the plan laid across an illustration, when the page has room', () => {
+    const { plan, ctx } = simplePlan(
+      [
+        { role: 'image', col: { start: 1, span: 6 }, row: { start: 1, span: 10 }, imageQuery: 'contract clause' },
+        { role: 'headline', col: { start: 3, span: 6 }, row: { start: 4, span: 4 }, emphasis: 2 },
+        { role: 'body', col: { start: 1, span: 12 }, row: { start: 11, span: 6 } },
+      ],
+      'rule-accent',
+      'r0',
+    );
+    const { document, notes } = composeFromPlanVerbose(plan, ctx);
+    expect(validateDesignDocument(document).errors).toEqual([]);
+
+    const page = document.pages[0]!;
+    const headline = page.elements.find(
+      (e): e is TextElement => e.type === 'text' && e.recipeSlotId === 'r1',
+    )!;
+    expect(glyphsOnArtwork(headline, page.elements)).toBeLessThanOrEqual(OCCLUSION_TOLERANCE);
+    expect(notes.join('\n')).toMatch(/occlusion: relocated "headline:r1"/);
+  });
+
+  it('scrims copy the signature move deliberately lays over artwork, rather than deleting the move', () => {
+    // The shape of 01-qa-consultancy page 1: art direction puts the headline
+    // inside the illustration's own cells and makes that overlap the signature.
+    const { plan, ctx } = simplePlan(
+      [
+        { role: 'headline', col: { start: 5, span: 7 }, row: { start: 6, span: 4 }, emphasis: 2 },
+        { role: 'image', col: { start: 1, span: 7 }, row: { start: 4, span: 10 }, imageQuery: 'pipeline' },
+        { role: 'body', col: { start: 8, span: 5 }, row: { start: 11, span: 4 } },
+      ],
+      'overlap',
+      'r0',
+    );
+    const { document, notes } = composeFromPlanVerbose(plan, ctx);
+    expect(validateDesignDocument(document).errors).toEqual([]);
+
+    const page = document.pages[0]!;
+    const headline = page.elements.find(
+      (e): e is TextElement => e.type === 'text' && e.recipeSlotId === 'r0',
+    )!;
+    const image = page.elements.find((e) => e.recipeSlotId === 'r1')!;
+    // the move survives: the headline still runs into its neighbour
+    expect(headline.frame.x + headline.frame.width).toBeGreaterThan(image.frame.x);
+    // and it is readable, because a scrim was placed rather than the copy moved
+    expect(glyphsOnArtwork(headline, page.elements)).toBeLessThanOrEqual(OCCLUSION_TOLERANCE);
+    const scrim = page.elements.find(isScrim)!;
+    expect(scrim).toBeDefined();
+    expect(scrim.type === 'shape' && scrim.fill).toMatchObject({ kind: 'token' });
+    expect(scrim.zIndex).toBeGreaterThan(image.zIndex);
+    expect(scrim.zIndex).toBeLessThan(headline.zIndex);
+    expect(notes.join('\n')).toMatch(/occlusion: scrimmed .*overlap signature move/);
+  });
+
+  it('scrims body copy laid on a chart', () => {
+    const { plan, ctx } = simplePlan(
+      [
+        { role: 'chart', col: { start: 1, span: 12 }, row: { start: 1, span: 9 } },
+        { role: 'body', col: { start: 2, span: 9 }, row: { start: 3, span: 5 } },
+        { role: 'headline', col: { start: 1, span: 12 }, row: { start: 10, span: 7 }, emphasis: 2 },
+      ],
+      'overlap',
+      'r0',
+    );
+    const { document } = composeFromPlanVerbose(plan, ctx);
+    expect(validateDesignDocument(document).errors).toEqual([]);
+    const page = document.pages[0]!;
+    for (const el of page.elements)
+      if (el.type === 'text')
+        expect(glyphsOnArtwork(el, page.elements), `"${el.name}" sits on artwork`).toBeLessThanOrEqual(
+          OCCLUSION_TOLERANCE,
+        );
+  });
+
+  it('never paints the accent rule through a line of copy', () => {
+    // Dropping three unviable images grows the headline down onto the body,
+    // which is what put the rule on top of a sentence in the contact sheet.
+    const { plan, ctx } = simplePlan(
+      [
+        { role: 'headline', col: { start: 1, span: 12 }, row: { start: 1, span: 6 }, emphasis: 2 },
+        { role: 'image', col: { start: 1, span: 1 }, row: { start: 7, span: 1 }, imageQuery: 'pointing hand' },
+        { role: 'image', col: { start: 1, span: 12 }, row: { start: 8, span: 2 }, imageQuery: 'engineer at a desk' },
+        { role: 'image', col: { start: 1, span: 5 }, row: { start: 10, span: 3 }, imageQuery: 'shadow' },
+        { role: 'body', col: { start: 1, span: 12 }, row: { start: 13, span: 4 } },
+      ],
+      'rule-accent',
+      'r0',
+    );
+    const { document } = composeFromPlanVerbose(plan, ctx);
+    expect(validateDesignDocument(document).errors).toEqual([]);
+    const page = document.pages[0]!;
+    const rule = page.elements.find((e) => e.roleHint === 'divider')!;
+    expect(rule).toBeDefined();
+    for (const el of page.elements) {
+      if (el.type !== 'text') continue;
+      const t = glyphBox(el);
+      const overlaps =
+        rule.frame.x < t.x + t.width &&
+        rule.frame.x + rule.frame.width > t.x &&
+        rule.frame.y < t.y + t.height &&
+        rule.frame.y + rule.frame.height > t.y;
+      expect(overlaps, `the accent rule strikes through "${el.name}"`).toBe(false);
+    }
+  });
+
+  it('sizes a scrim to the type, not to the grid cell it was planned in', () => {
+    const { plan, ctx } = simplePlan(
+      [
+        { role: 'headline', col: { start: 1, span: 12 }, row: { start: 1, span: 8 }, emphasis: 2 },
+        { role: 'image', col: { start: 1, span: 12 }, row: { start: 1, span: 8 }, imageQuery: 'pipeline' },
+        { role: 'body', col: { start: 1, span: 12 }, row: { start: 9, span: 8 } },
+      ],
+      'overlap',
+      'r0',
+    );
+    ctx.concept.pages[0]!.copy[0] = { role: 'headline', text: 'Short hook' };
+    const { document } = composeFromPlanVerbose(plan, ctx);
+    const page = document.pages[0]!;
+    const scrim = page.elements.find(isScrim)!;
+    const headline = page.elements.find(
+      (e): e is TextElement => e.type === 'text' && e.recipeSlotId === 'r0',
+    )!;
+    const g = gridMetrics(PORTRAIT);
+    expect(scrim).toBeDefined();
+    // a twelve-column cell is the full content width; two words are not
+    expect(scrim.frame.width).toBeLessThan(g.contentWidth);
+    expect(scrim.frame.width).toBeGreaterThanOrEqual(glyphBox(headline).width);
+    expect(validateDesignDocument(document).errors).toEqual([]);
+  });
+});
+
+describe('P1.2 safe bleeds — a bleed never truncates meaning', () => {
+  it('keeps every digit of "82%" on the canvas when the numeral bleeds left', () => {
+    const { plan, ctx } = simplePlan(
+      [
+        { role: 'stat', col: { start: 1, span: 7 }, row: { start: 3, span: 8 }, emphasis: 1 },
+        { role: 'image', col: { start: 7, span: 6 }, row: { start: 2, span: 11 }, imageQuery: 'wallet' },
+        { role: 'headline', col: { start: 2, span: 7 }, row: { start: 11, span: 3 }, emphasis: 2 },
+      ],
+      'oversized-numeral',
+      'r0',
+    );
+    ctx.concept.pages[0]!.copy[0] = { role: 'display', text: '82% of invoices are paid late' };
+    const { document } = composeFromPlanVerbose(plan, ctx);
+    expect(validateDesignDocument(document).errors).toEqual([]);
+
+    const numeral = document.pages[0]!.elements.find(
+      (e): e is TextElement => e.type === 'text' && e.fontSize === oversizedNumeralSize(PORTRAIT),
+    )!;
+    // the statistic the post exists for, whole
+    expect(numeral.text).toBe('82%');
+    const gb = glyphBox(numeral);
+    expect(gb.x).toBeGreaterThanOrEqual(0);
+    expect(gb.x + gb.width).toBeLessThanOrEqual(PORTRAIT.width);
+    expect(gb.y).toBeGreaterThanOrEqual(0);
+    expect(gb.y + gb.height).toBeLessThanOrEqual(PORTRAIT.height);
+  });
+
+  it('keeps a numeral with its unit rather than a fragment of it', () => {
+    const { plan, ctx } = simplePlan(
+      [
+        { role: 'stat', col: { start: 6, span: 7 }, row: { start: 2, span: 8 }, emphasis: 1 },
+        { role: 'headline', col: { start: 1, span: 12 }, row: { start: 10, span: 7 }, emphasis: 2 },
+      ],
+      'oversized-numeral',
+      'r0',
+    );
+    ctx.concept.pages[0]!.copy[0] = { role: 'display', text: '10 days to fill a role' };
+    const { document } = composeFromPlanVerbose(plan, ctx);
+    const numeral = document.pages[0]!.elements.find(
+      (e): e is TextElement => e.type === 'text' && e.fontSize === oversizedNumeralSize(PORTRAIT),
+    )!;
+    // "10 day" is a mutilation; "10" alone says something else; "10 days" is the stat
+    expect(numeral.text).toBe('10 days');
+    expect(numeral.meta.truncated).toBe(true);
+    expect(validateDesignDocument(document).errors).toEqual([]);
+  });
+
+  it('never cuts letters off a phrase the plan mislabelled as a stat', () => {
+    const { plan, ctx } = simplePlan(
+      [
+        { role: 'stat', col: { start: 6, span: 7 }, row: { start: 2, span: 8 }, emphasis: 1 },
+        { role: 'headline', col: { start: 1, span: 12 }, row: { start: 10, span: 7 }, emphasis: 2 },
+      ],
+      'oversized-numeral',
+      'r0',
+    );
+    ctx.concept.pages[0]!.copy[0] = { role: 'display', text: 'Slow down your hiring' };
+    const { document, notes } = composeFromPlanVerbose(plan, ctx);
+    expect(validateDesignDocument(document).errors).toEqual([]);
+
+    const page = document.pages[0]!;
+    const stat = page.elements.find((e): e is TextElement => e.type === 'text' && e.recipeSlotId === 'r0')!;
+    // the copy is intact — this is the "Slow d" defect from 05-recruitment-hiring
+    expect(stat.text).toBe('Slow down your hiring');
+    expect(stat.meta.truncated).toBeUndefined();
+    expect(notes.join('\n')).toMatch(/holds no numeral that survives/);
+    // and the page still has a signature: a colour block runs off the canvas
+    const bled = page.elements.filter(
+      (e) => e.type === 'shape' && (e.frame.x < 0 || e.frame.x + e.frame.width > PORTRAIT.width),
+    );
+    expect(bled.length).toBeGreaterThan(0);
+    for (const el of page.elements) {
+      if (el.type !== 'text') continue;
+      const gb = glyphBox(el);
+      expect(gb.x).toBeGreaterThanOrEqual(0);
+      expect(gb.x + gb.width).toBeLessThanOrEqual(PORTRAIT.width);
+    }
+  });
+
+  it('caps how much of a bleeding image leaves the canvas', () => {
+    const { plan, ctx } = simplePlan(
+      [
+        { role: 'image', col: { start: 10, span: 3 }, row: { start: 1, span: 6 }, imageQuery: 'team' },
+        { role: 'headline', col: { start: 1, span: 12 }, row: { start: 8, span: 9 }, emphasis: 2 },
+      ],
+      'crop-circle',
+      'r0',
+    );
+    const doc = composeFromPlan(plan, ctx);
+    expect(validateDesignDocument(doc).errors).toEqual([]);
+    const img = doc.pages[0]!.elements.find((e) => e.type === 'image')!;
+    const f = img.frame;
+    const visibleW = Math.min(f.x + f.width, PORTRAIT.width) - Math.max(f.x, 0);
+    const visibleH = Math.min(f.y + f.height, PORTRAIT.height) - Math.max(f.y, 0);
+    const off = 1 - (visibleW * visibleH) / (f.width * f.height);
+    expect(off).toBeLessThanOrEqual(0.26);
+  });
+
+  it('holds for every signature move: no glyph anywhere crosses a canvas edge', () => {
+    for (const move of MOVES) {
+      for (const canvas of [PORTRAIT, SQUARE]) {
+        const { plan, ctx } = simplePlan(
+          [
+            { role: 'stat', col: { start: 1, span: 5 }, row: { start: 1, span: 6 }, emphasis: 1 },
+            { role: 'image', col: { start: 6, span: 7 }, row: { start: 1, span: 6 }, imageQuery: 'pipeline' },
+            { role: 'headline', col: { start: 1, span: 12 }, row: { start: 7, span: 5 }, emphasis: 2 },
+            { role: 'body', col: { start: 1, span: 12 }, row: { start: 12, span: 5 } },
+          ],
+          move,
+          'r0',
+        );
+        const doc = composeFromPlan(plan, { ...ctx, canvas, newId: idFactory() });
+        expect(validateDesignDocument(doc).errors, `${move} ${canvas.width}x${canvas.height}`).toEqual([]);
+        for (const page of doc.pages)
+          for (const el of page.elements) {
+            if (el.type !== 'text') continue;
+            const gb = glyphBox(el);
+            expect(gb.x, `${move}: "${el.name}" crosses the left edge`).toBeGreaterThanOrEqual(0);
+            expect(gb.x + gb.width, `${move}: "${el.name}" crosses the right edge`).toBeLessThanOrEqual(
+              canvas.width,
+            );
+            expect(gb.y, `${move}: "${el.name}" crosses the top edge`).toBeGreaterThanOrEqual(0);
+            expect(gb.y + gb.height, `${move}: "${el.name}" crosses the bottom edge`).toBeLessThanOrEqual(
+              canvas.height,
+            );
+          }
+      }
+    }
+  });
+});
+
+describe('P1.3 minimum footprints — no orphans, nothing at icon size', () => {
+  it('drops a one-cell image rather than rendering an illustration at icon size', () => {
+    const { plan, ctx } = simplePlan(
+      [
+        { role: 'headline', col: { start: 1, span: 12 }, row: { start: 1, span: 8 }, emphasis: 2 },
+        { role: 'image', col: { start: 1, span: 1 }, row: { start: 9, span: 1 }, imageQuery: 'pointing hand' },
+        { role: 'body', col: { start: 1, span: 12 }, row: { start: 10, span: 7 } },
+      ],
+      'rule-accent',
+      'r0',
+    );
+    const { document, notes } = composeFromPlanVerbose(plan, ctx);
+    expect(validateDesignDocument(document).errors).toEqual([]);
+    expect(document.pages[0]!.elements.some((e) => e.type === 'image')).toBe(false);
+    expect(notes.join('\n')).toMatch(/footprint: dropped image "r1"/);
+    expect(verticalCoverage(document, 0)).toBeGreaterThanOrEqual(0.75);
+  });
+
+  it('drops an illustration cropped to a letterbox band with no subject in it', () => {
+    const { plan, ctx } = simplePlan(
+      [
+        { role: 'headline', col: { start: 1, span: 12 }, row: { start: 1, span: 7 }, emphasis: 2 },
+        { role: 'image', col: { start: 1, span: 12 }, row: { start: 8, span: 2 }, imageQuery: 'engineer at desk' },
+        { role: 'body', col: { start: 1, span: 12 }, row: { start: 10, span: 7 } },
+      ],
+      'rule-accent',
+      'r0',
+    );
+    const { document, notes } = composeFromPlanVerbose(plan, ctx);
+    const g = gridMetrics(PORTRAIT);
+    // the plan really did ask for something past the aspect ceiling
+    expect(g.contentWidth / (2 * g.rowHeight)).toBeGreaterThan(MAX_IMAGE_ASPECT);
+    expect(document.pages[0]!.elements.some((e) => e.type === 'image')).toBe(false);
+    expect(notes.join('\n')).toMatch(/footprint: dropped image "r1"/);
+    expect(validateDesignDocument(document).errors).toEqual([]);
+  });
+
+  it('drops a fragment: an image region whose query names no subject', () => {
+    const { plan, ctx } = simplePlan(
+      [
+        { role: 'headline', col: { start: 1, span: 12 }, row: { start: 1, span: 8 }, emphasis: 2 },
+        { role: 'image', col: { start: 1, span: 6 }, row: { start: 9, span: 8 }, imageQuery: 'shadow' },
+        { role: 'body', col: { start: 7, span: 6 }, row: { start: 9, span: 8 } },
+      ],
+      'rule-accent',
+      'r0',
+    );
+    const { document, notes } = composeFromPlanVerbose(plan, ctx);
+    expect(document.pages[0]!.elements.some((e) => e.type === 'image')).toBe(false);
+    expect(notes.join('\n')).toMatch(/names no subject/);
+    expect(validateDesignDocument(document).errors).toEqual([]);
+  });
+
+  it('keeps an image that is genuinely big enough to read', () => {
+    const { plan, ctx } = simplePlan(
+      [
+        { role: 'headline', col: { start: 1, span: 12 }, row: { start: 1, span: 6 }, emphasis: 2 },
+        { role: 'image', col: { start: 1, span: 6 }, row: { start: 7, span: 6 }, imageQuery: 'engineer at desk' },
+        { role: 'body', col: { start: 7, span: 6 }, row: { start: 7, span: 6 } },
+      ],
+      'rule-accent',
+      'r0',
+    );
+    const { document, notes } = composeFromPlanVerbose(plan, ctx);
+    expect(document.pages[0]!.elements.some((e) => e.type === 'image')).toBe(true);
+    expect(notes.join('\n')).not.toMatch(/footprint: dropped/);
+    expect(validateDesignDocument(document).errors).toEqual([]);
+  });
+
+  it('never empties a page: the last region stands whatever its size', () => {
+    const { plan, ctx } = simplePlan(
+      [{ role: 'image', col: { start: 1, span: 1 }, row: { start: 1, span: 1 }, imageQuery: 'shadow' }],
+      'rule-accent',
+      'r0',
+    );
+    const doc = composeFromPlan(plan, ctx);
+    expect(validateDesignDocument(doc).errors).toEqual([]);
+    expect(doc.pages[0]!.elements.length).toBeGreaterThan(0);
   });
 });
 
