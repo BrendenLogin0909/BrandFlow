@@ -20,6 +20,18 @@
  * instead, keeping the review functions below.
  */
 import { z } from 'zod';
+// The canonical LayoutPlan/ConceptOutput schemas live in @brandflow/design-schema
+// (docs/18 section 4) and are what the compositor consumes. The local schemas
+// below stay because they add input leniency the canonical ones deliberately do
+// not have — type-role aliasing and string clamping, so a near-miss from the
+// model costs a normalisation rather than a repair round. The exported TYPES,
+// however, are the canonical ones: two structurally identical types with the
+// same name are still unrelated to TypeScript, which is exactly the drift the
+// spec exists to prevent.
+import {
+  ConceptOutput as CanonicalConceptOutput,
+  LayoutPlan as CanonicalLayoutPlan,
+} from '@brandflow/design-schema';
 import { formatVisualDirectionBrief } from '@brandflow/shared';
 import type { AiCompletionMeta, AiProviderPort } from '../ports/index.js';
 
@@ -159,8 +171,10 @@ export const ConceptOutput = z
       .min(1)
       .max(20),
   })
-  .strict();
-export type ConceptOutputT = z.infer<typeof ConceptOutput>;
+  .strict()
+  .pipe(CanonicalConceptOutput);
+
+export type ConceptOutputT = z.infer<typeof CanonicalConceptOutput>;
 
 // ---------- stage 2: LayoutPlan (docs/18 §4) ----------
 
@@ -223,8 +237,13 @@ export const LayoutPage = z
       });
   });
 
-export const LayoutPlan = z.object({ pages: z.array(LayoutPage).min(1).max(20) }).strict();
-export type LayoutPlanT = z.infer<typeof LayoutPlan>;
+export const LayoutPlan = z
+  .object({ pages: z.array(LayoutPage).min(1).max(20) })
+  .strict()
+  // Normalise leniently, then validate against the canonical schema so the
+  // parsed value IS the canonical type rather than a look-alike.
+  .pipe(CanonicalLayoutPlan);
+export type LayoutPlanT = z.infer<typeof CanonicalLayoutPlan>;
 
 // ---------- the rubric, mechanised (docs/18 §2) ----------
 
