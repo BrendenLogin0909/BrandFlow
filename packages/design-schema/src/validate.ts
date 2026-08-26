@@ -46,7 +46,12 @@ export interface ValidationContext {
   contrastMode?: 'enforce' | 'warn';
 }
 
-const MIN_FONT_SIZES: Record<string, number> = {
+/**
+ * Readability floors by role, defined at the 1080px reference canvas and scaled
+ * by canvas width at check time. Exported so composition code can pick a type
+ * step that is legal by construction instead of re-declaring these numbers.
+ */
+export const MIN_FONT_SIZES: Record<string, number> = {
   headline: 24,
   subheadline: 18,
   body: 14,
@@ -300,6 +305,16 @@ export function contrastRatio(hexA: string, hexB: string): number {
 }
 
 /**
+ * WCAG threshold this engine applies to a given text element. Exported so that
+ * composition code can choose a colour that passes rather than guess at the
+ * numbers and disagree with the validator.
+ */
+export function requiredContrastRatio(fontSize: number, fontWeight: number): number {
+  const large = fontSize >= 32 && fontWeight >= 700;
+  return large ? 3 : 4.5;
+}
+
+/**
  * Every background a text element actually sits on.
  *
  * This used to return only the topmost shape FULLY CONTAINING the text frame,
@@ -427,8 +442,7 @@ function checkContrast(
   const fg = resolveColour(el.colour, doc);
   const bgHexes = backgroundHexesUnder(el, doc, page, siblings);
   if (!fg || bgHexes.length === 0) return; // gradient/image backgrounds: worst-case sampling handled server-side
-  const large = el.fontSize >= 32 && el.fontWeight >= 700;
-  const required = large ? 3 : 4.5;
+  const required = requiredContrastRatio(el.fontSize, el.fontWeight);
   // Worst case across every background the text overlaps — the reader sees the
   // worst one, not the average.
   const ratio = Math.min(...bgHexes.map((bg) => contrastRatio(fg, bg)));

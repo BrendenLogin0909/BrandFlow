@@ -1,0 +1,637 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Compositor preview — stage 3 output</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --ink: #101418; --muted: #626b75;
+    --line: #e2e6ea; --good: #12734b; --good-bg: #dff3e8; --bad: #a11212; --bad-bg: #fbe3e3;
+    --pill: #eef1f4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e1116; --panel: #161b22; --ink: #e6edf3; --muted: #9aa5b1;
+      --line: #262d36; --good: #6ee7a8; --good-bg: #10331f; --bad: #ff9b9b; --bad-bg: #3a1414;
+      --pill: #222a33;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.55 ui-sans-serif, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  header { padding: 48px 32px 8px; max-width: 1400px; margin: 0 auto; }
+  h1 { font-size: 30px; letter-spacing: -0.02em; margin: 0 0 8px; }
+  .lede { color: var(--muted); max-width: 70ch; margin: 0 0 24px; }
+  .totals { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+  .sheet {
+    display: grid; gap: 28px; padding: 24px 32px 64px; max-width: 1400px; margin: 0 auto;
+    grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+  }
+  .card {
+    margin: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+    overflow: hidden; display: flex; flex-direction: column;
+  }
+  .frame { width: 100%; background: #fff; border-bottom: 1px solid var(--line); }
+  .frame svg { display: block; width: 100%; height: auto; }
+  figcaption { padding: 16px 18px 20px; }
+  .head { display: flex; align-items: baseline; gap: 10px; }
+  .num { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 13px; }
+  h2 { font-size: 16px; margin: 0 0 6px; letter-spacing: -0.01em; }
+  .blurb { color: var(--muted); font-size: 13.5px; margin: 0 0 12px; }
+  dl.meta { margin: 0; display: grid; gap: 6px; font-size: 12.5px; }
+  dl.meta > div { display: grid; grid-template-columns: 82px 1fr; gap: 10px; align-items: start; }
+  dt { color: var(--muted); }
+  dd { margin: 0; }
+  code { font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .regions, .notes { color: var(--muted); font: 11.5px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; overflow-wrap: anywhere; }
+  .pill {
+    display: inline-block; background: var(--pill); border-radius: 999px;
+    padding: 2px 9px; margin: 0 4px 4px 0; font-size: 11.5px; white-space: nowrap;
+  }
+  .pill.good { background: var(--good-bg); color: var(--good); }
+  .pill.bad { background: var(--bad-bg); color: var(--bad); }
+  footer { max-width: 1400px; margin: 0 auto; padding: 0 32px 64px; color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Compositor preview — stage 3 output</h1>
+  <p class="lede">
+    Twelve <code>LayoutPlan</code>s put through <code>composeFromPlan</code> and rendered with the
+    production SVG exporter. Nothing on this page was drawn by a model: every coordinate, type size
+    and colour was derived from the grid, the type scale and the brand tokens. Image regions render
+    as grey placeholders because asset resolution runs later in the pipeline.
+  </p>
+  <div class="totals">
+    <span class="pill good">0 validation errors across 12 pages</span>
+    <span class="pill">0 warnings</span>
+    <span class="pill">worst coverage 77%</span>
+    <span class="pill">worst 8px alignment 100%</span>
+    <span class="pill">most font sizes on a page: 4</span>
+  </div>
+</header>
+<main class="sheet">
+
+      <figure class="card">
+        <div class="frame" style="aspect-ratio:1080/1350"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="1080" height="1350" viewBox="0 0 1080 1350">
+  <title>Split hero, block bleeding left</title>
+  <defs>
+    <style type="text/css"><![CDATA[
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+    ]]></style>
+  </defs>
+  <rect id="page-background" width="1080" height="1350" fill="#ffffff"/>
+  <rect id="00000000-0000-4000-8000-000000000001" data-name="rect" data-role="decoration" opacity="1" x="0" y="96" width="528" height="648" rx="16" fill="#1a3c8f"/>
+  <rect id="00000000-0000-4000-8000-000000000002" data-name="abstract engineering workflow" data-role="image" opacity="1" x="552" y="96" width="432" height="648" rx="24" fill="#e5e7eb" data-asset-id="" data-placeholder="true"/>
+  <text id="00000000-0000-4000-8000-000000000003" data-name="kicker:r2" data-role="caption" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="16" font-weight="700" font-style="normal" letter-spacing="2" fill="#101418">
+    <tspan x="96" y="784.8">FIELD NOTES</tspan>
+  </text>
+  <text id="00000000-0000-4000-8000-000000000004" data-name="headline:r3" data-role="headline" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="68" font-weight="800" font-style="normal" fill="#101418">
+    <tspan x="96" y="944.4">Testing is not the same</tspan>
+    <tspan x="96" dy="80">as quality assurance</tspan>
+  </text>
+  <text id="00000000-0000-4000-8000-000000000005" data-name="body:r4" data-role="body" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="22" font-weight="400" font-style="normal" fill="#101418">
+    <tspan x="96" y="1134.6">One catches defects after the fact. The other designs a</tspan>
+    <tspan x="96" dy="32">system where fewer defects are possible at all.</tspan>
+  </text>
+</svg></div>
+        <figcaption>
+          <div class="head"><span class="num">01</span><h2>Split hero, block bleeding left</h2></div>
+          <p class="blurb">A colour field runs off the left edge behind the opening statement; the image holds the right half.</p>
+          <dl class="meta">
+            <div><dt>Signature</dt><dd><code>bleed-edge</code> on <code>r0</code></dd></div>
+            <div><dt>Canvas</dt><dd>1080&times;1350, bg <code>background</code></dd></div>
+            <div><dt>Plan</dt><dd class="regions">block c1+6 r1+9 e4 · image c7+6 r1+9 e4 · kicker c1+6 r10+1 e6 · headline c1+12 r11+4 e2 · body c1+9 r15+2 e5</dd></div>
+            <div><dt>Measured</dt><dd>
+              <span class="pill good">0 errors</span>
+              <span class="pill">85% coverage</span>
+              <span class="pill">100% on 8px</span>
+              <span class="pill">3 font sizes: 68, 22, 16</span>
+            </dd></div>
+            <div><dt>Coercions</dt><dd class="notes">page 1 signature: bleed-edge — extended "r0" to the left canvas edge<br>legibility: recoloured "kicker:r2" to text for 18.5:1</dd></div>
+          </dl>
+        </figcaption>
+      </figure>
+
+      <figure class="card">
+        <div class="frame" style="aspect-ratio:1080/1350"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="1080" height="1350" viewBox="0 0 1080 1350">
+  <title>Oversized numeral, cropped left</title>
+  <defs>
+    <style type="text/css"><![CDATA[
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+    ]]></style>
+  </defs>
+  <rect id="page-background" width="1080" height="1350" fill="#ffffff"/>
+  <rect id="00000000-0000-4000-8000-000000000004" data-name="rect" data-role="decoration" opacity="1" x="96" y="1112" width="888" height="136" rx="8" fill="#e8b23a"/>
+  <text id="00000000-0000-4000-8000-000000000001" data-name="stat:r0" data-role="decoration" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="192" font-weight="800" font-style="normal" fill="#1a3c8f">
+    <tspan x="-48" y="369.6">73%</tspan>
+  </text>
+  <text id="00000000-0000-4000-8000-000000000002" data-name="headline:r1" data-role="headline" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="68" font-weight="800" font-style="normal" fill="#101418">
+    <tspan x="96" y="652.4">of releases that</tspan>
+    <tspan x="96" dy="80">slipped had no owner</tspan>
+    <tspan x="96" dy="80">named on day one</tspan>
+  </text>
+  <text id="00000000-0000-4000-8000-000000000003" data-name="body:r2" data-role="body" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="22" font-weight="400" font-style="normal" fill="#101418">
+    <tspan x="96" y="918.6">Ownership is the cheapest scheduling tool there is, and</tspan>
+    <tspan x="96" dy="32">it costs one line in the kickoff doc.</tspan>
+  </text>
+</svg></div>
+        <figcaption>
+          <div class="head"><span class="num">02</span><h2>Oversized numeral, cropped left</h2></div>
+          <p class="blurb">The stat is set at display x2 and deliberately runs off the canvas — the single signature move on the page.</p>
+          <dl class="meta">
+            <div><dt>Signature</dt><dd><code>oversized-numeral</code> on <code>r0</code></dd></div>
+            <div><dt>Canvas</dt><dd>1080&times;1350, bg <code>background</code></dd></div>
+            <div><dt>Plan</dt><dd class="regions">stat c1+8 r2+6 e1 · headline c1+11 r8+4 e2 · body c1+9 r12+3 e5 · block c1+12 r15+2 e4</dd></div>
+            <div><dt>Measured</dt><dd>
+              <span class="pill good">0 errors</span>
+              <span class="pill">85% coverage</span>
+              <span class="pill">100% on 8px</span>
+              <span class="pill">3 font sizes: 192, 68, 22</span>
+            </dd></div>
+            <div><dt>Coercions</dt><dd class="notes">page 1 coverage: plan occupied rows 2-16; stretched to fill rows 1-16<br>page 1 signature: oversized-numeral — "73%" set at 192px and cropped by the left edge<br>page 1 coverage: grew "stat:r0" to close a 216px dead band</dd></div>
+          </dl>
+        </figcaption>
+      </figure>
+
+      <figure class="card">
+        <div class="frame" style="aspect-ratio:1080/1080"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="1080" height="1080" viewBox="0 0 1080 1080">
+  <title>Full-bleed band behind the hook</title>
+  <defs>
+    <style type="text/css"><![CDATA[
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+    ]]></style>
+  </defs>
+  <rect id="page-background" width="1080" height="1080" fill="#ffffff"/>
+  <rect id="00000000-0000-4000-8000-000000000005" data-name="rect" data-role="background" opacity="1" x="0" y="184" width="1080" height="384" rx="0" fill="#1a3c8f"/>
+  <rect id="00000000-0000-4000-8000-000000000004" data-name="abstract engineering workflow" data-role="image" opacity="1" x="96" y="760" width="888" height="224" rx="16" fill="#e5e7eb" data-asset-id="" data-placeholder="true"/>
+  <text id="00000000-0000-4000-8000-000000000001" data-name="kicker:r0" data-role="caption" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="16" font-weight="700" font-style="normal" letter-spacing="2" fill="#101418">
+    <tspan x="96" y="156.8">PLATFORM</tspan>
+  </text>
+  <text id="00000000-0000-4000-8000-000000000002" data-name="headline:r1" data-role="headline" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="68" font-weight="800" font-style="normal" fill="#ffffff">
+    <tspan x="96" y="356.4">Every manual step is</tspan>
+    <tspan x="96" dy="80">a future outage</tspan>
+  </text>
+  <text id="00000000-0000-4000-8000-000000000003" data-name="body:r2" data-role="body" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="22" font-weight="400" font-style="normal" fill="#101418">
+    <tspan x="96" y="566.6">Automate the boring path first. The interesting</tspan>
+    <tspan x="96" dy="32">failures only become visible once the dull ones</tspan>
+    <tspan x="96" dy="32">stop.</tspan>
+  </text>
+</svg></div>
+        <figcaption>
+          <div class="head"><span class="num">03</span><h2>Full-bleed band behind the hook</h2></div>
+          <p class="blurb">A colour band spans the whole canvas width; the copy on it is recoloured automatically to clear WCAG.</p>
+          <dl class="meta">
+            <div><dt>Signature</dt><dd><code>full-bleed-block</code> on <code>r1</code></dd></div>
+            <div><dt>Canvas</dt><dd>1080&times;1080, bg <code>background</code></dd></div>
+            <div><dt>Plan</dt><dd class="regions">kicker c1+8 r1+2 e6 · headline c1+10 r3+6 e2 · body c1+8 r9+4 e5 · image c1+12 r13+4 e4</dd></div>
+            <div><dt>Measured</dt><dd>
+              <span class="pill good">0 errors</span>
+              <span class="pill">82% coverage</span>
+              <span class="pill">100% on 8px</span>
+              <span class="pill">3 font sizes: 68, 22, 16</span>
+            </dd></div>
+            <div><dt>Coercions</dt><dd class="notes">page 1 signature: full-bleed-block — colour band across the full canvas width behind "r1"<br>legibility: recoloured "kicker:r0" to text for 18.5:1<br>legibility: recoloured "headline:r1" to background for 10.1:1</dd></div>
+          </dl>
+        </figcaption>
+      </figure>
+
+      <figure class="card">
+        <div class="frame" style="aspect-ratio:1080/1350"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="1080" height="1350" viewBox="0 0 1080 1350">
+  <title>Circular crop beyond the column</title>
+  <defs>
+    <style type="text/css"><![CDATA[
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+    ]]></style>
+  </defs>
+  <rect id="page-background" width="1080" height="1350" fill="#ffffff"/>
+  <rect id="00000000-0000-4000-8000-000000000001" data-name="abstract engineering workflow" data-role="decoration" opacity="1" x="224" y="64" width="640" height="640" rx="320" fill="#e5e7eb" data-asset-id="" data-placeholder="true"/>
+  <text id="00000000-0000-4000-8000-000000000002" data-name="headline:r1" data-role="headline" opacity="1" text-anchor="middle" font-family="'Inter', sans-serif" font-size="68" font-weight="800" font-style="normal" fill="#101418">
+    <tspan x="540" y="760.4">We hired for polish and</tspan>
+    <tspan x="540" dy="80">shipped nothing for a</tspan>
+    <tspan x="540" dy="80">quarter</tspan>
+  </text>
+  <text id="00000000-0000-4000-8000-000000000003" data-name="subhead:r2" data-role="subheadline" opacity="1" text-anchor="middle" font-family="'Inter', sans-serif" font-size="30" font-weight="700" font-style="normal" fill="#101418">
+    <tspan x="464" y="1029">What we learned rebuilding the release</tspan>
+    <tspan x="464" dy="40">process from scratch</tspan>
+  </text>
+  <text id="00000000-0000-4000-8000-000000000004" data-name="cta:r3" data-role="cta" opacity="1" text-anchor="middle" font-family="'Inter', sans-serif" font-size="22" font-weight="700" font-style="normal" fill="#1a3c8f">
+    <tspan x="540" y="1134.6">Read the full write-up -&gt;</tspan>
+  </text>
+</svg></div>
+        <figcaption>
+          <div class="head"><span class="num">04</span><h2>Circular crop beyond the column</h2></div>
+          <p class="blurb">The portrait is masked to a circle wider than the cells it was assigned, breaking the grid on purpose.</p>
+          <dl class="meta">
+            <div><dt>Signature</dt><dd><code>crop-circle</code> on <code>r0</code></dd></div>
+            <div><dt>Canvas</dt><dd>1080&times;1350, bg <code>background</code></dd></div>
+            <div><dt>Plan</dt><dd class="regions">image c3+8 r1+8 e4 · headline c1+12 r9+4 e2 · subhead c1+10 r13+2 e4 · cta c1+12 r15+2 e5</dd></div>
+            <div><dt>Measured</dt><dd>
+              <span class="pill good">0 errors</span>
+              <span class="pill">88% coverage</span>
+              <span class="pill">100% on 8px</span>
+              <span class="pill">3 font sizes: 68, 30, 22</span>
+            </dd></div>
+            <div><dt>Coercions</dt><dd class="notes">page 1 signature: crop-circle — image "r0" masked to a 640px circle beyond its column span<br>legibility: recoloured "subhead:r2" to text for 18.5:1</dd></div>
+          </dl>
+        </figcaption>
+      </figure>
+
+      <figure class="card">
+        <div class="frame" style="aspect-ratio:1080/1350"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="1080" height="1350" viewBox="0 0 1080 1350">
+  <title>Editorial two-column with accent rule</title>
+  <defs>
+    <style type="text/css"><![CDATA[
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+    ]]></style>
+  </defs>
+  <rect id="page-background" width="1080" height="1350" fill="#ffffff"/>
+  <text id="00000000-0000-4000-8000-000000000001" data-name="kicker:r0" data-role="caption" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="16" font-weight="700" font-style="normal" letter-spacing="2" fill="#101418">
+    <tspan x="96" y="136.8">ENGINEERING</tspan>
+  </text>
+  <text id="00000000-0000-4000-8000-000000000002" data-name="headline:r1" data-role="headline" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="68" font-weight="800" font-style="normal" fill="#101418">
+    <tspan x="96" y="324.4">The best code review</tspan>
+    <tspan x="96" dy="80">comment is the one you</tspan>
+    <tspan x="96" dy="80">never have to write</tspan>
+  </text>
+  <text id="00000000-0000-4000-8000-000000000003" data-name="body:r2" data-role="body" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="22" font-weight="400" font-style="normal" fill="#101418">
+    <tspan x="96" y="694.6">Conventions, formatters and types</tspan>
+    <tspan x="96" dy="32">remove whole categories of comment</tspan>
+    <tspan x="96" dy="32">before a human reads a line.</tspan>
+  </text>
+  <text id="00000000-0000-4000-8000-000000000004" data-name="body:r3" data-role="body" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="22" font-weight="400" font-style="normal" fill="#101418">
+    <tspan x="552" y="694.6">What is left is the part reviewers</tspan>
+    <tspan x="552" dy="32">are actually good at: is this the</tspan>
+    <tspan x="552" dy="32">right thing to build at all?</tspan>
+  </text>
+  <text id="00000000-0000-4000-8000-000000000005" data-name="cta:r4" data-role="cta" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="22" font-weight="700" font-style="normal" fill="#1a3c8f">
+    <tspan x="96" y="1134.6">Full checklist in the comments -&gt;</tspan>
+  </text>
+  <rect id="00000000-0000-4000-8000-000000000006" data-name="rect" data-role="divider" opacity="1" x="96" y="624" width="320" height="16" rx="0" fill="#e8b23a"/>
+</svg></div>
+        <figcaption>
+          <div class="head"><span class="num">05</span><h2>Editorial two-column with accent rule</h2></div>
+          <p class="blurb">A heavy accent rule anchors to the headline baseline; the body runs as two grid-aligned columns.</p>
+          <dl class="meta">
+            <div><dt>Signature</dt><dd><code>rule-accent</code> on <code>r1</code></dd></div>
+            <div><dt>Canvas</dt><dd>1080&times;1350, bg <code>background</code></dd></div>
+            <div><dt>Plan</dt><dd class="regions">kicker c1+6 r1+1 e6 · headline c1+11 r2+6 e2 · body c1+6 r9+6 e5 · body c7+6 r9+6 e5 · cta c1+8 r15+2 e5</dd></div>
+            <div><dt>Measured</dt><dd>
+              <span class="pill good">0 errors</span>
+              <span class="pill">81% coverage</span>
+              <span class="pill">100% on 8px</span>
+              <span class="pill">3 font sizes: 68, 22, 16</span>
+            </dd></div>
+            <div><dt>Coercions</dt><dd class="notes">page 1 signature: rule-accent — heavy accent rule anchored to "r1"<br>legibility: recoloured "kicker:r0" to text for 18.5:1</dd></div>
+          </dl>
+        </figcaption>
+      </figure>
+
+      <figure class="card">
+        <div class="frame" style="aspect-ratio:1080/1080"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="1080" height="1080" viewBox="0 0 1080 1080">
+  <title>Overlapping headline and image</title>
+  <defs>
+    <style type="text/css"><![CDATA[
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+    ]]></style>
+  </defs>
+  <rect id="page-background" width="1080" height="1080" fill="#ffffff"/>
+  <rect id="00000000-0000-4000-8000-000000000004" data-name="rect" data-role="decoration" opacity="1" x="96" y="816" width="888" height="168" rx="8" fill="#1a3c8f"/>
+  <rect id="00000000-0000-4000-8000-000000000002" data-name="abstract engineering workflow" data-role="image" opacity="1" x="632" y="96" width="352" height="496" rx="24" fill="#e5e7eb" data-asset-id="" data-placeholder="true"/>
+  <text id="00000000-0000-4000-8000-000000000001" data-name="headline:r0" data-role="headline" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="68" font-weight="800" font-style="normal" fill="#101418">
+    <tspan x="96" y="248.4">Most roadmaps</tspan>
+    <tspan x="96" dy="80">are a list of</tspan>
+    <tspan x="96" dy="80">wishes with</tspan>
+    <tspan x="96" dy="80">dates attached</tspan>
+  </text>
+  <text id="00000000-0000-4000-8000-000000000003" data-name="body:r2" data-role="body" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="22" font-weight="400" font-style="normal" fill="#101418">
+    <tspan x="96" y="614.6">A roadmap earns the name when removing an item changes what the team does</tspan>
+    <tspan x="96" dy="32">on Monday morning.</tspan>
+  </text>
+</svg></div>
+        <figcaption>
+          <div class="head"><span class="num">06</span><h2>Overlapping headline and image</h2></div>
+          <p class="blurb">The headline extends one gutter into the image and sits above it in the stack.</p>
+          <dl class="meta">
+            <div><dt>Signature</dt><dd><code>overlap</code> on <code>r0</code></dd></div>
+            <div><dt>Canvas</dt><dd>1080&times;1080, bg <code>background</code></dd></div>
+            <div><dt>Plan</dt><dd class="regions">headline c1+7 r2+7 e2 · image c8+5 r1+9 e4 · body c1+12 r10+4 e5 · block c1+12 r14+3 e4</dd></div>
+            <div><dt>Measured</dt><dd>
+              <span class="pill good">0 errors</span>
+              <span class="pill">82% coverage</span>
+              <span class="pill">100% on 8px</span>
+              <span class="pill">2 font sizes: 68, 22</span>
+            </dd></div>
+            <div><dt>Coercions</dt><dd class="notes">page 1 signature: overlap — "r0" overlaps "r1" by one gutter</dd></div>
+          </dl>
+        </figcaption>
+      </figure>
+
+      <figure class="card">
+        <div class="frame" style="aspect-ratio:1080/1350"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="1080" height="1350" viewBox="0 0 1080 1350">
+  <title>Dark ground, display type</title>
+  <defs>
+    <style type="text/css"><![CDATA[
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+    ]]></style>
+  </defs>
+  <rect id="page-background" width="1080" height="1350" fill="#101418"/>
+  <text id="00000000-0000-4000-8000-000000000001" data-name="kicker:r0" data-role="caption" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="16" font-weight="700" font-style="normal" letter-spacing="2" fill="#e8b23a">
+    <tspan x="96" y="172.8">THE HARD PART</tspan>
+  </text>
+  <text id="00000000-0000-4000-8000-000000000002" data-name="headline:r1" data-role="headline" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="96" font-weight="800" font-style="normal" fill="#ffffff">
+    <tspan x="96" y="520.8">Ship it</tspan>
+  </text>
+  <text id="00000000-0000-4000-8000-000000000003" data-name="body:r2" data-role="body" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="22" font-weight="400" font-style="normal" fill="#ffffff">
+    <tspan x="96" y="838.6">Every week a decision waits, it gets more expensive and</tspan>
+    <tspan x="96" dy="32">less reversible. Deciding badly and quickly beats</tspan>
+    <tspan x="96" dy="32">deciding perfectly and late in almost every case we</tspan>
+    <tspan x="96" dy="32">measured.</tspan>
+  </text>
+  <text id="00000000-0000-4000-8000-000000000004" data-name="cta:r3" data-role="cta" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="22" font-weight="700" font-style="normal" fill="#e8b23a">
+    <tspan x="96" y="1134.6">Agree? Disagree? -&gt;</tspan>
+  </text>
+  <rect id="00000000-0000-4000-8000-000000000005" data-name="rect" data-role="divider" opacity="1" x="96" y="768" width="296" height="16" rx="0" fill="#e8b23a"/>
+</svg></div>
+        <figcaption>
+          <div class="head"><span class="num">07</span><h2>Dark ground, display type</h2></div>
+          <p class="blurb">Page background is the text token; every colour is re-resolved against it with no manual intervention.</p>
+          <dl class="meta">
+            <div><dt>Signature</dt><dd><code>rule-accent</code> on <code>r1</code></dd></div>
+            <div><dt>Canvas</dt><dd>1080&times;1350, bg <code>text</code></dd></div>
+            <div><dt>Plan</dt><dd class="regions">kicker c1+6 r1+2 e6 · headline c1+10 r3+7 e1 · body c1+9 r11+4 e5 · cta c1+8 r15+2 e5</dd></div>
+            <div><dt>Measured</dt><dd>
+              <span class="pill good">0 errors</span>
+              <span class="pill">81% coverage</span>
+              <span class="pill">100% on 8px</span>
+              <span class="pill">3 font sizes: 96, 22, 16</span>
+            </dd></div>
+            <div><dt>Coercions</dt><dd class="notes">page 1 signature: rule-accent — heavy accent rule anchored to "r1"<br>legibility: recoloured "headline:r1" to background for 18.5:1<br>legibility: recoloured "body:r2" to background for 18.5:1</dd></div>
+          </dl>
+        </figcaption>
+      </figure>
+
+      <figure class="card">
+        <div class="frame" style="aspect-ratio:1080/1350"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="1080" height="1350" viewBox="0 0 1080 1350">
+  <title>Data page with chart region</title>
+  <defs>
+    <style type="text/css"><![CDATA[
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+    ]]></style>
+  </defs>
+  <rect id="page-background" width="1080" height="1350" fill="#ffffff"/>
+  <g id="00000000-0000-4000-8000-000000000003" data-name="chart:r2" data-role="data" opacity="1" data-chart="bar">
+    <rect x="118.2" y="956.75" width="103.6" height="61.25" rx="6" fill="#1a3c8f"/>
+    <text x="170" y="1036" text-anchor="middle" font-family="Arial" font-size="15.299999999999999" fill="#1a3c8f">Q</text>
+    <rect x="266.2" y="773" width="103.6" height="245" rx="6" fill="#e8b23a"/>
+    <text x="318" y="1036" text-anchor="middle" font-family="Arial" font-size="15.299999999999999" fill="#e8b23a">3</text>
+    <rect x="414.2" y="895.5" width="103.6" height="122.5" rx="6" fill="#1a3c8f"/>
+    <text x="466" y="1036" text-anchor="middle" font-family="Arial" font-size="15.299999999999999" fill="#1a3c8f">Q</text>
+    <rect x="562.2" y="528" width="103.6" height="490" rx="6" fill="#e8b23a"/>
+    <text x="614" y="1036" text-anchor="middle" font-family="Arial" font-size="15.299999999999999" fill="#e8b23a">4</text>
+    <rect x="710.2" y="834.25" width="103.6" height="183.75" rx="6" fill="#1a3c8f"/>
+    <text x="762" y="1036" text-anchor="middle" font-family="Arial" font-size="15.299999999999999" fill="#1a3c8f">Q</text>
+    <rect x="858.2" y="956.75" width="103.6" height="61.25" rx="6" fill="#e8b23a"/>
+    <text x="910" y="1036" text-anchor="middle" font-family="Arial" font-size="15.299999999999999" fill="#e8b23a">6</text>
+  </g>
+  <text id="00000000-0000-4000-8000-000000000001" data-name="kicker:r0" data-role="caption" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="16" font-weight="700" font-style="normal" letter-spacing="2" fill="#101418">
+    <tspan x="96" y="136.8">BENCHMARK 2026</tspan>
+  </text>
+  <text id="00000000-0000-4000-8000-000000000002" data-name="headline:r1" data-role="headline" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="44" font-weight="800" font-style="normal" fill="#101418">
+    <tspan x="96" y="297.2">Deploy frequency separates the top</tspan>
+    <tspan x="96" dy="56">quartile from everyone else</tspan>
+  </text>
+  <text id="00000000-0000-4000-8000-000000000004" data-name="body:r3" data-role="body" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="22" font-weight="400" font-style="normal" fill="#101418">
+    <tspan x="96" y="1062.6">Sample of 240 engineering organisations, self-reported,</tspan>
+    <tspan x="96" dy="32">normalised per service.</tspan>
+  </text>
+  <rect id="00000000-0000-4000-8000-000000000005" data-name="rect" data-role="divider" opacity="1" x="96" y="480" width="320" height="16" rx="0" fill="#e8b23a"/>
+</svg></div>
+        <figcaption>
+          <div class="head"><span class="num">08</span><h2>Data page with chart region</h2></div>
+          <p class="blurb">A chart region takes its series from the copy line; the palette is brand tokens only.</p>
+          <dl class="meta">
+            <div><dt>Signature</dt><dd><code>rule-accent</code> on <code>r1</code></dd></div>
+            <div><dt>Canvas</dt><dd>1080&times;1350, bg <code>background</code></dd></div>
+            <div><dt>Plan</dt><dd class="regions">kicker c1+8 r1+1 e6 · headline c1+11 r2+4 e2 · chart c1+12 r7+7 e4 · body c1+10 r14+3 e5</dd></div>
+            <div><dt>Measured</dt><dd>
+              <span class="pill good">0 errors</span>
+              <span class="pill">81% coverage</span>
+              <span class="pill">100% on 8px</span>
+              <span class="pill">3 font sizes: 44, 22, 16</span>
+            </dd></div>
+            <div><dt>Coercions</dt><dd class="notes">page 1 signature: rule-accent — heavy accent rule anchored to "r1"<br>legibility: recoloured "kicker:r0" to text for 18.5:1</dd></div>
+          </dl>
+        </figcaption>
+      </figure>
+
+      <figure class="card">
+        <div class="frame" style="aspect-ratio:1080/1080"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="1080" height="1080" viewBox="0 0 1080 1080">
+  <title>Icon trio over a colour field</title>
+  <defs>
+    <style type="text/css"><![CDATA[
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+    ]]></style>
+  </defs>
+  <rect id="page-background" width="1080" height="1080" fill="#ffffff"/>
+  <rect id="00000000-0000-4000-8000-000000000005" data-name="rect" data-role="decoration" opacity="1" x="0" y="488" width="984" height="496" rx="16" fill="#1a3c8f"/>
+  <g id="00000000-0000-4000-8000-000000000002" data-name="icon:abstract-engineering-workflow" data-role="icon" opacity="1" data-icon="lucide/abstract-engineering-workflow" transform="translate(96,320)">
+    <svg width="168" height="168" viewBox="0 0 24 24" fill="none" stroke="#1a3c8f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z" />
+  <path d="M20 2v4" />
+  <path d="M22 4h-4" />
+  <circle cx="4" cy="20" r="2" />
+</svg>
+  </g>
+  <g id="00000000-0000-4000-8000-000000000003" data-name="icon:abstract-engineering-workflow" data-role="icon" opacity="1" data-icon="lucide/abstract-engineering-workflow" transform="translate(400,320)">
+    <svg width="168" height="168" viewBox="0 0 24 24" fill="none" stroke="#1a3c8f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z" />
+  <path d="M20 2v4" />
+  <path d="M22 4h-4" />
+  <circle cx="4" cy="20" r="2" />
+</svg>
+  </g>
+  <g id="00000000-0000-4000-8000-000000000004" data-name="icon:abstract-engineering-workflow" data-role="icon" opacity="1" data-icon="lucide/abstract-engineering-workflow" transform="translate(704,320)">
+    <svg width="168" height="168" viewBox="0 0 24 24" fill="none" stroke="#1a3c8f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z" />
+  <path d="M20 2v4" />
+  <path d="M22 4h-4" />
+  <circle cx="4" cy="20" r="2" />
+</svg>
+  </g>
+  <text id="00000000-0000-4000-8000-000000000001" data-name="headline:r0" data-role="headline" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="44" font-weight="800" font-style="normal" fill="#101418">
+    <tspan x="96" y="193.2">Three habits that survived</tspan>
+    <tspan x="96" dy="56">every reorg we went through</tspan>
+  </text>
+</svg></div>
+        <figcaption>
+          <div class="head"><span class="num">09</span><h2>Icon trio over a colour field</h2></div>
+          <p class="blurb">Three icon regions tile one row; the block beneath them bleeds to the bottom edge.</p>
+          <dl class="meta">
+            <div><dt>Signature</dt><dd><code>bleed-edge</code> on <code>r4</code></dd></div>
+            <div><dt>Canvas</dt><dd>1080&times;1080, bg <code>background</code></dd></div>
+            <div><dt>Plan</dt><dd class="regions">headline c1+10 r1+4 e2 · icon c1+4 r5+3 e4 · icon c5+4 r5+3 e4 · icon c9+4 r5+3 e4 · block c1+12 r8+9 e4</dd></div>
+            <div><dt>Measured</dt><dd>
+              <span class="pill good">0 errors</span>
+              <span class="pill">82% coverage</span>
+              <span class="pill">100% on 8px</span>
+              <span class="pill">1 font size: 44</span>
+            </dd></div>
+            <div><dt>Coercions</dt><dd class="notes">page 1 signature: bleed-edge — extended "r4" to the left canvas edge</dd></div>
+          </dl>
+        </figcaption>
+      </figure>
+
+      <figure class="card">
+        <div class="frame" style="aspect-ratio:1080/1080"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="1080" height="1080" viewBox="0 0 1080 1080">
+  <title>Accent ground, centred statement</title>
+  <defs>
+    <style type="text/css"><![CDATA[
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+    ]]></style>
+  </defs>
+  <rect id="page-background" width="1080" height="1080" fill="#e8b23a"/>
+  <text id="00000000-0000-4000-8000-000000000001" data-name="headline:r0" data-role="headline" opacity="1" text-anchor="middle" font-family="'Inter', sans-serif" font-size="96" font-weight="800" font-style="normal" fill="#101418">
+    <tspan x="540" y="320.8">Boring is a</tspan>
+    <tspan x="540" dy="104">feature</tspan>
+  </text>
+  <text id="00000000-0000-4000-8000-000000000002" data-name="subhead:r1" data-role="subheadline" opacity="1" text-anchor="middle" font-family="'Inter', sans-serif" font-size="30" font-weight="700" font-style="normal" fill="#101418">
+    <tspan x="544" y="693">The systems nobody talks about are the ones</tspan>
+    <tspan x="544" dy="40">that never wake anyone at 3am</tspan>
+  </text>
+  <text id="00000000-0000-4000-8000-000000000003" data-name="cta:r2" data-role="cta" opacity="1" text-anchor="middle" font-family="'Inter', sans-serif" font-size="22" font-weight="700" font-style="normal" fill="#101418">
+    <tspan x="540" y="894.6">What is your most boring win? -&gt;</tspan>
+  </text>
+  <rect id="00000000-0000-4000-8000-000000000004" data-name="rect" data-role="divider" opacity="1" x="96" y="616" width="320" height="16" rx="0" fill="#1a3c8f"/>
+</svg></div>
+        <figcaption>
+          <div class="head"><span class="num">10</span><h2>Accent ground, centred statement</h2></div>
+          <p class="blurb">Accent page background with a centred display line — restraint carrying a single idea.</p>
+          <dl class="meta">
+            <div><dt>Signature</dt><dd><code>rule-accent</code> on <code>r0</code></dd></div>
+            <div><dt>Canvas</dt><dd>1080&times;1080, bg <code>accent</code></dd></div>
+            <div><dt>Plan</dt><dd class="regions">headline c1+12 r3+8 e1 · subhead c2+10 r11+3 e4 · cta c1+12 r15+2 e5</dd></div>
+            <div><dt>Measured</dt><dd>
+              <span class="pill good">0 errors</span>
+              <span class="pill">77% coverage</span>
+              <span class="pill">100% on 8px</span>
+              <span class="pill">3 font sizes: 96, 30, 22</span>
+            </dd></div>
+            <div><dt>Coercions</dt><dd class="notes">page 1 coverage: plan occupied rows 3-16; stretched to fill rows 1-16<br>page 1 signature: rule-accent — heavy accent rule anchored to "r0"</dd></div>
+          </dl>
+        </figcaption>
+      </figure>
+
+      <figure class="card">
+        <div class="frame" style="aspect-ratio:1080/1350"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="1080" height="1350" viewBox="0 0 1080 1350">
+  <title>Stat rail beside the argument</title>
+  <defs>
+    <style type="text/css"><![CDATA[
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+    ]]></style>
+  </defs>
+  <rect id="page-background" width="1080" height="1350" fill="#ffffff"/>
+  <rect id="00000000-0000-4000-8000-000000000007" data-name="rect" data-role="background" opacity="1" x="0" y="72" width="1080" height="1200" rx="0" fill="#1a3c8f"/>
+  <rect id="00000000-0000-4000-8000-000000000001" data-name="rect" data-role="decoration" opacity="1" x="96" y="96" width="280" height="1152" rx="8" fill="#1a3c8f"/>
+  <text id="00000000-0000-4000-8000-000000000002" data-name="stat:r1" data-role="data" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="68" font-weight="800" font-style="normal" fill="#ffffff">
+    <tspan x="96" y="296.4">4.2x</tspan>
+  </text>
+  <text id="00000000-0000-4000-8000-000000000003" data-name="kicker:r2" data-role="caption" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="16" font-weight="700" font-style="normal" letter-spacing="2" fill="#ffffff">
+    <tspan x="400" y="172.8">RESEARCH</tspan>
+  </text>
+  <text id="00000000-0000-4000-8000-000000000004" data-name="headline:r3" data-role="headline" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="44" font-weight="800" font-style="normal" fill="#ffffff">
+    <tspan x="400" y="385.2">Teams with written</tspan>
+    <tspan x="400" dy="56">decisions move four</tspan>
+    <tspan x="400" dy="56">times faster after month</tspan>
+    <tspan x="400" dy="56">three</tspan>
+  </text>
+  <text id="00000000-0000-4000-8000-000000000005" data-name="body:r4" data-role="body" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="22" font-weight="400" font-style="normal" fill="#ffffff">
+    <tspan x="400" y="694.6">The gain is not in the writing. It is in never</tspan>
+    <tspan x="400" dy="32">re-litigating a settled question because nobody</tspan>
+    <tspan x="400" dy="32">remembers the reasoning.</tspan>
+  </text>
+  <text id="00000000-0000-4000-8000-000000000006" data-name="cta:r5" data-role="cta" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="22" font-weight="700" font-style="normal" fill="#ffffff">
+    <tspan x="400" y="1062.6">Template in the comments -&gt;</tspan>
+  </text>
+</svg></div>
+        <figcaption>
+          <div class="head"><span class="num">11</span><h2>Stat rail beside the argument</h2></div>
+          <p class="blurb">A narrow stat column runs the full height beside the copy; nothing is centred, everything aligns.</p>
+          <dl class="meta">
+            <div><dt>Signature</dt><dd><code>full-bleed-block</code> on <code>r0</code></dd></div>
+            <div><dt>Canvas</dt><dd>1080&times;1350, bg <code>background</code></dd></div>
+            <div><dt>Plan</dt><dd class="regions">block c1+4 r1+16 e4 · stat c1+4 r2+3 e2 · kicker c5+8 r1+2 e6 · headline c5+8 r3+6 e2 · body c5+8 r9+5 e5 · cta c5+8 r14+3 e5</dd></div>
+            <div><dt>Measured</dt><dd>
+              <span class="pill good">0 errors</span>
+              <span class="pill">85% coverage</span>
+              <span class="pill">100% on 8px</span>
+              <span class="pill">4 font sizes: 68, 44, 22, 16</span>
+            </dd></div>
+            <div><dt>Coercions</dt><dd class="notes">page 1 signature: full-bleed-block — colour band across the full canvas width behind "r0"<br>legibility: recoloured "kicker:r2" to background for 10.1:1<br>legibility: recoloured "headline:r3" to background for 10.1:1<br>legibility: recoloured "body:r4" to background for 10.1:1<br>legibility: recoloured "cta:r5" to background for 10.1:1</dd></div>
+          </dl>
+        </figcaption>
+      </figure>
+
+      <figure class="card">
+        <div class="frame" style="aspect-ratio:1080/1350"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="1080" height="1350" viewBox="0 0 1080 1350">
+  <title>Carousel opener, image bleeding bottom</title>
+  <defs>
+    <style type="text/css"><![CDATA[
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+    ]]></style>
+  </defs>
+  <rect id="page-background" width="1080" height="1350" fill="#ffffff"/>
+  <rect id="00000000-0000-4000-8000-000000000004" data-name="abstract engineering workflow" data-role="decoration" opacity="1" x="0" y="744" width="984" height="504" rx="32" fill="#e5e7eb" data-asset-id="" data-placeholder="true"/>
+  <text id="00000000-0000-4000-8000-000000000001" data-name="kicker:r0" data-role="caption" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="16" font-weight="700" font-style="normal" letter-spacing="2" fill="#101418">
+    <tspan x="96" y="136.8">1 OF 6</tspan>
+  </text>
+  <text id="00000000-0000-4000-8000-000000000002" data-name="headline:r1" data-role="headline" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="68" font-weight="800" font-style="normal" fill="#101418">
+    <tspan x="96" y="288.4">How we cut onboarding</tspan>
+    <tspan x="96" dy="80">from nine days to one</tspan>
+    <tspan x="96" dy="80">afternoon</tspan>
+  </text>
+  <text id="00000000-0000-4000-8000-000000000003" data-name="body:r2" data-role="body" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="22" font-weight="400" font-style="normal" fill="#101418">
+    <tspan x="96" y="550.6">Six changes, none of them clever, all of them boring</tspan>
+    <tspan x="96" dy="32">enough that nobody had bothered.</tspan>
+  </text>
+</svg></div>
+        <figcaption>
+          <div class="head"><span class="num">12</span><h2>Carousel opener, image bleeding bottom</h2></div>
+          <p class="blurb">A tall image bleeds off the bottom of the canvas beneath a compact type stack.</p>
+          <dl class="meta">
+            <div><dt>Signature</dt><dd><code>bleed-edge</code> on <code>r3</code></dd></div>
+            <div><dt>Canvas</dt><dd>1080&times;1350, bg <code>background</code></dd></div>
+            <div><dt>Plan</dt><dd class="regions">kicker c1+8 r1+1 e6 · headline c1+11 r2+5 e2 · body c1+9 r7+3 e5 · image c1+12 r10+7 e4</dd></div>
+            <div><dt>Measured</dt><dd>
+              <span class="pill good">0 errors</span>
+              <span class="pill">85% coverage</span>
+              <span class="pill">100% on 8px</span>
+              <span class="pill">3 font sizes: 68, 22, 16</span>
+            </dd></div>
+            <div><dt>Coercions</dt><dd class="notes">page 1 signature: bleed-edge — extended "r3" to the left canvas edge<br>legibility: recoloured "kicker:r0" to text for 18.5:1</dd></div>
+          </dl>
+        </figcaption>
+      </figure>
+</main>
+<footer>
+  Generated from <code>packages/layout-recipes/src/compositor.ts</code> and
+  <code>packages/design-schema/src/design-system.ts</code>. See
+  <code>docs/18-design-system-and-pipeline.md</code> for the pipeline this is stage 3 of.
+</footer>
+</body>
+</html>
