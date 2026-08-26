@@ -16,6 +16,7 @@ import {
   MAX_PLAN_REGIONS,
   MAX_TYPE_STEPS_PER_PAGE,
   TYPE_SCALE,
+  artworkUnder,
   gridMetrics,
   isTextRole,
   oversizedNumeralSize,
@@ -26,13 +27,11 @@ import {
   MAX_IMAGE_ASPECT,
   MIN_IMAGE_AREA_RATIO,
   MIN_IMAGE_SIDE_RATIO,
-  OCCLUSION_TOLERANCE,
   baselineAlignment,
   composeFromPlan,
   composeFromPlanVerbose,
   distinctFontSizes,
   glyphBox,
-  glyphsOnArtwork,
   minTypeStepForRole,
   verticalCoverage,
 } from './compositor.js';
@@ -344,12 +343,15 @@ describe('composeFromPlan — property tests over generated plans', () => {
       for (const page of doc.pages)
         for (const el of page.elements) {
           if (el.type !== 'text') continue;
-          const onArt = glyphsOnArtwork(el, page.elements);
-          results.worstOnArtwork = Math.max(results.worstOnArtwork, onArt);
+          // The validator's own question, put to the validator. A private
+          // reimplementation here would drift from it exactly as the
+          // compositor's own sampler did.
+          const onArt = artworkUnder(el, doc, page, page.elements);
+          results.worstOnArtwork = Math.max(results.worstOnArtwork, onArt.length);
           expect(
-            onArt,
-            `${g.move}: ${(onArt * 100).toFixed(0)}% of "${el.name}" renders on an image or chart`,
-          ).toBeLessThanOrEqual(OCCLUSION_TOLERANCE);
+            onArt.map((a) => a.name),
+            `${g.move}: "${el.name}" renders on artwork with no scrim under it`,
+          ).toEqual([]);
         }
   });
 
@@ -404,7 +406,7 @@ describe('composeFromPlan — property tests over generated plans', () => {
       worstCoverage: Number(results.minCoverage.toFixed(3)),
       mostDistinctFontSizes: results.maxDistinctSizes,
       validationErrors: results.errors.length,
-      worstGlyphsOnArtwork: Number(results.worstOnArtwork.toFixed(3)),
+      worstArtworkHitsOnOneText: results.worstOnArtwork,
     }).toMatchObject({ validationErrors: 0 });
   });
 });
@@ -608,7 +610,7 @@ describe('P1.1 occlusion — copy never renders on artwork unaided', () => {
     const headline = page.elements.find(
       (e): e is TextElement => e.type === 'text' && e.recipeSlotId === 'r1',
     )!;
-    expect(glyphsOnArtwork(headline, page.elements)).toBeLessThanOrEqual(OCCLUSION_TOLERANCE);
+    expect(artworkUnder(headline, document, page, page.elements)).toEqual([]);
     expect(notes.join('\n')).toMatch(/occlusion: relocated "headline:r1"/);
   });
 
@@ -635,7 +637,7 @@ describe('P1.1 occlusion — copy never renders on artwork unaided', () => {
     // the move survives: the headline still runs into its neighbour
     expect(headline.frame.x + headline.frame.width).toBeGreaterThan(image.frame.x);
     // and it is readable, because a scrim was placed rather than the copy moved
-    expect(glyphsOnArtwork(headline, page.elements)).toBeLessThanOrEqual(OCCLUSION_TOLERANCE);
+    expect(artworkUnder(headline, document, page, page.elements)).toEqual([]);
     const scrim = page.elements.find(isScrim)!;
     expect(scrim).toBeDefined();
     expect(scrim.type === 'shape' && scrim.fill).toMatchObject({ kind: 'token' });
@@ -659,9 +661,10 @@ describe('P1.1 occlusion — copy never renders on artwork unaided', () => {
     const page = document.pages[0]!;
     for (const el of page.elements)
       if (el.type === 'text')
-        expect(glyphsOnArtwork(el, page.elements), `"${el.name}" sits on artwork`).toBeLessThanOrEqual(
-          OCCLUSION_TOLERANCE,
-        );
+        expect(
+          artworkUnder(el, document, page, page.elements).map((a) => a.name),
+          `"${el.name}" sits on artwork`,
+        ).toEqual([]);
   });
 
   it('never paints the accent rule through a line of copy', () => {

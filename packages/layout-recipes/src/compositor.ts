@@ -43,10 +43,12 @@ import {
   LayoutPlan as LayoutPlanSchema,
   MIN_FONT_SIZES,
   SCHEMA_VERSION,
+  artworkUnder,
   ceilTo8,
   contrastRatio,
   backgroundHexesUnder,
   floorTo8,
+  glyphLines,
   gridFrame,
   gridMetrics,
   hashSeed,
@@ -138,16 +140,11 @@ const ICON_NAMES = [
 // value is a ratio of the canvas, never a pixel count, so they hold on every
 // preset.
 
-/**
- * P1.1 — how much of a line of type may sit on unknown artwork before the
- * compositor has to act. Four per cent is roughly one glyph of a headline: any
- * more and a reader notices the collision.
- */
-export const OCCLUSION_TOLERANCE = 0.04;
-
-/** Sample lattice used to decide what is actually behind a run of glyphs. */
-const OCCLUSION_SAMPLE_COLS = 9;
-const OCCLUSION_SAMPLE_ROWS = 5;
+// P1.1 has no tolerance of its own any more. Whether a run of glyphs is on
+// artwork is `artworkUnder`'s question, asked of the validator, and the answer
+// is a list of elements rather than a fraction to compare against a threshold.
+// Two thresholds for one question is how a compositor and a validator come to
+// disagree about the same page.
 
 /** Breathing room between a scrim's edge and the glyphs it protects. */
 const SCRIM_PADDING = BASELINE * 2;
@@ -383,28 +380,64 @@ function fitText(
   letterSpacing: number,
 ): FittedText {
   const g = gridMetrics(canvas);
-  const bounds = { top: ceilTo8(g.top), bottom: floorTo8(g.bottom) };
+  const bounds = {
+    top: ceilTo8(g.top),
+    bottom: floorTo8(g.bottom),
+    left: ceilTo8(g.left),
+    right: floorTo8(g.right),
+  };
   const floorStep = minTypeStepForRole(role, canvas);
   // A role can never be rendered below its readability floor, so a plan asking
   // for caption-sized headlines is raised to the smallest legal headline step.
   const start = Math.min(startStep, floorStep) as TypeEmphasis;
 
+  // The largest step whose lines fit the frame's HEIGHT, remembered even when
+  // they do not fit its width — see below for why that is worth keeping.
+  let tallestThatFits: { fontSize: number; lineHeight: number } | null = null;
   for (let step = start; step <= floorStep; step++) {
     const fontSize = typeSize(step as TypeEmphasis, canvas);
     const lineHeight = lineHeightFor(fontSize);
     const m = measureText(content, fontSize, lineHeight, frame.width, letterSpacing);
-    if (m.height <= frame.height)
+    if (m.height > frame.height) continue;
+    if (m.widestLine <= frame.width)
       return { text: content, fontSize, lineHeight, frame, truncated: false };
+    tallestThatFits ??= { fontSize, lineHeight };
   }
 
-  // Smallest legal size for the role; grow the frame instead of shrinking further.
-  const fontSize = typeSize(floorStep, canvas);
-  const lineHeight = lineHeightFor(fontSize);
-  const needed = ceilTo8(measureText(content, fontSize, lineHeight, frame.width, letterSpacing).height + 1);
+  const { fontSize, lineHeight } = tallestThatFits ?? {
+    fontSize: typeSize(floorStep, canvas),
+    lineHeight: lineHeightFor(typeSize(floorStep, canvas)),
+  };
+
+  // WIDTH BEFORE HEIGHT, and this is the half that was missing.
+  //
+  // `wrapText` cannot break a word. A cell narrower than one word does not clip
+  // that word — it lays it straight out of the frame and across whatever
+  // happens to be beside it, and every downstream judgement is then wrong: a
+  // scrim sized to the frame does not cover the ink, `ensureLegibleText`
+  // measures a background the glyphs never touch, and the page ships with a
+  // headline running over a colour block at 1.00:1. Stepping the type down does
+  // not fix it either, because the word is still one word: at the readability
+  // floor a headline in a one-column cell overflows just as far.
+  //
+  // So the frame is widened to hold its longest line, bounded by the grid.
+  // Widening cannot make the wrap worse — a wider frame only ever fits more
+  // words per line — and it makes the geometry honest about where the ink is,
+  // which is what lets the occlusion and contrast passes do their jobs.
+  let sized = frame;
+  for (let pass = 0; pass < 3; pass++) {
+    const m = measureText(content, fontSize, lineHeight, sized.width, letterSpacing);
+    if (m.widestLine <= sized.width) break;
+    const width = Math.min(ceilTo8(m.widestLine + 1), bounds.right - bounds.left);
+    if (width <= sized.width) break; // already as wide as the grid allows
+    sized = { ...sized, x: Math.min(Math.max(sized.x, bounds.left), bounds.right - width), width };
+  }
+
+  const needed = ceilTo8(measureText(content, fontSize, lineHeight, sized.width, letterSpacing).height + 1);
   const maxHeight = bounds.bottom - bounds.top;
-  const height = Math.min(needed, maxHeight);
-  const y = Math.min(frame.y, Math.max(bounds.top, bounds.bottom - height));
-  const grown = { ...frame, y, height };
+  const height = Math.min(Math.max(needed, sized.height), maxHeight);
+  const y = Math.min(sized.y, Math.max(bounds.top, bounds.bottom - height));
+  const grown = { ...sized, y, height };
 
   const m = measureText(content, fontSize, lineHeight, grown.width, letterSpacing);
   if (m.height <= grown.height) return { text: content, fontSize, lineHeight, frame: grown, truncated: false };
@@ -528,11 +561,53 @@ export function composeFromPlanVerbose(plan: LayoutPlan, ctx: CompositionContext
     pages,
   };
 
-  // Legibility is decided against the finished page, exactly as the validator
-  // sees it, so a text element sitting on a signature colour block is judged
-  // against that block and not against the page background.
-  for (const page of document.pages) ensureLegibleText(document, page, ctx, notes);
+  settleArtworkAndLegibility(document, parsed, ctx, notes);
   return { document, notes };
+}
+
+/**
+ * Settle "what colour is this text" and "is this text on artwork" together, on
+ * the finished document.
+ *
+ * They cannot be settled apart, and finding that out cost a round of
+ * integration failures. `artworkUnder` judges a text element against the colour
+ * it is currently wearing; `ensureLegibleText` chooses that colour from what is
+ * currently behind it. Composing a page answered the artwork question first and
+ * the colour question afterwards, at document level — so every recolour left
+ * the artwork answer stale, and a page could finish composition clean and still
+ * validate as text on artwork the compositor had already looked at.
+ *
+ * Two rounds settle it, and the second is almost always a no-op: a scrim is an
+ * opaque brand-token panel, so once one is laid the colour question has a real
+ * backdrop to answer against and stops moving. Relocation is deliberately NOT
+ * available here — moving copy this late would invalidate the coverage work
+ * that has already been done — so this pass can only ever add a panel, which is
+ * a change no later round can undo.
+ *
+ * Both questions are put to the validator's own exported functions, against the
+ * real document rather than a stand-in. There is no second opinion left in this
+ * module about either one.
+ */
+function settleArtworkAndLegibility(
+  document: InternalDesignDocument,
+  parsed: LayoutPlan,
+  ctx: CompositionContext,
+  notes: string[],
+): void {
+  for (let round = 0; round < 2; round++) {
+    // Legibility is decided against the finished page, exactly as the validator
+    // sees it, so a text element sitting on a signature colour block is judged
+    // against that block and not against the page background.
+    for (const page of document.pages) ensureLegibleText(document, page, ctx, notes);
+
+    let changed = false;
+    document.pages.forEach((page, i) => {
+      const planPage = parsed.pages[Math.min(i, parsed.pages.length - 1)]!;
+      const onArtwork = (el: TextElement) => artworkUnder(el, document, page, page.elements);
+      if (resolveOcclusions(ctx, page.elements, planPage, notes, i, false, onArtwork)) changed = true;
+    });
+    if (!changed) return;
+  }
 }
 
 function composePage(
@@ -625,14 +700,18 @@ function composePage(
   // else — that is precisely where it was being violated. Occlusion resolution
   // afterwards can only move copy onto grid cells, tighten a frame or lay a
   // panel, so nothing below can push a glyph back off the canvas.
+  // This pass exists to MOVE copy, which is why it lives here: relocation
+  // vacates rows and coverage has to be settled again afterwards. It is not the
+  // last word on whether the page has text on artwork — it cannot be, because
+  // that answer depends on colours `ensureLegibleText` has not chosen yet. See
+  // `settleArtworkAndLegibility`, which is.
   keepGlyphsOnCanvas(elements, canvas, notes, pageIndex);
-  if (resolveOcclusions(ctx, elements, planPage, notes, pageIndex, true))
+  const probe = artworkProbe(ctx, planPage, elements);
+  if (resolveOcclusions(ctx, elements, planPage, notes, pageIndex, true, probe))
     closeCoverageGaps(elements, canvas, notes, pageIndex);
   // Relocation and growth are the only things that can put a glyph back over an
-  // edge, and both have run. The last pass may only lay scrims — it never moves
-  // anything — so the two invariants cannot take turns undoing each other.
+  // edge, and both have run.
   keepGlyphsOnCanvas(elements, canvas, notes, pageIndex);
-  resolveOcclusions(ctx, elements, planPage, notes, pageIndex, false);
 
   // --- 7. a page of nothing but images is not an editable design ---
   if (!elements.some((el) => el.type !== 'image')) {
@@ -964,12 +1043,23 @@ function applySignatureMove(
   }
 }
 
-/** A block colour that is never the page background it sits on. */
-function blockFill(background: string, preferred?: string): string {
-  const order = [preferred, 'primary', 'accent', 'secondary', 'neutral', 'text'].filter(
-    (c): c is string => Boolean(c),
-  );
-  return order.find((c) => c !== background) ?? 'primary';
+/**
+ * A colour for a compositor-drawn backdrop: never the page background it sits
+ * on, and never the colour of the text it is drawn behind.
+ *
+ * The second half was missing, and worse, the region's colour was passed in as
+ * a PREFERENCE — which is exactly backwards for a panel that goes behind that
+ * region's own type. `textElement` gives a text region its `colour`, so handing
+ * the same token to the block beneath it guaranteed a counter block at 1.00:1
+ * under its own numeral on any page whose art direction named a colour at all.
+ *
+ * `settleArtworkAndLegibility` would now catch it either way. This is still
+ * worth fixing here: a backdrop born legible keeps the colour the art director
+ * chose for the type, instead of spending it to repair the block behind it.
+ */
+function blockFill(background: string, avoid?: string): string {
+  const order = ['primary', 'accent', 'secondary', 'neutral', 'text', 'background'];
+  return order.find((c) => c !== background && c !== avoid) ?? 'primary';
 }
 
 function ruleFill(background: string): string {
@@ -1152,113 +1242,49 @@ function refit(el: TextElement, region: PlannedRegion, ctx: CompositionContext):
  * and positioned by the same alignment rules the exporter applies, so what this
  * says is on the page is what a reader sees on the page.
  */
-export function glyphBox(el: TextElement): Rect {
-  const m = measureText(el.text, el.fontSize, el.lineHeight, el.frame.width, el.letterSpacing);
-  const width = Math.max(m.widestLine, 1);
-  const height = Math.max(m.height, el.fontSize);
-  const f = el.frame;
-  const x =
-    el.align === 'center'
-      ? f.x + (f.width - width) / 2
-      : el.align === 'right'
-        ? f.x + f.width - width
-        : f.x;
-  const y =
-    el.verticalAlign === 'middle'
-      ? f.y + (f.height - height) / 2
-      : el.verticalAlign === 'bottom'
-        ? f.y + f.height - height
-        : f.y;
-  return { x, y, width, height };
-}
-
 /**
- * How opaque an element is, from the point of view of type sitting on it.
+ * The rectangle the GLYPHS occupy, which is not the rectangle the element
+ * occupies. A text frame is a grid cell; the type inside it is usually much
+ * narrower and shorter, and every judgement here — does it cross the canvas
+ * edge, how big is its scrim — is a question about the glyphs, not the cell.
  *
- * `unknown` is the dangerous one: an image or a chart is filled by the asset
- * pipeline long after composition, so no text colour can be *proven* legible
- * against it and none should be attempted. `solid` elements are opaque too, but
- * their luminance is a brand token, so `ensureLegibleText` settles those by
- * recolouring the text rather than by covering the artwork.
+ * The line boxes come from `glyphLines`, the shared measurement authority the
+ * validator and the SVG exporter both use, so what this says is on the page is
+ * what the validator will say is on the page. An earlier version of this
+ * function computed the box itself from `measureText` plus the alignment
+ * rules; it agreed with the validator right up until the validator learned to
+ * measure each line separately, and then it did not.
  */
-function occluderKind(el: Element): 'unknown' | 'solid' | null {
-  if (!el.visible || el.opacity < 0.99) return null;
-  if (el.type === 'image' || el.type === 'chart') return 'unknown';
-  if (el.type === 'shape') {
-    const fill = el.fill;
-    return 'kind' in fill && (fill.kind === 'token' || fill.kind === 'raw') ? 'solid' : null;
-  }
-  return null;
-}
-
-/** Point-in-element, honouring circular masks and ellipses. */
-function occluderCoversPoint(el: Element, px: number, py: number): boolean {
-  const f = el.frame;
-  if (px < f.x || px > f.x + f.width || py < f.y || py > f.y + f.height) return false;
-  if (el.type === 'shape' && el.shape === 'ellipse') {
-    const rx = f.width / 2 || 1;
-    const ry = f.height / 2 || 1;
-    return ((px - (f.x + rx)) / rx) ** 2 + ((py - (f.y + ry)) / ry) ** 2 <= 1;
-  }
-  const radius =
-    el.type === 'image' || el.type === 'shape'
-      ? Math.min(el.cornerRadius ?? 0, f.width / 2, f.height / 2)
-      : 0;
-  if (radius <= 0) return true;
-  const cx = Math.min(Math.max(px, f.x + radius), f.x + f.width - radius);
-  const cy = Math.min(Math.max(py, f.y + radius), f.y + f.height - radius);
-  return (px - cx) ** 2 + (py - cy) ** 2 <= radius * radius;
-}
-
-interface Occlusion {
-  /** Fraction of the glyph run whose topmost backing is unknown artwork. */
-  fraction: number;
-  occluders: Element[];
+export function glyphBox(el: TextElement): Rect {
+  const lines = glyphLines(el).filter((l) => l.width > 0);
+  if (lines.length === 0) return { x: el.frame.x, y: el.frame.y, width: 0, height: 0 };
+  const x = Math.min(...lines.map((l) => l.x));
+  const y = Math.min(...lines.map((l) => l.y));
+  const right = Math.max(...lines.map((l) => l.x + l.width));
+  const bottom = Math.max(...lines.map((l) => l.y + l.height));
+  return { x, y, width: right - x, height: bottom - y };
 }
 
 /**
- * What is behind this run of glyphs, resolved in z-order exactly the way the
- * validator resolves backgrounds: at each sample point only the TOPMOST element
- * below the text counts, so a scrim laid over an illustration genuinely fixes
- * the text above it instead of merely joining the pile.
+ * A stand-in document and page, so composition can ask the validator its own
+ * questions about a page that does not exist yet.
+ *
+ * `artworkUnder` needs only the brand tokens (to resolve a fill to a hex) and
+ * the page background (to composite what shows through). Building those two
+ * here is what lets stage 3 use the validator's answer instead of a second
+ * opinion — and a second opinion is exactly what this module used to hold, with
+ * its own sampler, its own point-in-shape test and its own tolerance. It agreed
+ * with the validator until it didn't, and the disagreement shipped as text on
+ * artwork that neither side flagged.
  */
-function occlusionUnder(el: TextElement, siblings: readonly Element[], box?: Rect): Occlusion {
-  const gb = box ?? glyphBox(el);
-  const candidates = siblings.filter(
-    (s) => s.id !== el.id && s.zIndex < el.zIndex && occluderKind(s) !== null,
-  );
-  if (candidates.length === 0) return { fraction: 0, occluders: [] };
-
-  const found = new Map<string, Element>();
-  let hits = 0;
-  const total = OCCLUSION_SAMPLE_COLS * OCCLUSION_SAMPLE_ROWS;
-  for (let i = 0; i < OCCLUSION_SAMPLE_COLS; i++) {
-    for (let j = 0; j < OCCLUSION_SAMPLE_ROWS; j++) {
-      const px = gb.x + (gb.width * (i + 0.5)) / OCCLUSION_SAMPLE_COLS;
-      const py = gb.y + (gb.height * (j + 0.5)) / OCCLUSION_SAMPLE_ROWS;
-      let top: Element | null = null;
-      for (const c of candidates) {
-        if (top && c.zIndex <= top.zIndex) continue;
-        if (!occluderCoversPoint(c, px, py)) continue;
-        top = c;
-      }
-      if (top && occluderKind(top) === 'unknown') {
-        hits++;
-        found.set(top.id, top);
-      }
-    }
-  }
-  return { fraction: hits / total, occluders: [...found.values()] };
-}
-
-/**
- * Fraction of a run of glyphs that renders directly on artwork — an image or a
- * chart, whose pixels the compositor cannot know and no text colour can be
- * proven against. The measurement docs/19 P1.1 is defined by: anything above
- * `OCCLUSION_TOLERANCE` is text no one can read.
- */
-export function glyphsOnArtwork(el: TextElement, siblings: readonly Element[]): number {
-  return occlusionUnder(el, siblings).fraction;
+function artworkProbe(
+  ctx: CompositionContext,
+  planPage: LayoutPlan['pages'][number],
+  elements: readonly Element[],
+): (el: TextElement) => Element[] {
+  const doc = { brandTokens: ctx.brandTokens } as unknown as InternalDesignDocument;
+  const page = { background: token(planPage.background), elements } as unknown as Page;
+  return (el) => artworkUnder(el, doc, page, elements as Element[]);
 }
 
 /**
@@ -1525,6 +1551,7 @@ function resolveOcclusions(
   notes: string[],
   pageIndex: number,
   allowRelocation: boolean,
+  onArtwork: (el: TextElement) => Element[],
 ): boolean {
   const move = ctx.concept.signatureMove;
   const note = (what: string) => notes.push(`page ${pageIndex + 1} occlusion: ${what}`);
@@ -1536,23 +1563,23 @@ function resolveOcclusions(
     .sort((a, b) => a.zIndex - b.zIndex || a.id.localeCompare(b.id));
 
   for (const el of texts) {
-    const found = occlusionUnder(el, elements);
-    if (found.fraction <= OCCLUSION_TOLERANCE) continue;
-    const what = `"${el.name}" (${Math.round(found.fraction * 100)}% of its glyphs on ${found.occluders
-      .map((o) => `"${o.name}"`)
-      .join(', ')})`;
+    const found = onArtwork(el);
+    if (found.length === 0) continue;
+    const what = `"${el.name}" on ${found.map((o) => `"${o.name}"`).join(', ')}`;
 
-    const deliberate = isDeliberateOverlap(move, planPage.signatureRegionId, el, found.occluders);
+    const deliberate = isDeliberateOverlap(move, planPage.signatureRegionId, el, found);
     if (allowRelocation && !deliberate && el.roleHint !== 'decoration') {
+      const before = { ...el.frame };
       const moved = relocateText(el, ctx, elements);
-      if (moved.moved && occlusionUnder(el, elements).fraction <= OCCLUSION_TOLERANCE) {
+      if (moved.moved && onArtwork(el).length === 0) {
         note(`relocated ${what} to free cells ${Math.round(moved.distance)}px away`);
         changed = true;
         continue;
       }
+      if (moved.moved) el.frame = before; // no better off there; scrim where it was planned
     }
 
-    const scrim = addScrim(ctx, elements, el, found.occluders);
+    const scrim = addScrim(ctx, elements, el, found);
     const why = deliberate ? `the ${move} signature move` : 'no free cells within reach';
     note(
       `scrimmed ${what} — ${why}; ${(scrim.fill as { token: string }).token} panel at ${scrimTokens(ctx, el).ratio.toFixed(1)}:1`,

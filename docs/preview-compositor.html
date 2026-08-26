@@ -60,6 +60,8 @@
   .pill.flag { background: var(--good-bg); color: var(--good); }
   .card.flagged { border-color: var(--good); }
   .pill.flag { background: var(--good-bg); color: var(--good); }
+  .card.flagged { border-color: var(--good); }
+  .pill.flag { background: var(--good-bg); color: var(--good); }
 </style>
 </head>
 <body>
@@ -195,6 +197,7 @@
     <tspan x="96" y="356.4">Every manual step is</tspan>
     <tspan x="96" dy="80">a future outage</tspan>
   </text>
+  <rect id="00000000-0000-4000-8000-000000000007" data-name="rect" data-role="decoration" opacity="1" x="80" y="528" width="616" height="248" rx="0" fill="#ffffff"/>
   <text id="00000000-0000-4000-8000-000000000003" data-name="body:r2" data-role="body" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="22" font-weight="400" font-style="normal" fill="#101418">
     <tspan x="96" y="566.6">Automate the boring path first. The interesting</tspan>
     <tspan x="96" dy="32">failures are never the ones you rehearsed.</tspan>
@@ -213,7 +216,7 @@
               <span class="pill">100% on 8px</span>
               <span class="pill">3 font sizes: 68, 22, 16</span>
             </dd></div>
-            <div><dt>Coercions</dt><dd class="notes">page 1 signature: full-bleed-block — colour band across the full canvas width behind &quot;r1&quot;<br>legibility: recoloured &quot;headline:r1&quot; to background for 10.1:1</dd></div>
+            <div><dt>Coercions</dt><dd class="notes">page 1 signature: full-bleed-block — colour band across the full canvas width behind &quot;r1&quot;<br>legibility: recoloured &quot;headline:r1&quot; to background for 10.1:1<br>legibility: added a background chip behind &quot;body:r2&quot; (18.5:1)</dd></div>
           </dl>
         </figcaption>
       </figure>
@@ -676,7 +679,7 @@
               <span class="pill">100% on 8px</span>
               <span class="pill">2 font sizes: 44, 22</span>
             </dd></div>
-            <div><dt>Coercions</dt><dd class="notes">page 1 signature: rule-accent — heavy accent rule anchored to &quot;r1&quot;<br>page 1 occlusion: relocated &quot;headline:r1&quot; (78% of its glyphs on &quot;contract with a highlighted clause&quot;) to free cells 268px away</dd></div>
+            <div><dt>Coercions</dt><dd class="notes">page 1 signature: rule-accent — heavy accent rule anchored to &quot;r1&quot;<br>page 1 occlusion: relocated &quot;headline:r1&quot; on &quot;contract with a highlighted clause&quot; to free cells 268px away</dd></div>
           </dl>
         </figcaption>
       </figure>
@@ -720,7 +723,7 @@
               <span class="pill">100% on 8px</span>
               <span class="pill">2 font sizes: 68, 22</span>
             </dd></div>
-            <div><dt>Coercions</dt><dd class="notes">page 1 coverage: plan occupied rows 4-14; stretched to fill rows 1-16<br>page 1 signature: overlap — &quot;r0&quot; overlaps &quot;r1&quot; by one gutter<br>page 1 occlusion: scrimmed &quot;headline:r0&quot; (56% of its glyphs on &quot;cracked pipeline leaking&quot;) — the overlap signature move; background panel at 18.5:1</dd></div>
+            <div><dt>Coercions</dt><dd class="notes">page 1 coverage: plan occupied rows 4-14; stretched to fill rows 1-16<br>page 1 signature: overlap — &quot;r0&quot; overlaps &quot;r1&quot; by one gutter<br>page 1 occlusion: scrimmed &quot;headline:r0&quot; on &quot;cracked pipeline leaking&quot; — the overlap signature move; background panel at 18.5:1</dd></div>
           </dl>
         </figcaption>
       </figure>
@@ -764,7 +767,7 @@
               <span class="pill">100% on 8px</span>
               <span class="pill">2 font sizes: 68, 22</span>
             </dd></div>
-            <div><dt>Coercions</dt><dd class="notes">page 1 signature: overlap — &quot;r1&quot; overlaps &quot;r0&quot; by one gutter<br>page 1 occlusion: scrimmed &quot;body:r1&quot; (100% of its glyphs on &quot;chart:r0&quot;) — the overlap signature move; background panel at 18.5:1</dd></div>
+            <div><dt>Coercions</dt><dd class="notes">page 1 signature: overlap — &quot;r1&quot; overlaps &quot;r0&quot; by one gutter<br>page 1 occlusion: scrimmed &quot;body:r1&quot; on &quot;chart:r0&quot; — the overlap signature move; background panel at 18.5:1</dd></div>
           </dl>
         </figcaption>
       </figure>
@@ -786,8 +789,8 @@
     <tspan x="0" y="333.6">82%</tspan>
   </text>
   <text id="00000000-0000-4000-8000-000000000003" data-name="headline:r2" data-role="headline" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="44" font-weight="800" font-style="normal" fill="#101418">
-    <tspan x="96" y="877.2">Fail from cash</tspan>
-    <tspan x="96" dy="56">flow, not profit</tspan>
+    <tspan x="176" y="913.2">Fail from cash flow,</tspan>
+    <tspan x="176" dy="56">not profit</tspan>
   </text>
   <text id="00000000-0000-4000-8000-000000000004" data-name="body:r3" data-role="body" opacity="1" text-anchor="start" font-family="'Inter', sans-serif" font-size="22" font-weight="400" font-style="normal" fill="#101418">
     <tspan x="176" y="1062.6">You can be profitable on paper and</tspan>
@@ -807,7 +810,7 @@
               <span class="pill">100% on 8px</span>
               <span class="pill">3 font sizes: 192, 44, 22</span>
             </dd></div>
-            <div><dt>Coercions</dt><dd class="notes">page 1 coverage: plan occupied rows 2-16; stretched to fill rows 1-16<br>page 1 signature: oversized-numeral — &quot;82%&quot; set at 192px against the left edge, every glyph on canvas; its counter block bleeds off that edge instead; copy shortened from &quot;82% of invoices are paid late&quot; and flagged truncated<br>page 1 occlusion: relocated &quot;headline:r2&quot; (18% of its glyphs on &quot;empty wallet and a profit report&quot;) to free cells 121px away<br>legibility: recoloured &quot;stat:r0&quot; to background for 10.1:1</dd></div>
+            <div><dt>Coercions</dt><dd class="notes">page 1 coverage: plan occupied rows 2-16; stretched to fill rows 1-16<br>page 1 signature: oversized-numeral — &quot;82%&quot; set at 192px against the left edge, every glyph on canvas; its counter block bleeds off that edge instead; copy shortened from &quot;82% of invoices are paid late&quot; and flagged truncated<br>legibility: recoloured &quot;stat:r0&quot; to background for 10.1:1</dd></div>
           </dl>
         </figcaption>
       </figure>
