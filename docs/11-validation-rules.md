@@ -33,7 +33,10 @@
 | `within-canvas` | Every element's rotated bounding box intersects the canvas; nothing fully outside |
 | `safe-margins` | Required content (roleHint ≠ decoration/background) inside the page safeArea; decorative bleed allowed |
 | `text-overflow` | Measured text (real font metrics, line height, maxLines) fits its frame — no clipped text |
+| `text-cropped` | No text element's GLYPH box crosses a canvas edge. A bleed may extend a region off-canvas; it may never truncate meaning. No `decoration`/`background` exemption — a decorative panel may bleed, a decorative numeral may not, because a reader still reads it. Tolerance follows the measurement: the alignment-anchored edge is exact and held to half a pixel, the opposite edge is `measureText`'s estimate and must overshoot by more than one average glyph |
 | `overlap-collision` (warning) | Text elements with roleHint headline/body must not overlap other text or icons > 5% area |
+| `coverage` (warning) | Content covers ≥ 75% of BOTH canvas axes (docs/18 §6). Measured on the union of content extents, excluding `background`; the largest internal dead band is reported with it |
+| `balance` (warning) | Area-weighted content centroid within 20% of the canvas centre on each axis, excluding `background`/`decoration`. Warning, not error: asymmetry is a legitimate design choice and only extreme drift is objectively wrong |
 | `logo-rules` | Logo elements respect brand kit clear-space and minimum size; at most one primary logo per page unless recipe allows |
 
 ### Readability & accessibility
@@ -41,7 +44,8 @@
 | Rule | Severity | Check |
 |---|---|---|
 | `min-font-size` | error | body ≥ 14px, caption ≥ 12px, headline ≥ 24px (at 1080px canvas; scaled otherwise) |
-| `contrast` | error | Text vs effective background ≥ 4.5:1 (≥ 3:1 for text ≥ 32px bold), WCAG-formula on resolved token colours; gradient/image backgrounds use worst-case sampled luminance |
+| `contrast` | error | Text vs effective background ≥ 4.5:1 (≥ 3:1 for text ≥ 32px bold), WCAG-formula on resolved token colours. Sampled per wrapped line inside the glyph box, compositing every layer beneath in z order, so a partially transparent panel is judged as what it actually renders rather than skipped |
+| `text-on-artwork` | error | Text over an image or chart must be legible against the composite of everything between them and the artwork, evaluated at BOTH bounds — the artwork's darkest possible pixel and its lightest. An image has no single colour, so bare text on artwork can never pass; a scrim that holds at both bounds does. Bounds, never an average: an average invents a colour that may appear nowhere on the page and hides the one dark shape that swallows the text |
 | `line-length` | warning | Body text ≤ ~55 chars/line at rendered size |
 | `alt-text-present` | error | VisualPackage carries non-empty alt text before approval |
 | `no-hidden-content` | error | No element with visible=false or opacity < 0.05 containing text; nothing fully covered by an opaque higher-z element |

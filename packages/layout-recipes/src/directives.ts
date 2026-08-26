@@ -13,13 +13,20 @@
  */
 import type {
   Colour,
+  Page,
   Element,
   IconElement,
   InternalDesignDocument,
   ShapeElement,
   TextElement,
 } from '@brandflow/design-schema';
-import { contrastRatio, wrapText } from '@brandflow/design-schema';
+import {
+  artworkUnder,
+  backgroundHexesUnder,
+  contrastRatio,
+  requiredContrastRatio,
+  wrapText,
+} from '@brandflow/design-schema';
 
 export const HEADLINE_TREATMENTS = ['plain', 'two-tone'] as const;
 export type HeadlineTreatment = (typeof HEADLINE_TREATMENTS)[number];
@@ -56,7 +63,7 @@ export function applyStyleDirectives(
   const out = structuredClone(doc);
   for (const page of out.pages) {
     if (directives.headlineTreatment === 'two-tone')
-      twoToneHeadline(out, page.elements, newId, directives.relaxContrast ?? false);
+      twoToneHeadline(out, page, newId, directives.relaxContrast ?? false);
     addMotif(out, page.elements, directives, newId);
   }
   return out;
@@ -72,10 +79,11 @@ export function applyStyleDirectives(
  */
 function twoToneHeadline(
   doc: InternalDesignDocument,
-  elements: Element[],
+  page: Page,
   newId: () => string,
   relaxContrast: boolean,
 ): void {
+  const elements = page.elements;
   const headline = elements.find(
     (el): el is TextElement => el.type === 'text' && el.roleHint === 'headline' && !el.locked,
   );
@@ -86,7 +94,7 @@ function twoToneHeadline(
 
   const accent: Colour | null = relaxContrast
     ? { kind: 'token', token: 'accent' }
-    : pickDisplayColour(doc, elements, headline);
+    : pickDisplayColour(doc, page, headline);
   if (!accent) return;
 
   const split = Math.ceil(lines.length / 2);
@@ -114,48 +122,28 @@ function twoToneHeadline(
 /** Best display token for large text on this page's effective background. */
 function pickDisplayColour(
   doc: InternalDesignDocument,
-  elements: Element[],
+  page: Page,
   headline: TextElement,
 ): Colour | null {
-  const bgHex = effectiveBgHex(doc, elements, headline);
-  if (!bgHex) return null;
-  // mirror the validation engine's threshold: 3:1 only for genuinely large text
-  const large = headline.fontSize >= 32 && headline.fontWeight >= 700;
-  const required = large ? 3 : 4.5;
+  // Uses the engine's own background model rather than a local copy. The old
+  // local one only counted a shape FULLY CONTAINING the headline and otherwise
+  // assumed the page colour — the same flaw already fixed twice elsewhere, and
+  // it is how an accent half-line ended up on a photo scrim at 2.95:1.
+  const bgs = backgroundHexesUnder(headline, doc, page, page.elements);
+  if (bgs.length === 0) return null;
+  // Artwork showing through means the luminance is unknown, so no token can be
+  // guaranteed: leave the headline single-colour rather than gamble on it.
+  if (artworkUnder(headline, doc, page, page.elements).length > 0) return null;
+  const required = requiredContrastRatio(headline.fontSize, headline.fontWeight);
   for (const token of ['accent', 'primary', 'secondary'] as const) {
     const hex = doc.brandTokens.colours[token];
-    if (hex && contrastRatio(hex, bgHex) >= required) return { kind: 'token', token };
+    if (!hex) continue;
+    if (Math.min(...bgs.map((bg) => contrastRatio(hex, bg))) >= required)
+      return { kind: 'token', token };
   }
   return null;
 }
 
-function effectiveBgHex(
-  doc: InternalDesignDocument,
-  elements: Element[],
-  el: TextElement,
-): string | null {
-  // solid shape fully under the headline wins; otherwise page background
-  let best: { z: number; hex: string } | null = null;
-  for (const s of elements) {
-    if (s.type !== 'shape' || s.zIndex >= el.zIndex || s.opacity < 0.99) continue;
-    const fill = s.fill;
-    if (!('kind' in fill) || (fill.kind !== 'token' && fill.kind !== 'raw')) continue;
-    const contains =
-      s.frame.x <= el.frame.x &&
-      s.frame.y <= el.frame.y &&
-      s.frame.x + s.frame.width >= el.frame.x + el.frame.width &&
-      s.frame.y + s.frame.height >= el.frame.y + el.frame.height;
-    if (!contains) continue;
-    const hex = fill.kind === 'raw' ? fill.hex : doc.brandTokens.colours[fill.token.replace('custom:', '')];
-    if (hex && (!best || s.zIndex > best.z)) best = { z: s.zIndex, hex };
-  }
-  if (best) return best.hex;
-  const bg = doc.pages[0]!.background;
-  if ('kind' in bg && bg.kind === 'raw') return bg.hex;
-  if ('kind' in bg && bg.kind === 'token')
-    return doc.brandTokens.colours[bg.token.replace('custom:', '')] ?? null;
-  return null;
-}
 
 // ---------- background motifs ----------
 
@@ -210,9 +198,34 @@ function addMotif(
       return;
     }
     case 'diagonal-band': {
-      const band = rectShape(newId(), -100, height - 260, width + 200, 90, accent, 1);
+      // An accent band across the lower third. It must not pass behind text:
+      // at 90% opacity it used to be SKIPPED by the contrast rule's opacity
+      // gate, so type sitting on it was measured against the page behind and
+      // shipped at 3.19:1. Same class of bug as the corner-ring motif.
+      //
+      // The band is opaque (a translucent accent over white is a washed-out
+      // accent anyway) and slides clear of every text frame; if there is no
+      // clear band of canvas left, it is not drawn at all.
+      const BAND_H = 90;
+      const CLEARANCE = 12;
+      const ROTATION_SLOP = 40; // the -8deg tilt lifts the corners
+      let y = height - 260;
+
+      const textBoxes = elements
+        .filter((el): el is TextElement => el.type === 'text' && el.visible)
+        .map((el) => el.frame);
+      const clashes = (top: number) =>
+        textBoxes.some(
+          (f) =>
+            f.y < top + BAND_H + ROTATION_SLOP + CLEARANCE &&
+            f.y + f.height > top - ROTATION_SLOP - CLEARANCE,
+        );
+      // Try the intended position, then slide down towards the bottom edge.
+      while (clashes(y) && y + BAND_H < height) y += 8;
+      if (clashes(y)) return; // nowhere legible to put it
+
+      const band = rectShape(newId(), -100, y, width + 200, BAND_H, accent, 1);
       band.frame.rotation = -8;
-      band.opacity = 0.9;
       decorate(band);
       return;
     }

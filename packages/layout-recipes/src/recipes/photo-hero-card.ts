@@ -64,7 +64,11 @@ export const photoHeroCard: LayoutRecipe = {
         elements.push(
           text(ctx, kicker.toUpperCase(), { x: 100, y: 800, width: 700, height: 56 }, {
             role: 'caption', slotId: 'kicker', font: body, size: 26, minSize: 14, weight: 700,
-            colour: token('accent'), z: 4,
+            // Accent on the scrim measures 2.95:1 against the lightest pixel the
+            // photo could hold — the scrim is translucent, so the artwork still
+            // votes. Background (white) is 11:1 there; the kicker stays distinct
+            // through weight and uppercase rather than hue.
+            colour: token('background'), z: 4,
           }),
         );
     } else {
@@ -84,7 +88,7 @@ export const photoHeroCard: LayoutRecipe = {
         elements.push(
           text(ctx, kicker.toUpperCase(), { x: 100, y: 790, width: 700, height: 50 }, {
             role: 'caption', slotId: 'kicker', font: body, size: 24, minSize: 14, weight: 700,
-            colour: token('accent'), z: 4,
+            colour: token('background'), z: 4,
           }),
         );
     }
