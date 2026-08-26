@@ -17,6 +17,31 @@ each). Reviewing the rendered output surfaced these, highest value first:
 | A5 | 🔵 **Brand-level style packs (owner direction 2026-08-25).** Illustration style must be a per-brand choice, NOT a global rank — different companies must be able to look different, and BrandFlow should not make every customer look identical. Move provider/style preference out of the hardcoded rank in `searchAssets`/`resolveImages` into a brand-profile setting; global rank becomes only the default. | ARCHITECTURAL | Prerequisite for A4 and for the multi-style asset ambition below |
 | A6 | 🔵 **Asset scale ambition (owner 2026-08-25):** thousands of images across many styles — hand-drawn, realistic, AI, cartoon, anime, landscape. 82 Open Peeps scenes + 307 geometric scenes is a start, not the destination. Needs style tagging on every pool and a style-aware search. | ROADMAP | Pair with A5 |
 
+## Findings from the first four-stage pipeline run (2026-08-26)
+
+All ten briefs re-run through concept -> art direction -> compositor. **Every
+docs/18 target met**: 6 on-scale font sizes (+ the sanctioned display x2 for
+oversized numerals), 100% of elements on the 8px grid, 0 of 25 pages under 75%
+coverage, 0 validation errors, 0 illegible-text findings (down from 8 across 5
+posts), and faster per post (26-73s vs 38-145s) because the model emits
+structure instead of coordinates.
+
+**And the output is visibly WORSE to look at.** The metrics measured discipline,
+not legibility or balance — a gap in the measurement I built, not just in the
+pipeline. Highest value first:
+
+| # | Item | Severity | Notes |
+|---|---|---|---|
+| B1 | 🔴 **Text is placed over images and illustrations, and nothing catches it.** The art director puts a text region and an image region in overlapping cells; the compositor honours it literally; the result is unreadable copy on artwork (law-firm p1: the headline sits on the document illustration; QA p1: body copy sits on a funnel chart). The contrast rule only samples SHAPES, so text-over-image is invisible to it, and the vision critic misses it too — the same blind spot from both directions. **Fix:** the compositor must treat image/chart regions as opaque — either forbid text overlapping them, or require a scrim/panel behind the text and check contrast against the scrim. | HIGH | This single defect accounts for most of the perceived quality loss |
+| B2 | 🔴 **Signature moves crop content destructively.** `oversized-numeral` bled "82%" off the left edge leaving "32%" — the statistic that IS the post, unreadable. Images bleed off the right edge mid-subject. A bleed must frame content, never truncate meaning. **Fix:** cap bleed so a numeral keeps its glyphs (bleed the counter/backdrop, not the digits), and bleed images along the axis that preserves their subject. | HIGH | Makes the affected post worthless rather than merely imperfect |
+| B3 | 🟠 **Orphaned and mis-scaled elements.** A pointing-hand illustration rendered at icon size next to a headline; a stray grey ellipse (an illustration's ground shadow with no figure) sat alone at the bottom. Image regions need a minimum sensible footprint, and an illustration that resolves to a fragment should be dropped rather than placed. | MEDIUM | |
+| B4 | 🟠 **Coverage is measured vertically only.** My own metric checks the vertical band and passed pages whose content occupies a narrow horizontal strip with large dead areas left and right. Add horizontal coverage and a balance check (content centroid vs canvas centre). | MEDIUM | The metric passed designs it should have failed — fix the metric before trusting it again |
+| B5 | 🔵 Element counts dropped sharply (single-image posts went from 20-34 elements to 5-7). Cleaner, but some pages are now under-designed rather than restrained; two posts resolved no imagery at all. Worth checking whether art direction is being too conservative with region counts. | LOW-MED | |
+
+**What genuinely improved and should not be lost:** grid discipline, type
+hierarchy, zero validation errors, correct brand recolouring, correct Open Peeps
+skin tones, and real brand typography in the render.
+
 ## Parked items
 
 | # | Item | Origin | Notes |
