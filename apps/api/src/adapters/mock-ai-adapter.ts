@@ -5,7 +5,13 @@
  * flagged so the UI can label them as samples.
  */
 import type { z } from 'zod';
+import type { CanvasSize, TypeEmphasis } from '@brandflow/design-schema';
+import { GRID_COLUMNS, GRID_ROWS, emphasisFitsCell } from '@brandflow/design-schema';
+import { LINKEDIN_CANVAS_PRESETS } from '@brandflow/shared';
 import type { AiCompletionMeta, AiProviderPort, PipelineStep } from '../ports/index.js';
+
+/** What the mock's own layout math is checked against — see `mockLayoutPage`. */
+const MOCK_CANVAS: CanvasSize = LINKEDIN_CANVAS_PRESETS.portrait;
 
 const IDEA_TEMPLATES = [
   { title: 'The real cost of {theme} nobody budgets for', angle: 'Contrarian cost breakdown with one hard number per point', objective: 'educational' },
@@ -104,12 +110,15 @@ function mockLayoutPage(copy: { role: string; text: string }[], i: number, move:
   };
   const regions: MockRegion[] = [block, image];
 
+  const copyText = new Map<string, string>();
   let y = skel.textTop;
   copy.forEach((c, j) => {
     const map = REGION_BY_TYPE_ROLE[c.role] ?? { role: 'body', emphasis: 5 };
     const span = j === 0 ? heroSpan : tailSpan;
+    const id = j === 0 ? 'focal' : `copy-${j}`;
+    copyText.set(id, c.text);
     regions.push({
-      id: j === 0 ? 'focal' : `copy-${j}`,
+      id,
       role: map.role,
       col: skel.textCol,
       row: { start: y, span },
@@ -121,6 +130,7 @@ function mockLayoutPage(copy: { role: string; text: string }[], i: number, move:
     });
     y += span;
   });
+  const lastTextId = copy.length > 0 ? (copy.length === 1 ? 'focal' : `copy-${copy.length - 1}`) : null;
 
   // At most 4 of the 6 type steps on a page (docs/18 §3).
   const text = regions.filter((r) => MOCK_TEXT_ROLES.includes(r.role));
@@ -128,6 +138,49 @@ function mockLayoutPage(copy: { role: string; text: string }[], i: number, move:
   if (steps.length > 4) {
     const keep = steps.slice(0, 4);
     for (const r of text) if (!keep.includes(r.emphasis)) r.emphasis = keep[3]!;
+  }
+
+  // P2.A (docs/20 §B): the row/column math above is a simple division, not a
+  // promise the copy fits at the emphasis it names — exactly the mismatch
+  // that made the law-firm page's headline render at 30px instead of 68px.
+  // This mock is a fixture other tests treat as a legitimate "clean" plan, so
+  // it has to hold itself to the same rule real art direction does: grow
+  // before shrinking, checked with the identical `emphasisFitsCell` predicate
+  // the reviewer and the compositor use. Only the LAST text region may grow
+  // rows — growing an earlier one would eat into the next region's cells,
+  // which have not been placed yet when this runs; every region may grow
+  // columns, since siblings occupy disjoint rows and a column change can
+  // never collide with them.
+  for (const r of text) {
+    const t = copyText.get(r.id);
+    if (t === undefined) continue;
+    const emphasis = r.emphasis as TypeEmphasis;
+    if (r.id === lastTextId) {
+      const maxRowSpan = GRID_ROWS - r.row.start + 1;
+      while (r.row.span < maxRowSpan && !emphasisFitsCell(t, emphasis, r.col.span, r.row.span, MOCK_CANVAS))
+        r.row.span++;
+    }
+    const blocked = (col: { start: number; span: number }) =>
+      [block, image].some(
+        (o) =>
+          col.start <= o.col.start + o.col.span - 1 &&
+          o.col.start <= col.start + col.span - 1 &&
+          r.row.start <= o.row.start + o.row.span - 1 &&
+          o.row.start <= r.row.start + r.row.span - 1,
+      );
+    while (
+      !emphasisFitsCell(t, emphasis, r.col.span, r.row.span, MOCK_CANVAS) &&
+      r.col.start + r.col.span <= GRID_COLUMNS
+    ) {
+      const candidate = { start: r.col.start, span: r.col.span + 1 };
+      if (blocked(candidate)) break;
+      r.col = candidate;
+    }
+    while (!emphasisFitsCell(t, emphasis, r.col.span, r.row.span, MOCK_CANVAS) && r.col.start > 1) {
+      const candidate = { start: r.col.start - 1, span: r.col.span + 1 };
+      if (blocked(candidate)) break;
+      r.col = candidate;
+    }
   }
 
   // Nominate a region the compositor can actually perform the move on.

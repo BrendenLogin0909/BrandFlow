@@ -11,6 +11,7 @@
  */
 import { z } from 'zod';
 import { BrandColourToken } from './schema.js';
+import { measureText } from './measure.js';
 
 // ---------- baseline ----------
 
@@ -239,6 +240,81 @@ export function oversizedNumeralSize(canvas?: CanvasSize): number {
 export function lineHeightFor(fontSize: number): number {
   const preferred = fontSize >= 60 ? 1.08 : fontSize >= 40 ? 1.15 : fontSize >= 26 ? 1.3 : 1.4;
   return ceilTo8(fontSize * preferred) / fontSize;
+}
+
+// ---------- emphasis-fits-cell (docs/20 §B, P2.A) ----------
+//
+// The law-firm defect: a plan asked for `hero-headline` at emphasis 2 (68px)
+// but allocated it a 6-column x 2-row cell. 68px copy does not fit there, so
+// the compositor silently stepped the type down to 30px, and nothing anywhere
+// said hierarchy had been lost. The fix is one predicate, "does this copy fit
+// this cell at this emphasis", called by both sides that used to guess at it
+// independently: the stage-2 reviewer (`reviewLayoutPlan`, which flags a plan
+// that cannot honour its own emphasis) and the compositor (`fitText`, which
+// grows the region before it ever shrinks the type). Two modules holding the
+// same judgement separately is exactly the drift docs/20 §A rule 4 warns
+// about, so it lives here once and both import it.
+//
+// Deliberately POSITION-independent: only the span counts are asked for, not
+// `col.start`/`row.start`, because a cell's pixel size never depends on where
+// it sits on the grid (`gridRect`'s width/height are a pure function of the
+// span). That is what lets the reviewer judge a plan's cells before the
+// compositor has decided where anything finally lands. `gridRect` (unsnapped)
+// is used rather than `gridFrame` (baseline-snapped, position-aware) for the
+// same reason; the few-px rounding `snapRectToGrid` can add is never enough
+// to flip a real fit/no-fit verdict, and the compositor's actual geometry is
+// still produced by `gridFrame` regardless — this predicate only informs the
+// decision to grow, it is never mistaken for the final layout.
+
+/**
+ * Does `text`, set at `emphasis`, fit a cell spanning `colSpan` columns by
+ * `rowSpan` rows on `canvas` — the same width-then-height question `fitText`
+ * asks of the frame it is actually given. THE shared judgement: nothing else
+ * in the pipeline re-decides this independently.
+ */
+export function emphasisFitsCell(
+  text: string,
+  emphasis: TypeEmphasis,
+  colSpan: number,
+  rowSpan: number,
+  canvas: CanvasSize,
+  letterSpacing = 0,
+): boolean {
+  const fontSize = typeSize(emphasis, canvas);
+  const lineHeight = lineHeightFor(fontSize);
+  const rect = gridRect(canvas, { start: 1, span: colSpan }, { start: 1, span: rowSpan });
+  const m = measureText(text, fontSize, lineHeight, rect.width, letterSpacing);
+  return m.height <= rect.height && m.widestLine <= rect.width;
+}
+
+/**
+ * How many more rows and/or columns — grown in that order, mirroring the
+ * compositor's own growth preference — `text` at `emphasis` needs beyond
+ * `colSpan`x`rowSpan` before `emphasisFitsCell` is satisfied. `null` means it
+ * does not fit even filling the rest of the grid. Ignores every other region
+ * on the page (the reviewer has no layout to check collisions against; it is
+ * advising the art director, not placing anything), so it is a lower bound —
+ * the compositor's collision-aware growth may need more room than this on a
+ * crowded page, never less.
+ */
+export function emphasisCellDeficit(
+  text: string,
+  emphasis: TypeEmphasis,
+  colSpan: number,
+  rowSpan: number,
+  canvas: CanvasSize,
+  letterSpacing = 0,
+): { extraCols: number; extraRows: number } | null {
+  if (emphasisFitsCell(text, emphasis, colSpan, rowSpan, canvas, letterSpacing))
+    return { extraCols: 0, extraRows: 0 };
+  for (let rows = rowSpan + 1; rows <= GRID_ROWS; rows++)
+    if (emphasisFitsCell(text, emphasis, colSpan, rows, canvas, letterSpacing))
+      return { extraCols: 0, extraRows: rows - rowSpan };
+  for (let cols = colSpan + 1; cols <= GRID_COLUMNS; cols++)
+    for (let rows = rowSpan; rows <= GRID_ROWS; rows++)
+      if (emphasisFitsCell(text, emphasis, cols, rows, canvas, letterSpacing))
+        return { extraCols: cols - colSpan, extraRows: Math.max(0, rows - rowSpan) };
+  return null;
 }
 
 // ---------- AI-facing contracts (docs §4) ----------

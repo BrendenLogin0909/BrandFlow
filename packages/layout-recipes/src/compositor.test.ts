@@ -21,6 +21,7 @@ import {
   isTextRole,
   oversizedNumeralSize,
   typeScaleFor,
+  typeSize,
   validateDesignDocument,
 } from '@brandflow/design-schema';
 import {
@@ -985,17 +986,26 @@ describe('deterministic coercions', () => {
   });
 
   it('truncates only as a last resort, and says so in the element meta', () => {
+    // A neighbour fills every other cell on the page (full row span already,
+    // and every remaining column) so P2.A's growth has nowhere to go and this
+    // still exercises truncation as the genuine last resort, not a case
+    // growth quietly solved before fitText ever got to shrink anything.
     const { plan, ctx } = simplePlan(
-      [{ role: 'headline', col: { start: 1, span: 1 }, row: { start: 1, span: 16 }, emphasis: 2 }],
+      [
+        { role: 'headline', col: { start: 1, span: 1 }, row: { start: 1, span: 16 }, emphasis: 2 },
+        { role: 'block', col: { start: 2, span: 11 }, row: { start: 1, span: 16 } },
+      ],
       'rule-accent',
     );
     const huge = 'quality '.repeat(400);
     ctx.concept.pages[0]!.copy = [{ role: 'headline', text: huge.slice(0, 600) }];
-    const doc = composeFromPlan(plan, ctx);
+    const { document: doc, notes } = composeFromPlanVerbose(plan, ctx);
     expect(validateDesignDocument(doc).errors).toEqual([]);
     const text = doc.pages[0]!.elements.find((e): e is TextElement => e.type === 'text')!;
     expect(text.meta.truncated).toBe(true);
     expect(text.text.endsWith('…')).toBe(true);
+    // and it is not silent: a step-down that could not be grown away is counted
+    expect(notes.join(' ')).toContain('stepped down');
   });
 
   it('keeps a page of nothing but images editable', () => {
@@ -1104,6 +1114,69 @@ describe('deterministic coercions', () => {
     expect(validateDesignDocument(doc).errors).toEqual([]);
     const texts = doc.pages[0]!.elements.filter((e): e is TextElement => e.type === 'text');
     expect(texts.filter((t) => t.text === 'Shared copy line for both regions')).toHaveLength(2);
+  });
+});
+
+describe('P2.A — emphasis must fit its cell (docs/20 §B, grow before shrink)', () => {
+  // The measured law-firm defect: `hero-headline` asked for emphasis 2 (68px)
+  // but got a 6-column x 2-row cell. 68px does not fit there — confirmed by
+  // the same predicate in design-system.test.ts — and the compositor used to
+  // just shrink the type, silently, all the way to 30px.
+  const LAW_FIRM_HEADLINE = 'How our estate planning team protects what your family built';
+
+  it('grows the region into free grid cells rather than shrinking the type', () => {
+    const { plan, ctx } = simplePlan(
+      [
+        { role: 'headline', col: { start: 1, span: 6 }, row: { start: 1, span: 2 }, emphasis: 2 },
+        // occupies only the bottom half, leaving rows 1-8 and columns 7-12 of
+        // rows 1-2 free for the headline to grow into
+        { role: 'body', col: { start: 1, span: 12 }, row: { start: 9, span: 8 } },
+      ],
+      'rule-accent',
+    );
+    ctx.concept.pages[0]!.copy = [
+      { role: 'headline', text: LAW_FIRM_HEADLINE },
+      { role: 'body', text: 'Supporting copy for the second region.' },
+    ];
+    const { document, notes, stepDowns } = composeFromPlanVerbose(plan, ctx);
+    expect(validateDesignDocument(document).errors).toEqual([]);
+
+    const headline = document.pages[0]!.elements.find(
+      (e): e is TextElement => e.type === 'text' && e.roleHint === 'headline',
+    )!;
+    // it renders at the emphasis the plan asked for, NOT stepped down to 30px
+    expect(headline.fontSize).toBe(typeSize(2, PORTRAIT));
+    expect(headline.text).toBe(LAW_FIRM_HEADLINE);
+    expect(notes.some((n) => n.includes('grown from') && n.includes('"r0"'))).toBe(true);
+    expect(stepDowns).toBe(0);
+  });
+
+  it('cannot silently render at 30px: a region boxed in on every side still fits, or the shrink is reported', () => {
+    // Same headline, same 6x2 cell, same emphasis 2 — but this time two
+    // neighbours occupy every cell growth could reach, so P2.A's growth step
+    // has nowhere to go and `fitText` has to fall back to its own step-down.
+    const { plan, ctx } = simplePlan(
+      [
+        { role: 'headline', col: { start: 1, span: 6 }, row: { start: 1, span: 2 }, emphasis: 2 },
+        { role: 'block', col: { start: 7, span: 6 }, row: { start: 1, span: 2 } },
+        { role: 'block', col: { start: 1, span: 12 }, row: { start: 3, span: 14 } },
+      ],
+      'rule-accent',
+    );
+    ctx.concept.pages[0]!.copy = [{ role: 'headline', text: LAW_FIRM_HEADLINE }];
+    const { document, notes, stepDowns } = composeFromPlanVerbose(plan, ctx);
+    expect(validateDesignDocument(document).errors).toEqual([]);
+
+    const headline = document.pages[0]!.elements.find(
+      (e): e is TextElement => e.type === 'text' && e.roleHint === 'headline',
+    )!;
+    // the defect: it silently ends up at 30px because growth was blocked
+    expect(headline.fontSize).toBe(typeSize(4, PORTRAIT));
+    expect(headline.fontSize).toBeLessThan(typeSize(2, PORTRAIT));
+    // the fix: it is not SILENT any more — a note names it and a counter
+    // measures it, which is what the law-firm defect never had
+    expect(notes.some((n) => n.includes('stepped down') && n.includes('"r0"'))).toBe(true);
+    expect(stepDowns).toBe(1);
   });
 });
 

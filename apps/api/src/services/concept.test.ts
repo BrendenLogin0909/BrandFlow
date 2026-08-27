@@ -8,6 +8,8 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { z } from 'zod';
+import type { CanvasSize } from '@brandflow/design-schema';
+import { emphasisFitsCell } from '@brandflow/design-schema';
 import { MockAiAdapter } from '../adapters/mock-ai-adapter.js';
 import type { AiCompletionMeta, AiProviderPort, PipelineStep } from '../ports/index.js';
 import {
@@ -19,6 +21,8 @@ import {
   runConcept,
   type ConceptOutputT,
 } from './concept.js';
+
+const PORTRAIT: CanvasSize = { width: 1080, height: 1350 };
 
 // ---------- fixtures ----------
 
@@ -239,6 +243,34 @@ describe('reviewLayoutPlan', () => {
   it('flags a signature move the compositor cannot perform', () => {
     const numeral = ConceptOutput.parse({ ...concept(), signatureMove: 'oversized-numeral' });
     expect(reviewLayoutPlan(parse(), numeral).join(' ')).toMatch(/needs a "stat" region/);
+  });
+
+  it('flags a region whose emphasis cannot fit its cell — the law-firm defect (P2.A)', () => {
+    // docs/20 §B: the measured defect was `hero-headline` asked for emphasis 2
+    // (68px) but allocated a 6-column x 2-row cell — too small to hold it, so
+    // the compositor used to just shrink the type to 30px and say nothing.
+    // 'hook' here is the same shape: headline copy at emphasis 2, squeezed
+    // into a 6x2 cell.
+    const p = parse();
+    p.pages[0]!.regions[2]!.row = { start: 1, span: 2 };
+    const v = reviewLayoutPlan(p, c);
+    const hit = v.find((m) => m.includes('region "hook"') && m.includes('emphasis 2'));
+    expect(hit, v.join(' | ')).toBeDefined();
+    expect(hit).toMatch(/68px/);
+    expect(hit).toMatch(/6x2 cell/);
+    expect(hit).toMatch(/more (row|column)/); // names how much more room it needs
+  });
+
+  it('does not flag a region once its cell is grown enough to actually hold the emphasis', () => {
+    const p = parse();
+    // same headline, same emphasis, but a cell big enough this time — matches
+    // what `emphasisFitsCell` itself reports as a fit, so this is checking the
+    // reviewer agrees with the predicate it is supposed to be built on.
+    p.pages[0]!.regions[2]!.row = { start: 1, span: 3 };
+    p.pages[0]!.regions[2]!.col = { start: 1, span: 12 };
+    expect(emphasisFitsCell('Rework is the real budget', 2, 12, 3, PORTRAIT)).toBe(true);
+    const v = reviewLayoutPlan(p, c);
+    expect(v.some((m) => m.includes('region "hook"') && m.includes('cannot hold'))).toBe(false);
   });
 
   it('flags stacked full-width bands', () => {
