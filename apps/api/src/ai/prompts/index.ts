@@ -422,7 +422,7 @@ ${JSON.stringify(input)}`;
 
   // ---------- composition pipeline stage 2 (docs/18 §4) ----------
   design_art_direction: template({
-    version: 'design_art_direction@2',
+    version: 'design_art_direction@3',
     system: `${BASE_SYSTEM}
 You are the art director. You compose on a grid and you speak ONLY in grid
 cells, emphasis levels and token names. You never emit a pixel, an x/y, a width,
@@ -449,11 +449,11 @@ first and where it is sent next.`,
                 type: 'array',
                 minItems: 2,
                 maxItems: 14,
-                description: 'At least one region must have role "image" or "chart", unless the page is a deliberate type-only statement — declare that choice by prefixing one region id with "type-only:" followed by the reason.',
+                description: 'At least one region must have role "image" or "chart", unless the page is a deliberate type-only statement — in that case set typeOnlyReason on the page saying why.',
                 items: {
                   type: 'object',
                   properties: {
-                    id: { type: 'string', maxLength: 40, description: 'Short, unique on this page, descriptive: "hook", "big-number", "hero". On a deliberate type-only page (no image/chart region), one region id must instead start with "type-only:" followed by the reason — the only accepted way to omit imagery.' },
+                    id: { type: 'string', maxLength: 40, description: 'Short, unique on this page, descriptive: "hook", "big-number", "hero".' },
                     role: {
                       type: 'string',
                       enum: ['kicker', 'headline', 'subhead', 'body', 'stat', 'cta', 'image', 'chart', 'icon', 'block'],
@@ -507,6 +507,11 @@ first and where it is sent next.`,
                 type: 'string',
                 maxLength: 40,
                 description: 'The id of the ONE region on this page that carries the concept signature move.',
+              },
+              typeOnlyReason: {
+                type: 'string',
+                maxLength: 160,
+                description: 'ONLY on a page you have deliberately built from type alone, with no image or chart region: a few words saying why art would not help. Omit it on every other page.',
               },
             },
             required: ['background', 'regions', 'signatureRegionId'],
@@ -571,9 +576,9 @@ background and colour are token NAMES only: text, primary, secondary, accent, ne
 At least one region on EVERY page must have role "image" or "chart". A page of type alone can
 be the right call — but only when you decide it on purpose, not when imagery simply did not
 occur to you. If you make that call, you must say so: give ANY region on that page an id that
-starts with "type-only:" followed by a few words of the reason, e.g. "type-only: one number
-is the whole page, art would compete with it". A page with no image/chart region and no such id
-is rejected as an omission, not read as a choice — this is a hard requirement, not a suggestion.
+set the page's typeOnlyReason to a few words saying why, e.g. "one number is the whole page,
+art would compete with it". A page with no image/chart region and no typeOnlyReason is rejected
+as an omission, not read as a choice — this is a hard requirement, not a suggestion.
 When you do place an image, the imageQuery must argue the metaphor, not label the topic. "business",
 "success", "technology", "growth" and other bare abstract nouns resolve to interchangeable stock and
 are rejected outright — name a person, a scene, an object or a named chart type instead (see the
@@ -605,8 +610,8 @@ Nominate exactly one region per page in signatureRegionId and leave it room to p
 - rule-accent — nominate the headline region and leave one empty row under it.
 
 ## Regions
-- id: short, unique on the page, descriptive. On a deliberate type-only page (see Imagery above, no image/chart region anywhere on the page), one region's id must instead start with "type-only:" followed by the reason — the only accepted declaration.
-- role: kicker | headline | subhead | body | stat | cta | image | chart | icon | block. Every page needs at least one "image" or "chart" region unless it carries a "type-only:" declaration.
+- id: short, unique on the page, descriptive.
+- role: kicker | headline | subhead | body | stat | cta | image | chart | icon | block. Every page needs at least one "image" or "chart" region unless the page sets typeOnlyReason.
 - contentRef: REQUIRED on kicker, headline, subhead, body, stat and cta. It is the 0-based index of the copy item on the SAME page of the concept, as a string. Place every concept copy item exactly once — do not invent copy and do not drop any.
 - imageQuery: REQUIRED on image regions. 2-5 words naming a CONCRETE subject that argues the metaphor — never a bare abstract noun ("business", "success", "technology", "growth" on their own). The asset pipeline matches vocabulary like: "developer coding", "team huddle", "person thinking", "person presenting", "data analyst", "customer support", "growth chart", "funnel chart", "before after bars", "process flow", "analytics dashboard", "timeline milestones", "warning alert", "bright idea", "secure shield", "broken chain", "target goal", "checklist", "connected network". Prefer a character or scene over an abstract noun, and make it serve the metaphor, not just label the topic.
 - align: left | center | right. Default left; centring everything is a tell.

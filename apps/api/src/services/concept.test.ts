@@ -9,7 +9,7 @@
 import { describe, expect, it } from 'vitest';
 import type { z } from 'zod';
 import type { CanvasSize } from '@brandflow/design-schema';
-import { emphasisFitsCell } from '@brandflow/design-schema';
+import { emphasisFitsCell, LayoutPlan } from '@brandflow/design-schema';
 import { MockAiAdapter } from '../adapters/mock-ai-adapter.js';
 import type { AiCompletionMeta, AiProviderPort, PipelineStep } from '../ports/index.js';
 import {
@@ -255,13 +255,26 @@ describe('reviewLayoutPlan', () => {
     expect(reviewLayoutPlan(p, c).some((v) => v.includes('no image or chart region'))).toBe(false);
   });
 
-  it('flags a type-only declaration with no stated reason', () => {
-    const p = parse();
-    p.pages[0]!.regions.splice(1, 1); // drop "hero"
-    const declaredId = 'type-only:';
-    p.pages[0]!.regions[0]!.id = declaredId;
-    p.pages[0]!.signatureRegionId = declaredId;
-    expect(reviewLayoutPlan(p, c).join(' ')).toMatch(/gives no reason/);
+  it('rejects a type-only declaration with no stated reason at the schema, not the reviewer', () => {
+    // The declaration used to ride on a region id prefixed "type-only:", so a
+    // reason-less one had to be caught by the reviewer. It is now a real field
+    // with a minimum length, which is a stronger guarantee: an empty reason
+    // cannot be constructed at all rather than being caught after the fact.
+    const p: any = parse();
+    p.pages[0].regions.splice(1, 1); // drop the image region
+    p.pages[0].typeOnlyReason = '';
+    expect(() => LayoutPlan.parse(p)).toThrow();
+  });
+
+  it('accepts a type-only page that states its reason, and still requires one', () => {
+    const declared: any = parse();
+    declared.pages[0].regions.splice(1, 1);
+    declared.pages[0].typeOnlyReason = 'one number is the whole page';
+    expect(reviewLayoutPlan(LayoutPlan.parse(declared), c).join(' ')).not.toMatch(/no image or chart/);
+
+    const silent: any = parse();
+    silent.pages[0].regions.splice(1, 1);
+    expect(reviewLayoutPlan(LayoutPlan.parse(silent), c).join(' ')).toMatch(/no image or chart/);
   });
 
   it('flags a bare abstract-noun imageQuery but accepts a concrete one', () => {

@@ -94,22 +94,28 @@ const MOVE_REQUIRES_ROLE: Partial<Record<SignatureMove, RegionRole>> = {
 const IMAGERY_REGION_ROLES: readonly RegionRole[] = ['image', 'chart'];
 
 /**
- * The only accepted way to skip imagery on a page: a region id opening with
- * this literal prefix, followed by the model's own stated reason.
+ * A page may skip imagery only by declaring why, via `typeOnlyReason` on the
+ * page itself. A page of type alone can be the right call — but it has to be a
+ * decision with a reason attached, not imagery that never occurred to the model.
  *
- * There is no page-level field for "this page is deliberately type-only" in
- * the canonical `LayoutPage` schema (`packages/design-schema/src/design-system.ts`,
- * owned by Agent 21 on this branch — a schema change there is reported to the
- * coordinator rather than made here). Region `id` is the one free-text channel
- * every region already carries, so the declaration rides on it instead of
- * silence. Ids are truncated at 40 chars (see `clampedId` below), which is
- * enough room for the prefix plus a short reason.
+ * (This was originally carried on a region id prefixed `type-only:`, because
+ * the canonical LayoutPage schema had no field for it and that file was held by
+ * another agent. It now has one. The prefix is still accepted on read so plans
+ * captured under the old convention keep working, but nothing emits it.)
  */
-const TYPE_ONLY_DECLARATION_PREFIX = 'type-only:';
+const LEGACY_TYPE_ONLY_PREFIX = 'type-only:';
 
-/** The id of the region declaring this page deliberately type-only, if any. */
-const typeOnlyDeclaration = (regions: readonly { id: string }[]): string | undefined =>
-  regions.map((r) => r.id).find((id) => id.toLowerCase().startsWith(TYPE_ONLY_DECLARATION_PREFIX));
+/** The stated reason this page is deliberately type-only, if any. */
+const typeOnlyDeclaration = (page: {
+  typeOnlyReason?: string;
+  regions: readonly { id: string }[];
+}): string | undefined => {
+  if (page.typeOnlyReason && page.typeOnlyReason.trim()) return page.typeOnlyReason.trim();
+  const legacy = page.regions
+    .map((r) => r.id)
+    .find((id) => id.toLowerCase().startsWith(LEGACY_TYPE_ONLY_PREFIX));
+  return legacy ? legacy.slice(LEGACY_TYPE_ONLY_PREFIX.length).trim() || undefined : undefined;
+};
 
 /**
  * Bare abstract nouns resolve to interchangeable stock photography — "a
@@ -256,6 +262,14 @@ export const LayoutPage = z
     background: z.enum(BACKGROUND_TOKENS),
     regions: z.array(LayoutRegion).min(1).max(14),
     signatureRegionId: clampedId(40),
+    // Set only on a page deliberately built from type alone (P2.B). Clamped
+    // rather than rejected on length, like every other string the model emits.
+    typeOnlyReason: z
+      .string()
+      .trim()
+      .transform((v) => v.slice(0, 160))
+      .pipe(z.string().min(3).max(160))
+      .optional(),
   })
   .strict()
   .superRefine((page, ctx) => {
@@ -437,14 +451,11 @@ export function reviewLayoutPlan(
 
     // --- P2.B: every page needs deliberate imagery, or an explicit type-only call ---
     if (!page.regions.some((r) => IMAGERY_REGION_ROLES.includes(r.role))) {
-      const declaredId = typeOnlyDeclaration(page.regions);
-      const reason = declaredId?.slice(TYPE_ONLY_DECLARATION_PREFIX.length).trim() ?? '';
-      if (!declaredId)
+      const reason = typeOnlyDeclaration(page);
+      if (!reason)
         v.push(
-          `page ${n} has no image or chart region and no declared type-only statement — five of the ten Phase-1 posts had exactly this defect and read as documents, not designs. Either add an image/chart region, or if this page is genuinely better as type alone, give one region an id starting with "${TYPE_ONLY_DECLARATION_PREFIX}" followed by the reason (e.g. "${TYPE_ONLY_DECLARATION_PREFIX} one number is the whole page").`,
+          `page ${n} has no image or chart region and no typeOnlyReason — five of the ten Phase-1 posts had exactly this defect and read as documents, not designs. Either add an image/chart region, or if this page is genuinely better as type alone, set typeOnlyReason on the page saying why (e.g. "one number is the whole page, art would compete with it").`,
         );
-      else if (reason.length < 3)
-        v.push(`page ${n} declares "${declaredId}" but gives no reason — state briefly why this page works better as type alone.`);
     }
 
     // --- copy regions must not collide (the signature region may overlap) ---

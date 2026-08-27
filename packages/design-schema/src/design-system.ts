@@ -458,6 +458,14 @@ export const LayoutPlan = z
             background: z.enum(['background', 'primary', 'accent', 'text']),
             regions: z.array(LayoutRegion).min(1).max(MAX_PLAN_REGIONS),
             signatureRegionId: z.string().min(1).max(60),
+            /**
+             * Set ONLY when a page is deliberately type-only. Every page must
+             * carry an image or chart region (P2.B) — a page of type alone can
+             * be the right call, but it has to be a decision with a reason, not
+             * imagery that never occurred to the model. Absent means "imagery
+             * required"; present means "chosen, and here is why".
+             */
+            typeOnlyReason: z.string().min(3).max(160).optional(),
           })
           .strict(),
       )
