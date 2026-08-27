@@ -28,11 +28,15 @@ import { z } from 'zod';
 // however, are the canonical ones: two structurally identical types with the
 // same name are still unrelated to TypeScript, which is exactly the drift the
 // spec exists to prevent.
+import type { CanvasSize, TypeEmphasis } from '@brandflow/design-schema';
 import {
   ConceptOutput as CanonicalConceptOutput,
   LayoutPlan as CanonicalLayoutPlan,
+  emphasisCellDeficit,
+  emphasisFitsCell,
+  typeSize,
 } from '@brandflow/design-schema';
-import { formatVisualDirectionBrief } from '@brandflow/shared';
+import { LINKEDIN_CANVAS_PRESETS, formatVisualDirectionBrief } from '@brandflow/shared';
 import type { AiCompletionMeta, AiProviderPort } from '../ports/index.js';
 
 // ---------- design-system vocabulary (docs/18 §3 + §5) ----------
@@ -343,12 +347,26 @@ const structureFingerprint = (regions: LayoutRegionT[]): string =>
     .sort()
     .join('|');
 
+/** What `reviewLayoutPlan` checks emphasis-fit against when the caller has no
+ *  exact pixel canvas to hand — the reference canvas docs/18 §3 quotes every
+ *  token against, and the pipeline's own default (docs/18 §4, `canvasFor`). */
+const DEFAULT_REVIEW_CANVAS: CanvasSize = LINKEDIN_CANVAS_PRESETS.portrait;
+
 /**
  * The art-director gate for stage 2 — the section 2 rubric expressed as checks
  * the compositor can rely on: coverage, no colliding copy, deliberate
  * asymmetry, page-to-page variety, and a signature move that is executable.
+ *
+ * `canvas` defaults to the portrait preset (the pipeline's own default) so
+ * existing two-argument callers keep working; pass the plan's real canvas
+ * when it is known so the emphasis-fit check (P2.A, docs/20 §B) measures
+ * against the geometry the compositor will actually build.
  */
-export function reviewLayoutPlan(plan: LayoutPlanT, concept: ConceptOutputT): string[] {
+export function reviewLayoutPlan(
+  plan: LayoutPlanT,
+  concept: ConceptOutputT,
+  canvas: CanvasSize = DEFAULT_REVIEW_CANVAS,
+): string[] {
   const v: string[] = [];
 
   if (plan.pages.length !== concept.pages.length)
@@ -410,6 +428,39 @@ export function reviewLayoutPlan(plan: LayoutPlanT, concept: ConceptOutputT): st
     const sig = page.regions.find((r) => r.id === page.signatureRegionId);
     if (sig && needRole && sig.role !== needRole)
       v.push(`page ${n} signature move "${concept.signatureMove}" needs a "${needRole}" region, but signatureRegionId points at "${sig.id}" (${sig.role}).`);
+
+    // --- P2.A: emphasis must fit its cell (docs/20 §B) ---
+    // The law-firm defect: a plan asked for a headline at emphasis 2 (68px) in
+    // a 6x2 cell, which does not hold it, and the compositor silently stepped
+    // the type down to 30px with nothing anywhere saying so. This is the
+    // upstream half of the fix — catch the mismatch in the plan, before it
+    // ever reaches the compositor — and it judges "does it fit" with the
+    // EXACT SAME predicate (`emphasisFitsCell`) the compositor's own
+    // grow-before-shrink step uses, so the two can never disagree about
+    // which plans are fine as written.
+    for (const r of page.regions) {
+      if (!TEXT_REGION_ROLES.includes(r.role)) continue;
+      const idx = r.contentRef !== undefined ? Number(r.contentRef) : NaN;
+      if (!Number.isInteger(idx) || idx < 0 || idx >= copy.length) continue; // flagged above already
+      const text = copy[idx]!.text;
+      const emphasis = r.emphasis as TypeEmphasis;
+      const letterSpacing = r.role === 'kicker' ? 2 : 0;
+      if (emphasisFitsCell(text, emphasis, r.col.span, r.row.span, canvas, letterSpacing)) continue;
+
+      const deficit = emphasisCellDeficit(text, emphasis, r.col.span, r.row.span, canvas, letterSpacing);
+      const ask = deficit
+        ? [
+            deficit.extraRows > 0 ? `${deficit.extraRows} more row${deficit.extraRows === 1 ? '' : 's'}` : null,
+            deficit.extraCols > 0 ? `${deficit.extraCols} more column${deficit.extraCols === 1 ? '' : 's'}` : null,
+          ]
+            .filter((s): s is string => s !== null)
+            .join(' and ')
+        : 'more room than the whole grid has, even at 12x16';
+      v.push(
+        `page ${n} region "${r.id}" is emphasis ${emphasis} (${typeSize(emphasis, canvas)}px) but its ` +
+          `${r.col.span}x${r.row.span} cell cannot hold its copy at that size — give it ${ask}, or lower the emphasis.`,
+      );
+    }
   });
 
   // --- variety across the set (docs/18 §2.7) ---
@@ -531,6 +582,14 @@ export interface ArtDirectionRequest {
   brand: unknown;
   format?: string;
   canvasPreset?: 'square' | 'portrait' | 'landscape';
+  /**
+   * The exact pixel canvas the compositor will build against — pass it when
+   * known so the emphasis-fit check (P2.A) measures the same geometry stage 3
+   * will. Falls back to `canvasPreset` (then the portrait default) when
+   * omitted, which is coarser: `canvasPreset` only distinguishes square from
+   * portrait/landscape, not the two non-square presets from each other.
+   */
+  canvas?: CanvasSize;
 }
 
 export interface ArtDirectionResult {
@@ -553,6 +612,7 @@ export async function runArtDirection(
   const maxAttempts = opts.maxAttempts ?? 2;
   let violations: string[] = [];
   let best: ArtDirectionResult | null = null;
+  const canvas = request.canvas ?? LINKEDIN_CANVAS_PRESETS[request.canvasPreset ?? 'portrait'];
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
@@ -568,7 +628,7 @@ export async function runArtDirection(
         asPortSchema(LayoutPlan),
       );
 
-      const found = reviewLayoutPlan(data, request.concept);
+      const found = reviewLayoutPlan(data, request.concept, canvas);
       const result: ArtDirectionResult = {
         plan: data,
         meta,

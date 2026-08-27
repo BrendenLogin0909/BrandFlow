@@ -21,6 +21,7 @@ import type {
   ChartElement,
   ConceptOutput,
   Element,
+  GridSpan,
   ImageElement,
   InternalDesignDocument,
   LayoutPlan,
@@ -47,6 +48,7 @@ import {
   ceilTo8,
   contrastRatio,
   backgroundHexesUnder,
+  emphasisFitsCell,
   floorTo8,
   glyphLines,
   gridFrame,
@@ -81,6 +83,13 @@ export interface CompositionResult {
   document: InternalDesignDocument;
   /** Every deterministic coercion applied, for the critic and for debugging. */
   notes: string[];
+  /**
+   * How many text regions still rendered below their planned emphasis after
+   * growth was tried (P2.A, docs/20 §B). Zero on a healthy plan. This is the
+   * measurement the law-firm defect needed and never had: a 68px headline
+   * that silently became 30px moved this counter from invisible to reported.
+   */
+  stepDowns: number;
 }
 
 // ---------- role mapping ----------
@@ -351,6 +360,119 @@ function absorbGaps(regions: PlannedRegion[], canvas: CanvasSize, notes: string[
   return out;
 }
 
+// ---------- emphasis must fit its cell (P2.A, docs/20 §B) ----------
+//
+// The law-firm defect: a plan asked for a headline at emphasis 2 (68px) in a
+// 6x2 cell, 68px does not fit there, and `fitText` used to just shrink the
+// type — silently, all the way to 30px, with nothing anywhere reporting that
+// hierarchy had been lost. The fix runs BEFORE `fitText` ever gets a chance
+// to shrink anything: grow the region into unclaimed grid cells — rows, then
+// columns — and only fall back to stepping the type down when growth is
+// geometrically impossible. Both this and the stage-2 reviewer that flags the
+// same condition in the plan call the one shared predicate, `emphasisFitsCell`
+// — see its doc comment in design-system.ts for why two independent copies of
+// this judgement is exactly the drift docs/20 rule 4 exists to prevent.
+
+const spansOverlap = (a: GridSpan, b: GridSpan): boolean =>
+  a.start <= b.start + b.span - 1 && b.start <= a.start + a.span - 1;
+
+/**
+ * Grow one region's grid footprint — rows outward (down, then up), then
+ * columns outward (right, then left) — one cell at a time, stopping the
+ * moment `emphasisFitsCell` is satisfied. Every candidate step is checked
+ * against every OTHER region's current cells first, so growth can never
+ * create a collision the plan did not already have; a step that would collide
+ * simply ends that direction rather than skipping ahead to try another.
+ *
+ * Growth that never reaches a full fit is still returned when it made ANY
+ * progress: a strictly bigger frame can only help `fitText` (more room to
+ * wrap into, never less), so partial growth is never worse than none, even
+ * on a page too crowded to solve the problem outright.
+ */
+function growOneRegion(
+  region: PlannedRegion,
+  text: string,
+  letterSpacing: number,
+  others: readonly PlannedRegion[],
+  canvas: CanvasSize,
+): { col: GridSpan; row: GridSpan } | null {
+  const fits = (c: GridSpan, r: GridSpan) =>
+    emphasisFitsCell(text, region.emphasis, c.span, r.span, canvas, letterSpacing);
+  const blocked = (c: GridSpan, r: GridSpan) =>
+    others.some((o) => spansOverlap(c, o.col) && spansOverlap(r, o.row));
+
+  let col: GridSpan = { ...region.col };
+  let row: GridSpan = { ...region.row };
+  let grew = false;
+
+  while (row.start + row.span <= GRID_ROWS) {
+    const candidate: GridSpan = { start: row.start, span: row.span + 1 };
+    if (blocked(col, candidate)) break;
+    row = candidate;
+    grew = true;
+    if (fits(col, row)) return { col, row };
+  }
+  while (row.start > 1) {
+    const candidate: GridSpan = { start: row.start - 1, span: row.span + 1 };
+    if (blocked(col, candidate)) break;
+    row = candidate;
+    grew = true;
+    if (fits(col, row)) return { col, row };
+  }
+  while (col.start + col.span <= GRID_COLUMNS) {
+    const candidate: GridSpan = { start: col.start, span: col.span + 1 };
+    if (blocked(candidate, row)) break;
+    col = candidate;
+    grew = true;
+    if (fits(col, row)) return { col, row };
+  }
+  while (col.start > 1) {
+    const candidate: GridSpan = { start: col.start - 1, span: col.span + 1 };
+    if (blocked(candidate, row)) break;
+    col = candidate;
+    grew = true;
+    if (fits(col, row)) return { col, row };
+  }
+  return grew ? { col, row } : null;
+}
+
+/**
+ * Grow every text region whose planned emphasis does not fit its allocated
+ * cell, before composition ever asks `fitText` to shrink one. Mutates a clone
+ * of `regions` sequentially (not a `.map`) so a region grown earlier in the
+ * pass is visible as an obstacle to the next one — two regions growing into
+ * the same free cells would otherwise both "succeed" and then collide.
+ */
+function growRegionsForEmphasis(
+  regions: PlannedRegion[],
+  copy: ReadonlyMap<string, string>,
+  canvas: CanvasSize,
+  notes: string[],
+  pageIndex: number,
+): PlannedRegion[] {
+  const out = regions.map((r) => ({ ...r, col: { ...r.col }, row: { ...r.row } }));
+  for (const region of out) {
+    if (!isTextRole(region.role)) continue;
+    const text = copy.get(region.id) ?? '';
+    const letterSpacing = region.role === 'kicker' ? 2 : 0;
+    if (emphasisFitsCell(text, region.emphasis, region.col.span, region.row.span, canvas, letterSpacing))
+      continue;
+    const others = out.filter((o) => o !== region);
+    const grown = growOneRegion(region, text, letterSpacing, others, canvas);
+    if (!grown) continue;
+    const before = `${region.col.span}x${region.row.span}`;
+    region.col = grown.col;
+    region.row = grown.row;
+    const solved = emphasisFitsCell(text, region.emphasis, region.col.span, region.row.span, canvas, letterSpacing);
+    notes.push(
+      `page ${pageIndex + 1} region "${region.id}" grown from ${before} to ${region.col.span}x${region.row.span} cells ` +
+        `so emphasis ${region.emphasis} (${typeSize(region.emphasis, canvas)}px) fits` +
+        (solved ? '' : ' — still short of a full fit; type will step down'),
+    );
+  }
+  return out;
+}
+
 // ---------- text ----------
 
 interface FittedText {
@@ -539,9 +661,10 @@ export function composeFromPlanVerbose(plan: LayoutPlan, ctx: CompositionContext
   const parsed = LayoutPlanSchema.parse(plan);
   const canvas = ctx.canvas;
   const notes: string[] = [];
+  const counters = { stepDowns: 0 };
 
   const pages: Page[] = parsed.pages.map((planPage, pageIndex) =>
-    composePage(planPage, pageIndex, ctx, notes),
+    composePage(planPage, pageIndex, ctx, notes, counters),
   );
 
   const document: InternalDesignDocument = {
@@ -562,7 +685,7 @@ export function composeFromPlanVerbose(plan: LayoutPlan, ctx: CompositionContext
   };
 
   settleArtworkAndLegibility(document, parsed, ctx, notes);
-  return { document, notes };
+  return { document, notes, stepDowns: counters.stepDowns };
 }
 
 /**
@@ -615,6 +738,7 @@ function composePage(
   pageIndex: number,
   ctx: CompositionContext,
   notes: string[],
+  counters: { stepDowns: number },
 ): Page {
   const canvas = ctx.canvas;
   const g = gridMetrics(canvas);
@@ -652,15 +776,34 @@ function composePage(
     for (const note of closing) notes.push(`page ${pageIndex + 1} ${note}`);
   }
 
-  // --- 3. resolve regions to elements ---
-  const pool = new CopyPool(conceptPage?.copy ?? [], {
+  const copyFallbacks = {
     headline: ctx.concept.bigIdea,
     subhead: ctx.concept.bigIdea,
     stat: ctx.concept.focalPoint,
     cta: ctx.concept.focalPoint,
     kicker: ctx.concept.register,
     body: ctx.concept.metaphor,
-  });
+  };
+
+  // --- 2.5. emphasis must fit its cell (P2.A, docs/20 §B) ---
+  // Grow a region into unclaimed grid cells before `fitText` (step 3, below)
+  // is ever allowed to shrink its type below what the plan asked for. This
+  // needs the actual copy each text region will render, so it is measured
+  // with a throwaway `CopyPool` built exactly like the real one below — same
+  // items, same fallbacks. It must also call `.take()` for the SAME set of
+  // regions in the SAME order as `buildRegion` will (chart regions included,
+  // even though their text is not used here) — `CopyPool`'s positional
+  // fallback is a cursor that advances on every call, so skipping a role here
+  // that the real pass does not skip would desync the two and hand a later
+  // text region the wrong line.
+  const preview = new CopyPool(conceptPage?.copy ?? [], copyFallbacks);
+  preview.reserve(regions);
+  const previewCopy = new Map<string, string>();
+  for (const r of regions) if (isTextRole(r.role) || r.role === 'chart') previewCopy.set(r.id, preview.take(r));
+  regions = growRegionsForEmphasis(regions, previewCopy, canvas, notes, pageIndex);
+
+  // --- 3. resolve regions to elements ---
+  const pool = new CopyPool(conceptPage?.copy ?? [], copyFallbacks);
   pool.reserve(regions);
 
   const built = new Map<string, { region: PlannedRegion; frame: Rect; elements: Element[] }>();
@@ -724,6 +867,26 @@ function composePage(
       ),
     );
     notes.push(`page ${pageIndex + 1} raster-only: added an accent rule to keep the page editable`);
+  }
+
+  // --- 8. report any type step-down that survived growth (P2.A) ---
+  // Read from the FINISHED elements, not from what `buildRegion` first
+  // produced: the signature move (`oversized-numeral`, `overlap`'s `refit`)
+  // can still change a text element's font size after this point, and this
+  // must count what actually shipped. A page never shrinks a step silently
+  // again — it either fits, or this fires.
+  for (const region of regions) {
+    if (!isTextRole(region.role)) continue;
+    const el = built.get(region.id)?.elements.find((e): e is TextElement => e.type === 'text');
+    if (!el) continue;
+    const requested = typeSize(region.emphasis, canvas);
+    if (el.fontSize < requested) {
+      counters.stepDowns++;
+      notes.push(
+        `page ${pageIndex + 1} region "${region.id}" stepped down from emphasis ${region.emphasis} ` +
+          `(${requested}px) to ${el.fontSize}px — copy did not fit its cell even after growing`,
+      );
+    }
   }
 
   return {

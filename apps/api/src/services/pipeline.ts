@@ -108,6 +108,10 @@ export async function composePipeline(
       brand: request.brand,
       format: request.format,
       canvasPreset: canvas.width === canvas.height ? 'square' : 'portrait',
+      // The exact pixel canvas stage 3 will compose against, so the
+      // emphasis-fit check (P2.A) reviews the plan against the real geometry
+      // rather than the coarser square/portrait guess `canvasPreset` gives.
+      canvas,
     },
     { bannedPhrases: opts.bannedPhrases },
   );

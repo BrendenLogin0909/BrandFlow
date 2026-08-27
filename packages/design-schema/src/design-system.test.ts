@@ -14,6 +14,8 @@ import {
   TypeRole,
   ceilTo8,
   coerceHierarchy,
+  emphasisCellDeficit,
+  emphasisFitsCell,
   floorTo8,
   gridFrame,
   gridMetrics,
@@ -26,6 +28,7 @@ import {
   typeSize,
 } from './design-system.js';
 import type { CanvasSize, TypeEmphasis } from './design-system.js';
+import { measureText } from './measure.js';
 
 const PORTRAIT: CanvasSize = { width: 1080, height: 1350 };
 const SQUARE: CanvasSize = { width: 1080, height: 1080 };
@@ -176,6 +179,70 @@ describe('type scale', () => {
       expect(lineHeightFor(size)).toBeGreaterThanOrEqual(0.8);
       expect(lineHeightFor(size)).toBeLessThanOrEqual(3);
     }
+  });
+});
+
+describe('emphasisFitsCell / emphasisCellDeficit — P2.A (docs/20 §B)', () => {
+  // The measured law-firm defect: a plan asked for `hero-headline` at
+  // emphasis 2 (68px) but allocated a 6-column x 2-row cell. 68px copy does
+  // not fit there, and the compositor used to silently step the type all the
+  // way down to 30px with nothing anywhere reporting it.
+  const headline = 'How our estate planning team protects what your family built';
+
+  it('the law-firm case: emphasis 2 does not fit a 6x2 cell on a 1080x1350 canvas', () => {
+    expect(emphasisFitsCell(headline, 2, 6, 2, PORTRAIT)).toBe(false);
+  });
+
+  it('the same copy fits once the cell is its full width, several rows tall', () => {
+    expect(emphasisFitsCell(headline, 2, 12, 4, PORTRAIT)).toBe(true);
+  });
+
+  it('a short caption fits a small cell easily', () => {
+    expect(emphasisFitsCell('Q3 2026', 6, 3, 1, PORTRAIT)).toBe(true);
+  });
+
+  it('is a pure function of the span counts, not the cell position — gridRect', () => {
+    // The predicate deliberately takes no col/row START: a cell's pixel size
+    // never depends on where it sits on the grid, only on its span, which is
+    // what lets the stage-2 reviewer judge a plan before the compositor has
+    // decided where anything finally lands.
+    const rectA = gridRect(PORTRAIT, { start: 1, span: 6 }, { start: 1, span: 2 });
+    const rectB = gridRect(PORTRAIT, { start: 7, span: 6 }, { start: 10, span: 2 });
+    expect(rectA.width).toBe(rectB.width);
+    expect(rectA.height).toBe(rectB.height);
+  });
+
+  it('growing by the reported deficit is enough to fit — the reviewer and the compositor agree on "enough"', () => {
+    const deficit = emphasisCellDeficit(headline, 2, 6, 2, PORTRAIT);
+    expect(deficit).not.toBeNull();
+    const { extraCols, extraRows } = deficit!;
+    expect(extraCols + extraRows).toBeGreaterThan(0);
+    expect(emphasisFitsCell(headline, 2, 6 + extraCols, 2 + extraRows, PORTRAIT)).toBe(true);
+    // and one cell short of that on EVERY axis is not enough, or it would not
+    // have been the minimal deficit
+    if (extraRows > 0) expect(emphasisFitsCell(headline, 2, 6, 2 + extraRows - 1, PORTRAIT)).toBe(false);
+  });
+
+  it('a cell that already fits reports zero deficit', () => {
+    expect(emphasisCellDeficit(headline, 2, 12, 4, PORTRAIT)).toEqual({ extraCols: 0, extraRows: 0 });
+  });
+
+  it('reports null when nothing on the grid is big enough', () => {
+    const giant = 'quality '.repeat(200);
+    expect(emphasisCellDeficit(giant, 1, 1, 1, PORTRAIT)).toBeNull();
+  });
+
+  it('agrees exactly with the width-then-height fit test built from its own public primitives', () => {
+    // Recomputed independently from typeSize/lineHeightFor/gridRect/measureText
+    // — the same primitives fitText itself uses — so a silent drift between
+    // the predicate and the thing it is supposed to model would fail here.
+    const text = 'A short subhead line for the sample check';
+    const fontSize = typeSize(3, PORTRAIT);
+    const lineHeight = lineHeightFor(fontSize);
+    const rect = gridRect(PORTRAIT, { start: 1, span: 5 }, { start: 1, span: 3 });
+    const m = measureText(text, fontSize, lineHeight, rect.width);
+    const expected = m.height <= rect.height && m.widestLine <= rect.width;
+    expect(emphasisFitsCell(text, 3, 5, 3, PORTRAIT)).toBe(expected);
   });
 });
 
