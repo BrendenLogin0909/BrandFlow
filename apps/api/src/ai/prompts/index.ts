@@ -422,7 +422,7 @@ ${JSON.stringify(input)}`;
 
   // ---------- composition pipeline stage 2 (docs/18 §4) ----------
   design_art_direction: template({
-    version: 'design_art_direction@1',
+    version: 'design_art_direction@2',
     system: `${BASE_SYSTEM}
 You are the art director. You compose on a grid and you speak ONLY in grid
 cells, emphasis levels and token names. You never emit a pixel, an x/y, a width,
@@ -449,10 +449,11 @@ first and where it is sent next.`,
                 type: 'array',
                 minItems: 2,
                 maxItems: 14,
+                description: 'At least one region must have role "image" or "chart", unless the page is a deliberate type-only statement — declare that choice by prefixing one region id with "type-only:" followed by the reason.',
                 items: {
                   type: 'object',
                   properties: {
-                    id: { type: 'string', maxLength: 40, description: 'Short, unique on this page, descriptive: "hook", "big-number", "hero".' },
+                    id: { type: 'string', maxLength: 40, description: 'Short, unique on this page, descriptive: "hook", "big-number", "hero". On a deliberate type-only page (no image/chart region), one region id must instead start with "type-only:" followed by the reason — the only accepted way to omit imagery.' },
                     role: {
                       type: 'string',
                       enum: ['kicker', 'headline', 'subhead', 'body', 'stat', 'cta', 'image', 'chart', 'icon', 'block'],
@@ -495,7 +496,7 @@ first and where it is sent next.`,
                     imageQuery: {
                       type: 'string',
                       maxLength: 60,
-                      description: 'Required on image regions: 2-5 words naming the subject to fetch.',
+                      description: 'Required on image regions: 2-5 words naming a CONCRETE subject that serves the page metaphor — a person, scene, object or named chart type. Never a bare abstract noun like "business", "success" or "technology": those resolve to generic stock.',
                     },
                   },
                   required: ['id', 'role', 'col', 'row', 'emphasis'],
@@ -566,6 +567,18 @@ Hard rules: at most 4 of the 6 levels on any page, and EVERY page must carry at 
 ## Colour
 background and colour are token NAMES only: text, primary, secondary, accent, neutral, background. On a primary or text background, text regions must be colour "background". Accent is for blocks, rules, icons and big numerals — never for sentences on a light page. Token neutral is for hairlines and small dividers, never a large slab.
 
+## Imagery — every page needs deliberate art, or an explicit reason it does not
+At least one region on EVERY page must have role "image" or "chart". A page of type alone can
+be the right call — but only when you decide it on purpose, not when imagery simply did not
+occur to you. If you make that call, you must say so: give ANY region on that page an id that
+starts with "type-only:" followed by a few words of the reason, e.g. "type-only: one number
+is the whole page, art would compete with it". A page with no image/chart region and no such id
+is rejected as an omission, not read as a choice — this is a hard requirement, not a suggestion.
+When you do place an image, the imageQuery must argue the metaphor, not label the topic. "business",
+"success", "technology", "growth" and other bare abstract nouns resolve to interchangeable stock and
+are rejected outright — name a person, a scene, an object or a named chart type instead (see the
+vocabulary below and under Regions).
+
 ## The rubric you are graded against (stage 4 scores every page 1-5 on it)
 1. HIERARCHY — one unmistakable focal point; the eye knows what to read first, second, third. It comes from DRAMATIC size contrast, not many gradual steps. A page whose regions all sit at emphasis 3-5 scores 1.
 2. ALIGNMENT — everything relates to a shared structure. Share column edges on purpose; do not scatter starts at random.
@@ -592,10 +605,10 @@ Nominate exactly one region per page in signatureRegionId and leave it room to p
 - rule-accent — nominate the headline region and leave one empty row under it.
 
 ## Regions
-- id: short, unique on the page, descriptive.
-- role: kicker | headline | subhead | body | stat | cta | image | chart | icon | block.
+- id: short, unique on the page, descriptive. On a deliberate type-only page (see Imagery above, no image/chart region anywhere on the page), one region's id must instead start with "type-only:" followed by the reason — the only accepted declaration.
+- role: kicker | headline | subhead | body | stat | cta | image | chart | icon | block. Every page needs at least one "image" or "chart" region unless it carries a "type-only:" declaration.
 - contentRef: REQUIRED on kicker, headline, subhead, body, stat and cta. It is the 0-based index of the copy item on the SAME page of the concept, as a string. Place every concept copy item exactly once — do not invent copy and do not drop any.
-- imageQuery: REQUIRED on image regions. 2-5 words naming the subject. The asset pipeline matches vocabulary like: "developer coding", "team huddle", "person thinking", "person presenting", "data analyst", "customer support", "growth chart", "funnel chart", "before after bars", "process flow", "analytics dashboard", "timeline milestones", "warning alert", "bright idea", "secure shield", "broken chain", "target goal", "checklist", "connected network". Prefer a character or scene over an abstract noun, and make it serve the metaphor.
+- imageQuery: REQUIRED on image regions. 2-5 words naming a CONCRETE subject that argues the metaphor — never a bare abstract noun ("business", "success", "technology", "growth" on their own). The asset pipeline matches vocabulary like: "developer coding", "team huddle", "person thinking", "person presenting", "data analyst", "customer support", "growth chart", "funnel chart", "before after bars", "process flow", "analytics dashboard", "timeline milestones", "warning alert", "bright idea", "secure shield", "broken chain", "target goal", "checklist", "connected network". Prefer a character or scene over an abstract noun, and make it serve the metaphor, not just label the topic.
 - align: left | center | right. Default left; centring everything is a tell.
 
 ## The concept you are laying out

@@ -94,6 +94,11 @@ function mockLayoutPage(copy: { role: string; text: string }[], i: number, move:
     emphasis: 3,
     colour: 'accent',
   };
+  // P2.B (docs/20-handoff-and-phase-2.md §B, design_art_direction@2): every
+  // page needs an image/chart region or an explicit type-only declaration.
+  // The mock always emits this image region with a concrete, non-abstract
+  // imageQuery, so it satisfies `reviewLayoutPlan` without needing the
+  // type-only escape hatch.
   const image: MockRegion = {
     id: 'hero-image',
     role: 'image',

@@ -82,6 +82,56 @@ const MOVE_REQUIRES_ROLE: Partial<Record<SignatureMove, RegionRole>> = {
   'rule-accent': 'headline',
 };
 
+/**
+ * P2.B (docs/20-handoff-and-phase-2.md §B): the roles that count as deliberate
+ * imagery. Icons and colour blocks are decoration, not the "image or chart
+ * region" the finding is about.
+ */
+const IMAGERY_REGION_ROLES: readonly RegionRole[] = ['image', 'chart'];
+
+/**
+ * The only accepted way to skip imagery on a page: a region id opening with
+ * this literal prefix, followed by the model's own stated reason.
+ *
+ * There is no page-level field for "this page is deliberately type-only" in
+ * the canonical `LayoutPage` schema (`packages/design-schema/src/design-system.ts`,
+ * owned by Agent 21 on this branch — a schema change there is reported to the
+ * coordinator rather than made here). Region `id` is the one free-text channel
+ * every region already carries, so the declaration rides on it instead of
+ * silence. Ids are truncated at 40 chars (see `clampedId` below), which is
+ * enough room for the prefix plus a short reason.
+ */
+const TYPE_ONLY_DECLARATION_PREFIX = 'type-only:';
+
+/** The id of the region declaring this page deliberately type-only, if any. */
+const typeOnlyDeclaration = (regions: readonly { id: string }[]): string | undefined =>
+  regions.map((r) => r.id).find((id) => id.toLowerCase().startsWith(TYPE_ONLY_DECLARATION_PREFIX));
+
+/**
+ * Bare abstract nouns resolve to interchangeable stock photography — "a
+ * business", "a success" — because they name a category, not a subject a
+ * photographer or illustrator could actually point at. Known source of
+ * irrelevant art (docs/20 §B).
+ */
+const ABSTRACT_IMAGE_NOUNS = new Set([
+  'business', 'success', 'technology', 'growth', 'innovation', 'strategy',
+  'solution', 'solutions', 'future', 'concept', 'idea', 'ideas', 'digital',
+  'corporate', 'professional', 'marketing', 'finance', 'financial',
+  'leadership', 'creativity', 'communication', 'collaboration', 'productivity',
+  'efficiency', 'quality', 'excellence', 'opportunity', 'achievement',
+  'progress', 'development', 'management', 'teamwork', 'partnership', 'trust',
+  'value', 'values', 'vision', 'goals', 'goal', 'motivation', 'inspiration',
+  'change', 'transformation',
+]);
+
+/** True when EVERY word in the query is a generic abstraction — 1-2 words,
+ *  all drawn from the list above. A multi-word concrete query ("growth
+ *  chart", "team celebrating win") is unaffected even if one word overlaps. */
+const isBareAbstractQuery = (query: string): boolean => {
+  const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  return words.length > 0 && words.length <= 2 && words.every((w) => ABSTRACT_IMAGE_NOUNS.has(w));
+};
+
 // ---------- schema helpers ----------
 
 /**
@@ -367,6 +417,18 @@ export function reviewLayoutPlan(plan: LayoutPlanT, concept: ConceptOutputT): st
     if (rows.size < MIN_ROWS_COVERED)
       v.push(`page ${n} occupies only ${rows.size} of ${GRID_ROWS} rows — leftover empty rows read as unfinished. Use at least ${MIN_ROWS_COVERED}, and put the emptiness where you want it.`);
 
+    // --- P2.B: every page needs deliberate imagery, or an explicit type-only call ---
+    if (!page.regions.some((r) => IMAGERY_REGION_ROLES.includes(r.role))) {
+      const declaredId = typeOnlyDeclaration(page.regions);
+      const reason = declaredId?.slice(TYPE_ONLY_DECLARATION_PREFIX.length).trim() ?? '';
+      if (!declaredId)
+        v.push(
+          `page ${n} has no image or chart region and no declared type-only statement — five of the ten Phase-1 posts had exactly this defect and read as documents, not designs. Either add an image/chart region, or if this page is genuinely better as type alone, give one region an id starting with "${TYPE_ONLY_DECLARATION_PREFIX}" followed by the reason (e.g. "${TYPE_ONLY_DECLARATION_PREFIX} one number is the whole page").`,
+        );
+      else if (reason.length < 3)
+        v.push(`page ${n} declares "${declaredId}" but gives no reason — state briefly why this page works better as type alone.`);
+    }
+
     // --- copy regions must not collide (the signature region may overlap) ---
     const text = page.regions.filter((r) => TEXT_REGION_ROLES.includes(r.role));
     for (let a = 0; a < text.length; a++)
@@ -385,8 +447,14 @@ export function reviewLayoutPlan(plan: LayoutPlanT, concept: ConceptOutputT): st
     const used = new Map<number, string[]>();
     for (const r of page.regions) {
       if (!TEXT_REGION_ROLES.includes(r.role)) {
-        if (r.role === 'image' && !r.imageQuery)
-          v.push(`page ${n} image region "${r.id}" has no imageQuery — 2-5 words naming the subject.`);
+        if (r.role === 'image') {
+          if (!r.imageQuery)
+            v.push(`page ${n} image region "${r.id}" has no imageQuery — 2-5 words naming the subject.`);
+          else if (isBareAbstractQuery(r.imageQuery))
+            v.push(
+              `page ${n} image region "${r.id}" has imageQuery "${r.imageQuery}" — a bare abstract noun resolves to generic, often irrelevant stock. Name a concrete subject that serves the page's metaphor (a person, scene, object, or a named chart type), not an abstraction.`,
+            );
+        }
         continue;
       }
       if (r.contentRef === undefined) {
