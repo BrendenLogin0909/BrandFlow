@@ -240,6 +240,44 @@ describe('reviewLayoutPlan', () => {
     expect(reviewLayoutPlan(noQuery, c).join(' ')).toMatch(/no imageQuery/);
   });
 
+  it('flags a page with no image or chart region and no type-only declaration', () => {
+    const p = parse();
+    p.pages[0]!.regions.splice(1, 1); // drop "hero", the only image/chart region
+    expect(reviewLayoutPlan(p, c).join(' ')).toMatch(/no image or chart region/);
+  });
+
+  it('passes a page that declares itself type-only with a reason', () => {
+    const p = parse();
+    p.pages[0]!.regions.splice(1, 1); // drop "hero"
+    const declaredId = 'type-only: one claim needs no art';
+    p.pages[0]!.regions[0]!.id = declaredId; // "band" carries the declaration
+    p.pages[0]!.signatureRegionId = declaredId;
+    expect(reviewLayoutPlan(p, c).some((v) => v.includes('no image or chart region'))).toBe(false);
+  });
+
+  it('flags a type-only declaration with no stated reason', () => {
+    const p = parse();
+    p.pages[0]!.regions.splice(1, 1); // drop "hero"
+    const declaredId = 'type-only:';
+    p.pages[0]!.regions[0]!.id = declaredId;
+    p.pages[0]!.signatureRegionId = declaredId;
+    expect(reviewLayoutPlan(p, c).join(' ')).toMatch(/gives no reason/);
+  });
+
+  it('flags a bare abstract-noun imageQuery but accepts a concrete one', () => {
+    const abstract = parse();
+    abstract.pages[0]!.regions[1]!.imageQuery = 'business';
+    expect(reviewLayoutPlan(abstract, c).join(' ')).toMatch(/bare abstract noun/);
+
+    const twoWordAbstract = parse();
+    twoWordAbstract.pages[0]!.regions[1]!.imageQuery = 'business technology';
+    expect(reviewLayoutPlan(twoWordAbstract, c).join(' ')).toMatch(/bare abstract noun/);
+
+    const concrete = parse();
+    concrete.pages[0]!.regions[1]!.imageQuery = 'developer coding';
+    expect(reviewLayoutPlan(concrete, c)).toEqual([]);
+  });
+
   it('flags a signature move the compositor cannot perform', () => {
     const numeral = ConceptOutput.parse({ ...concept(), signatureMove: 'oversized-numeral' });
     expect(reviewLayoutPlan(parse(), numeral).join(' ')).toMatch(/needs a "stat" region/);
