@@ -90,6 +90,56 @@ critic on measured facts, gate per criterion, keep legibility deterministic.
 
 ---
 
+### P2.A + P2.B result (2026-08-26, `758547d`)
+
+| | After Phase 1 | **After P2.A+B** |
+|---|---|---|
+| Findings | 7 | **3** (coverage only) |
+| Unbalanced pages | 2/25 | **0/25** |
+| Horizontal coverage <75% | 5/25 | 3/25 |
+| Posts with **no imagery** | **5/10** | **0/10** |
+| Smallest "largest font" across posts | **30px** | **68px** |
+| Focal share range | 5.1–15.5% | **8.8–20.2%** |
+
+10/10 composed, zero errors. The law-firm page went from a bronze rule and 30px
+serif to a 96px display word with a genuine hierarchy beneath it.
+
+**The debt was paid the same day:** `typeOnlyReason` is now a real optional field
+on `LayoutPage` (canonical *and* the lenient local copy), the prompt describes it,
+`design_art_direction` bumped to `@3`. An empty reason is now impossible to
+construct rather than caught afterwards — the schema rejects it where the reviewer
+used to. The old id prefix is still accepted on read; nothing emits it.
+
+### What looking revealed that the metrics hid — sharpens P2.C
+
+The metric said **0/10 posts lack imagery**. True, and misleading. Rendering the
+law page shows *no image at all*, because:
+
+- Its `imageQuery` was **"taut wire closeup"** and the resolver returned a
+  **DiceBear cartoon avatar** — semantically irrelevant.
+- That avatar is a **remote hotlink** (`api.dicebear.com`) which **failed to fetch**,
+  so it rendered as nothing. `unresolvedImages` confirms it.
+
+Across the set: **21 of 24 image sources are bundled data URIs and fine; 3 are
+remote hotlinks and all 3 are the problem** — two DiceBear avatars standing in for
+"taut wire" and "cracked bearing", and one Flickr photograph dropped among flat
+illustrations (style mixing, finding A4).
+
+And on the QA page, the bundled illustration *is* present but **cover-cropped into a
+mismatched frame**: a 400×300 landscape asset squeezed into a portrait cell shows a
+sliver of a character's leg, a chain, and a ground shadow — the fragments blamed on
+"orphans" in Phase 1, now confirmed as the aspect-ratio problem.
+
+**So P2.C is bigger than "treatments" and is now the top item:**
+
+1. **Aspect-aware fitting** — never cover-crop an asset into a frame whose ratio it
+   cannot survive; fit, pad, or choose a differently-shaped asset.
+2. **Fallback chain** — when no bundled illustration matches the query, returning an
+   irrelevant cartoon avatar is worse than returning nothing. Fail to a
+   type-only/`typeOnlyReason` page instead.
+3. **Prefer bundled over remote** — remote hotlinks can silently fail to render and
+   mix styles. 21/24 already resolve locally; make that the rule, not the average.
+
 ### Debt created by P2.B — replace before it sets
 
 `LayoutPage` has no field for "this page is deliberately type-only", and the agent
