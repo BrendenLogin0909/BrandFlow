@@ -90,6 +90,19 @@ critic on measured facts, gate per criterion, keep legibility deterministic.
 
 ---
 
+### Debt created by P2.B — replace before it sets
+
+`LayoutPage` has no field for "this page is deliberately type-only", and the agent
+implementing P2.B could not edit `design-system.ts` (another agent held it). It
+therefore used the one free-text channel a region already has — its `id` — as the
+declaration channel: an id prefixed `type-only:` plus a reason.
+
+It works, it is tested, and the agent flagged it rather than letting it pass as
+design. **Replace it with a proper optional `typeOnlyReason?: string` on `LayoutPage`**
+as soon as that file is free, and switch the reviewer and prompt to it. Overloading an
+identifier is exactly the kind of shortcut that becomes permanent because everything
+around it keeps working.
+
 ## C. Deliberately not being done
 
 - **Publish / Buffer integration** — owner parked it until the core is good.
